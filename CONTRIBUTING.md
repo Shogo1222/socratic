@@ -28,7 +28,6 @@ Run repository consistency checks before submitting:
 
 ```bash
 python3 scripts/check_repository.py
-python3 -m demo.subscription_renewal.run_demo
 ```
 
 Contributions are accepted under the repository's [MIT License](LICENSE) and are governed by the [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -28,7 +28,6 @@ Socraticは、現在初期設計段階です。コントリビューションで
 
 ```bash
 python3 scripts/check_repository.py
-python3 -m demo.subscription_renewal.run_demo
 ```
 
 コントリビューションはリポジトリの[MIT License](LICENSE)で受け入れ、[行動規範](CODE_OF_CONDUCT.ja.md)を適用します。
