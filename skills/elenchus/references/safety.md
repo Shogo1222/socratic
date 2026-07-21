@@ -5,7 +5,7 @@ Treat every mutation as destructive temporary state.
 ## Non-negotiable rules
 
 - Never apply a mutation directly to the primary working tree.
-- Capture primary status and diff before execution and compare them afterward.
+- Capture a scoped filesystem manifest and content hashes before execution and compare them afterward.
 - Use a fresh disposable workspace for each mutant.
 - Preserve the exact code-under-test state, including authorized uncommitted changes.
 - Run one mutant at a time.
@@ -14,26 +14,32 @@ Treat every mutation as destructive temporary state.
 - Assume tests may have external side effects; inspect repository instructions and test configuration first.
 - Remove or abandon all disposable mutant state on success, failure, timeout, and interruption.
 - Never report completion without verifying that no production mutation remains.
+- Never change local or remote Git state and never request permission to do so.
+
+## Git boundary
+
+Local Git use is limited to read-only evidence and snapshot export through `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`.
+
+Never run `git add`, `commit`, `amend`, `push`, `pull`, `fetch`, `checkout`, `switch`, `reset`, `stash`, `merge`, `rebase`, `cherry-pick`, `branch`, `tag`, or `worktree`. Never invoke `gh`, create a pull request, post a review comment, or call a code-host write API. If a Base or Head object is not available locally, report it as unavailable instead of fetching it.
 
 ## Isolation selection
 
 Prefer, in order:
 
-1. a temporary Git worktree at an immutable revision when the target state is committed;
-2. a temporary worktree plus an explicitly captured patch for authorized uncommitted changes;
-3. a temporary filesystem copy that excludes repository metadata, caches, secrets, and dependencies that should not be duplicated;
-4. a framework-native mutation sandbox with documented restoration guarantees.
+1. an already-materialized Base or Head directory supplied by the host or user;
+2. a temporary filesystem snapshot exported from a locally available immutable object with read-only Git;
+3. a temporary filesystem copy that preserves authorized working-tree changes while excluding repository metadata, caches, secrets, and dependencies that should not be duplicated;
+4. a framework-native mutation sandbox with documented restoration guarantees and no Git state changes.
 
-Do not use stash, reset, checkout restoration, or broad deletion as the primary safety mechanism. Those operations can overwrite user work.
+Do not create or switch branches or worktrees. Do not use stash, reset, checkout restoration, or broad deletion as a safety mechanism. Those operations can overwrite user work.
 
 ## Preflight evidence
 
 Record:
 
 - primary repository path;
-- revision and target diff;
-- concise working-tree status;
-- hash or saved representation of the production diff;
+- Base or Head snapshot identity and target change description;
+- scoped production-file manifest and content hashes;
 - sandbox path;
 - focused test command and timeout;
 - relevant environment isolation.
@@ -42,7 +48,7 @@ Record:
 
 Verify:
 
-- primary status and production diff match the preflight state except for authorized test changes;
+- the scoped primary manifest and content hashes match preflight evidence except for authorized test or documentation changes;
 - no mutation marker or mutant patch exists in production files;
 - disposable workspaces are removed or clearly reported if cleanup was blocked;
 - original code passes the relevant tests.

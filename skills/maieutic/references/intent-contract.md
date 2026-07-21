@@ -1,6 +1,6 @@
 # Intent Contract
 
-Persist the active contract at `.socratic/intent-contract.json`. Validate it with `intent-contract.schema.json`. YAML below is illustrative; the persisted form is JSON.
+Maintain the active contract as a temporary run artifact validated with `intent-contract.schema.json`; write it to `.socratic/intent-contract.json` only when the user chooses local saving under the artifact policy. YAML below is illustrative; the stored form is JSON.
 
 ```yaml
 version: 1
@@ -67,4 +67,4 @@ Edited, weak, flaky, contradictory, or implementation-coupled tests cannot estab
 - Give each test a reason to exist by linking it to a contract ID.
 - Keep inferences in `intent.evidence` and unresolved choices in `unresolved`.
 - Do not leave expectations implicit when they control compatibility, security, money, permissions, or destructive behavior.
-- Persist and validate the contract before handing it to another skill or session.
+- Validate the contract and hand its artifact path to another skill or session; save it only on the user's explicit choice.

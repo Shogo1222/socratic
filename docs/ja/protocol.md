@@ -6,12 +6,14 @@
 
 このプロトコルは、仕様の根拠とコードの振る舞いを分離し、Socraticが統合するMaieuticからElenchusへの受け渡しを永続化して監査可能にします。
 
-## 永続化する成果物
+## 実行時の成果物
+
+実行時の成果物はChat-firstかつ既定でEphemeralです。実行中、Intent ContractとCatchまたはHarden Reportは、リポジトリのWorking Tree外の一時Artifactとして、インストールされたスキルへ同梱されたSchemaで検証され、Path経由でStage間を受け渡されます。会話内だけのContractはFallbackであり、通常の受け渡し方法ではありません。
+
+最終Surfaceの描画後、構造化質問でユーザーが保存方法を選びます。保存しない(デフォルト)、ローカルに保存、Markdownとして出力の3択です。ローカル保存を選んだ場合の正準Pathは次のとおりです。
 
 - `.socratic/intent-contract.json`: Maieuticが作成する現在のIntent Contract
 - `.socratic/elenchus-report.json`: Elenchusが作成する最新のCatchまたはHarden Report
-
-両方とも、インストールされたスキルへ同梱されたSchemaで検証します。会話内だけのContractはFallbackであり、通常の受け渡し方法ではありません。
 
 ## メインライフサイクル
 
@@ -35,7 +37,7 @@ HARDENED（強化済み）
   選択した高リスクMutantを検知し、未挑戦リスクを明示した。
 ```
 
-未解決項目は`TESTED`へ進めません。実装が成功することは仕様確認ではありません。予算切れだけでは`HARDENED`にならず、未挑戦項目と残存リスクの明示的な受容が必要です。
+未解決項目は`TESTED`へ進めません。実装が成功することは仕様確認ではありません。予算切れだけでは`HARDENED`にならず、未挑戦項目と残存リスクの明示的な受容が必要です。`TESTED`と`HARDENED`には、実行後も残るテスト——既存テスト、またはWorking Treeへ適用済みのテスト——が必要です。証明が提案テストだけに依存するReview-only実行は、`CONFIRMED`または`CHALLENGED`で止まります。
 
 ## Catch分岐
 
@@ -67,7 +69,7 @@ Decision Provenanceは次の2値だけです。
 
 ### Mutation ResultとReport
 
-[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをCatch分類を含めて表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Baseline証跡、未挑戦Contract ID、未解決判断、追加テスト、Mutation除去の実行後証跡を含む実行全体を表現します。
+[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをCatch分類を含めて表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、未挑戦Contract ID、未解決判断、Disposition(existing・proposed・applied)付きのTest Change、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。
 
 ## 人間が判断する境界
 
@@ -79,6 +81,24 @@ Decision Provenanceは次の2値だけです。
 4. 誤った推測に無視できないコストがある
 
 最小で具体的な振る舞いの差または明示的な選択肢を提示します。順位付けでは重大度、確信度、人間のDismiss Costを考慮します。無回答なら`needs-decision`を永続化し、独立した確認済み作業だけを続け、回答を捏造しません。
+
+判断は、利用可能ならHostの構造化質問ツール——Claude Codeでは`AskUserQuestion`、Codexでは`request_user_input`——で提示し、利用できなければコピー可能なMarkdownとして提示します。1回のBatchは1〜3問で、各質問に相互排他的な選択肢を2〜3個、選択肢ごとに観測可能な影響の1文、自由入力の受け付け、回答によって変わるOracleを含めます。質問はメインエージェントだけが行い、サブエージェントは調査・テスト・Mutationを担当して未解決の判断を返します。プロトコルが保証するのは構造化された質問内容であり、その表示はHostの機能です。
+
+## Review出力の境界
+
+レビュアー向けのSurfaceは、Review This、We Verified、Still at Risk、Copy-ready Commentsの4ブロックだけです。発見は種類ではなく状態で振り分けます。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未検証のすべてはStill at Riskです。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載します。
+
+コメント候補は最大1〜3件で、`Intent decision`、`Behavior difference`、`Test gap`のTagとファイル・行番号を持ちます。`Intent decision`の回答者は仕様オーナーであり、AIがコードを生成した場合、AIは仕様の根拠にも回答者にもなりません。スキルはCode Hostへ投稿せず、マージ可否、信頼度、総合スコアを報告しません。マージ判断はレビュアーに残します。Contract、Mutation結果、Test Strategy、実行コマンドなどの詳細は実行時の成果物に保持します。
+
+## Write Modeの境界
+
+既定はReview-onlyです。Probe、比較テスト、MutationはDisposable環境だけに存在し、Working Treeへ触れず、証明済みの不足テストは提案として報告します。Apply testsはユーザーの明示的な依頼を必要とし、確認済みIntentを表すテストだけを追加します。Version Control操作はどちらのModeでも禁止のままです。
+
+## Oracle選択の境界
+
+Oracleを選ぶ前に依存を分類します。プロセス内の依存はクライアントから観測できる最終結果で、管理下のプロセス外状態は実際の最終状態で、管理外のプロセス外依存はアプリケーション境界での送信内容と回数で検証します。出力値を最優先し、次に観測可能な最終状態、最後に境界のコミュニケーションを使います。
+
+実装の詳細——内部の呼び出し順序と回数、中間状態、自由に変更できるアルゴリズム——はOracleにしません。それらへ結び付いたProbeは偽陽性を生むためBehavior Diffとして報告せず、クライアントから観測可能な振る舞いを変えないMutationを強制的に検知させません。
 
 ## 根拠の境界
 
@@ -106,3 +126,9 @@ Unit Testで観測できないArtifactには、リポジトリが対応する最
 ## 安全性の境界
 
 本番コードのMutationは使い捨てWorkspaceだけに存在させます。主要Workspaceへ反映できるのは許可されたテストまたはドキュメント変更だけで、一時的な本番Mutationは反映しません。実行前後の証跡を必須とし、CompileまたはInfrastructure Failureを振る舞い上のKillやCatchとして数えません。
+
+## Version Controlの安全性境界
+
+スキルは、根拠確認とImmutableなBase・Head Snapshot出力のために、Allowlist化した読み取り専用のローカルGitコマンドだけを使用できます。Stage、Commit、Amend、Push、Pull、Fetch、Branchの作成・切替、Checkout、Reset、Stash、Merge、Rebase、Cherry-pick、Tag、Worktree作成、`gh`呼び出し、Pull Request作成、コメント投稿は行いません。禁止操作の許可を求めず、Version Control上の判断をすべてユーザーへ残します。
+
+BaseとHeadは、スキルが管理するBranchではなくSnapshotの識別子です。Host提供Directoryまたは使い捨てFilesystem Snapshotとして展開します。必要なObjectがローカルになくRemote操作が必要なら、その比較をBlockedとします。Mutationの安全確認にはGit復元ではなく、対象範囲のFilesystem ManifestとContent Hashを使います。

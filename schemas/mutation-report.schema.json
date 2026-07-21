@@ -5,17 +5,20 @@
   "required": [
     "version",
     "mode",
+    "write_mode",
     "intent_contract",
     "baseline",
     "mutations",
     "not_challenged",
     "unresolved",
-    "tests_added",
+    "test_changes",
+    "authorized_workspace_changes",
     "postflight"
   ],
   "properties": {
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "mode": { "enum": ["harden", "catch"] },
+    "write_mode": { "enum": ["review-only", "apply-tests"] },
     "intent_contract": {
       "type": "object",
       "required": ["path", "status"],
@@ -59,7 +62,19 @@
       "items": { "type": "string", "pattern": "^UNR-[0-9]{3,}$" },
       "uniqueItems": true
     },
-    "tests_added": {
+    "test_changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "disposition"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "disposition": { "enum": ["existing", "proposed", "applied"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "authorized_workspace_changes": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
@@ -68,12 +83,28 @@
       "type": "object",
       "required": ["primary_workspace_matches_preflight", "production_mutation_free", "notes"],
       "properties": {
-        "primary_workspace_matches_preflight": { "type": "boolean" },
+        "primary_workspace_matches_preflight": {
+          "type": "boolean",
+          "description": "True when the primary workspace matches preflight evidence except for paths listed in authorized_workspace_changes."
+        },
         "production_mutation_free": { "type": "boolean" },
         "notes": { "type": "string" }
       },
       "additionalProperties": false
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "write_mode": { "const": "review-only" } }, "required": ["write_mode"] },
+      "then": {
+        "properties": {
+          "authorized_workspace_changes": { "maxItems": 0 },
+          "test_changes": {
+            "items": { "properties": { "disposition": { "enum": ["existing", "proposed"] } } }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

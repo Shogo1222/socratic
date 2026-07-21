@@ -2,53 +2,330 @@
 
 # Socratic
 
-AI支援ソフトウェア開発のための、問答と反駁によるHuman-confirmed Intent Testingです。
+> Don't review every line. Review the decisions that matter.
 
-Socraticは、コードレビューの対象を、人間の判断が必要な振る舞いと設計上の決定に絞るEnd-to-end Workflowです。Maieuticが意図を引き出してテストを補完し、ElenchusがRisk-directed Intent Mutationでそのテストを反証にさらします。
+Socraticは、Pull Requestのコードをすべて説明するツールではありません。変更前後の振る舞いを比較し、人間が判断すべき仕様、意図しない可能性のある変更、既存テストが検知できない重要なリスクだけを抽出します。
 
-> Maieuticは未確定の意図を可視化します。Elenchusは、その意図を守ると主張するテストの反証を試みます。Socraticは両者を1つの監査可能なCycleへつなぎます。
+PRの「なんとなく不安」を、仕様オーナーが回答できる具体的な質問と、根拠のある振る舞い差へ変換します。
 
-## なぜ必要か
+## 解決したい現場の課題
 
-AIが生成したコードをすべて人間が読む方法はスケールしません。一方、正しさをAIへ完全に委任することもできません。実装自身を仕様の根拠にはできず、成功するテストにも弱いオラクルや誤ったオラクルが含まれ得るためです。
+AIが大量にコードを書くようになると、レビュアーは次の問題に直面します。
 
-このプロジェクトは、人間との接点を次の範囲へ絞ります。
+- Diffが大きく、すべてを精査できない
+- コードだけでは実装意図を判断できない
+- テストがGreenでも、重要なバグを検知できるか分からない
+- リファクタリングで振る舞いが変わっていないか不安が残る
+- レビューコメントを書くための調査と言語化に時間がかかる
+- AIレビューによる大量の細かなコメントがノイズになる
 
-1. 変更から意図とリスクを推測する
-2. 重要な期待値を変える判断だけを確定する
-3. 判断を単体テストとして固定する
-4. 確認済みの意図を、もっともらしいバグへ変異させる
-5. テストがそのバグを検知できることを証明する
+Socraticは、レビュアーが次の4点を短時間で把握できるようにします。
 
-人間は、曖昧な仕様と重要な設計判断に責任を持ちます。エージェントは、リポジトリ調査、QAテスト設計、テスト実装、敵対的検証を担当します。
+1. ユーザーから見て何が変わるのか
+2. 人間による仕様判断が必要なのはどこか
+3. どのような事故が起こり得るのか
+4. テストはその事故を本当に検知できるのか
 
-## アーキテクチャ
+## 対象ユーザー
 
-```text
-コード変更
-    |
-    v
-Socratic
-  |
-  +-- Maieutic
-  |     - 分かっていない点を可視化
-  |     - 根拠から観測可能な意図を推測
-  |     - 回答しやすい振る舞いの質問を提示
-  |     - Intent Contractを確定
-  |     - 単体テストをレビュー・補完
-  |
-  +-- Elenchus
-        - 確認済みの意図を変異
-        - 高リスクな変異を隔離環境で実現
-        - 対象を絞った単体テストを実行
-        - 曖昧さをMaieuticへ戻す
-        - 不足テストを追加して再検証
-    |
-    v
-人間のレビューを未確定の意図と設計リスクへ集中
+最初の対象は、AI生成PRをレビューするシニアエンジニアとTech Leadです。Socraticはレビューを代替せず、レビュアーが重要な判断へ集中するための材料を作ります。GitHubへ自動投稿せず、対象行へコピーできるインラインコメント候補を生成します。投稿、編集、破棄の判断はレビュアーが行います。
+
+仕様質問の回答者は、コードの作者とは限りません。PR作者、レビュアー、Product Owner、Domain Expert、Tech Lead、APIやデータのOwnerといった、その仕様のオーナーが回答します。AIがコードを生成した場合、AIは仕様の根拠にも回答者にもなりません。レビュアーが回答権限を持たない場合は、コメント候補を仕様オーナーへ確認するために使います。
+
+## 2つのユースケース
+
+### Feature Review
+
+新しい機能や仕様変更を含むPRに対して、実装だけでは確定できない期待値を抽出します。
+
+```markdown
+契約終了日と更新日が同日の場合も、更新を許可する意図でしょうか？
+
+終了日当日を有効期間に含めるかによって、この境界条件の期待値が変わります。現在のリポジトリ内からは判断できなかったため、期待する振る舞いを確認したいです。
 ```
 
-MaieuticとElenchusをつなぐのは、既定で`.socratic/intent-contract.json`へ保存する[Intent Contract](docs/ja/protocol.md)です。判断、不変条件、副作用、根拠、テストによる保護状況を、小さく追跡可能な記録として保持します。Socraticは第三の仕様源にはならず、このCycleを統合します。
+確定した仕様はIntent Contractへ記録し、対応するテストと関連付けます。
+
+### Refactor Guard
+
+振る舞いを維持するはずのリファクタリングに対して、BaseとHeadへ同じ振る舞いテストを実行します。
+
+```text
+同じBehavior Test
+      |
+      +-- Baseへ実行
+      |
+      +-- Headへ実行
+      |
+      v
+Behavior Diffを抽出
+```
+
+差が見つかった場合は、意図した変更か回帰かを人間へ確認します。
+
+```markdown
+このリファクタリングでは、期限切れ判定の境界条件が変わっているようです。
+
+契約終了日と実行日が同じケースについて、変更前は更新できますが、変更後は拒否されます。
+
+振る舞いを維持するリファクタリングであれば、意図しない変更の可能性があります。この変更は意図したものでしょうか？
+```
+
+Refactor Guardが信頼できるためには、比較テストが内部構造ではなく観測可能な振る舞いを検証していなければなりません。実装依存のテストが生む偽陽性は、Behavior Diffとして報告しません。
+
+## Behavior Diffの分類
+
+| Base | Head | 分類 |
+|---|---|---|
+| Pass | Pass | 検証した振る舞いは維持されている |
+| Pass | Fail | 既存の振る舞いが変更または削除された |
+| Fail | Pass | 新しい振る舞いが追加または修正された |
+| Fail | Fail | 比較テストとして不成立、または未実装 |
+
+テストのコンパイル失敗、環境エラー、Timeout、Flaky FailureはBehavior Diffとして扱いません。
+
+`Base Pass / Head Fail`を自動的にバグとは判定しません。Baseは仕様ではなく、変更前に観測された事実として扱います。
+
+- Refactor PRなら、意図しない変更の可能性が高い
+- Feature PRなら、意図した仕様変更の可能性がある
+- どちらか確定できなければ、人間へ確認する
+
+## 出力
+
+端末出力は次の4ブロックへ固定します。
+
+- **Review This** — 人間の判断が必要なもの。未確定のIntent、意図したか確認できていないBehavior Diff、受容判断が必要な設計リスク
+- **We Verified** — 確認済みのもの。維持されている振る舞い、仕様オーナーが確認した意図的な変更、Working Treeへ適用して証明したテスト、Disposable環境で証明した提案テスト、修正済みのTest Gap、Mutationによる検知能力
+- **Still at Risk** — 検証できていないもの。未挑戦の振る舞い、実行環境上の制約、非決定的な処理、比較不能だった範囲
+- **Copy-ready Comments** — レビュアーが利用できるコメント候補。対象ファイル、対象行、コメント本文、内部向けの生成根拠
+
+発見は種類ではなく状態で振り分けます。
+
+```text
+Behavior Diff
+  未確定 → Review This
+  意図的と確認済み → We Verified
+
+Test Gap
+  未解決 → Review This
+  Disposable環境で証明済みの提案 → We Verified
+                                    + Still at Risk: 保護は未適用
+  Working Treeへ適用して証明済み → We Verified
+
+Residual Risk
+  → Still at Risk
+```
+
+実行結果の例:
+
+```text
+Socratic Review
+
+Review This:
+  ! 期限境界の振る舞い差を1件検出
+
+    Before:
+      終了日当日の更新に成功
+
+    After:
+      ExpiredSubscriptionError
+
+    Required decision:
+      この変更は意図したものか、仕様オーナーの確認が必要
+
+We Verified:
+  ✓ 二重更新を拒否する
+  ✓ 更新後の契約期限を参照できる
+  ✓ 外部Eventの内容と送信回数
+  ✓ Event送信欠落のMutationを提案テストが検知
+
+Still at Risk:
+  △ タイムゾーン境界
+    Clockを制御できないため未検証
+  △ 提案テストは未適用
+    Event送信欠落への保護は適用まで永続化されない
+
+Copy-ready Comments:
+  1 comment for src/subscription.ts:52
+```
+
+マージ可否、信頼度、総合スコアは表示しません。Socraticが報告するのは、検証した範囲、発見した問題または判断事項、検証できなかった範囲の3点であり、マージ判断はレビュアーに残します。詳細なIntent Contract、Mutation結果、Test Strategy、実行コマンドは一時的な実行Artifactとして保持し、実行後に保存しない(デフォルト)・ローカル保存・Markdown出力から選べます。
+
+## Copy-ready Comments
+
+主要成果物は、レビュアーがGitHubへコピーできるコメント候補です。種類は3つに絞ります。
+
+- `Intent decision`: 実装から確定できない仕様
+- `Behavior difference`: BaseとHeadで異なる振る舞い
+- `Test gap`: 既存テストが検知できない重要な欠陥
+
+各コメントは次の構造を持ちます。
+
+1. 観測した振る舞い
+2. 確認したい判断またはテスト不足
+3. 判断が必要な理由
+4. 回答によって変わる影響
+
+コメント候補は原則1〜3件に絞り、細かな指摘を大量生成しません。行へ固定できない問題は`Residual risk`としてStill at Riskへ残します。
+
+## Decision Prompt
+
+振る舞い差は、仕様オーナーがHostネイティブのUIで回答できる構造化質問へ変換します。
+
+```text
+Behavior Diff
+      ↓
+Decision Prompt
+      ↓
+Codex / Claude Codeの選択UI
+      ↓
+Intent Contract
+      ↓
+Test + Mutationで固定・反証
+```
+
+質問の内容はHost中立です。1回のBatchで1〜3問、各質問に相互排他的な選択肢を2〜3個、選択肢ごとに観測可能な影響の1文、自由入力の受け付け、回答によって変わるOracleを含めます。Host固有なのは表示だけです。
+
+- **Claude Code**: `AskUserQuestion`
+- **Codex**: `request_user_input`
+- **非対応環境**: 同じ質問をコピー可能なMarkdownで提示
+
+構造化質問はメインエージェントだけが行います。サブエージェントは調査・テスト・Mutationを担当し、未解決の判断を返します。Socraticが保証するのは質問の内容であり、選択UIはHostの機能です。特定ベンダーへ依存する独自アプリは不要です。
+
+## テスト設計の原則
+
+『単体テストの考え方/使い方』(Vladimir Khorikov著、Unit Testing Principles, Practices, and Patternsの邦訳)を土台として、内部構造ではなく1単位の振る舞いをテストします。
+
+### 1. クライアントの目標から始める
+
+クラスやメソッドをテスト対象の単位にしません。
+
+```text
+誰が使うのか
+    ↓
+何を達成したいのか
+    ↓
+どの操作を行うのか
+    ↓
+何を結果として観測できるのか
+```
+
+### 2. 依存を分類してからOracleを選ぶ
+
+- **プロセス内**: Domain Service、Repository abstraction、内部Event Handlerなど。内部コミュニケーションではなく、クライアントから観測できる最終結果を検証する
+- **プロセス外・管理下**: アプリケーション専用Databaseや管理下のFile Storageなど。Repository呼び出し回数ではなく、実際の最終状態をFocused Integration Testで検証する
+- **プロセス外・管理外**: 外部API、SMTP Service、他サービスが購読するMessage Bus、Payment Gatewayなど。アプリケーション境界で送信内容と送信回数をMockまたはSpyで検証する
+
+分類は、AdapterやGatewayの実装、Infrastructure設定、Message Consumer、Databaseの所有関係、API仕様、既存テスト、Architecture Decision Recordなど、まずリポジトリから調査します。判断できず、分類によってOracleが変わる場合のみ仕様オーナーへの質問にします。
+
+### 3. Oracleの優先順位
+
+```text
+出力値
+  ↓
+観測可能な最終状態
+  ↓
+アプリケーション境界を越えるコミュニケーション
+```
+
+### 4. 実装の詳細を検証しない
+
+内部メソッドの呼び出し順序、内部クラスの構成、Repositoryメソッドの呼び出し回数、Stubから値を取得した回数、最終結果に影響しない中間状態、リファクタリングで自由に変更できるアルゴリズムは、原則として期待値にしません。
+
+## 良いテストを構成する4本の柱
+
+テストは、退行に対する保護、リファクタリングへの耐性、迅速なフィードバック、保守のしやすさの4観点で評価します。ただし、すべてを同時に最大化しようとしません。特に最初の3つにはトレードオフがあります。
+
+| テスト | 退行への保護 | リファクタリング耐性 | フィードバック |
+|---|---:|---:|---:|
+| E2E | 高い | 高い | 遅い |
+| 取るに足らないテスト | 低い | 高い | 速い |
+| 実装依存テスト | 高くなり得る | 低い | 速い |
+| 良い単体テスト | 中〜高 | 高い | 速い |
+
+Socraticは、リファクタリングへの耐性を維持したうえで、変更リスクに応じて残りの柱を配分します。
+
+```text
+速いBehavior Test
+        +
+重要な状態を確認する少数のFocused Integration Test
+        +
+境界契約を確認するさらに少数のE2E Test
+```
+
+「常に単体テストを追加する」のではなく、そのリスクを最も費用対効果よく守るテストレベルを選びます。
+
+## Mutation Testingの役割
+
+Mutation Testingはユーザーへ売る機能ではなく、テストの検知能力を裏付ける内部機構です。
+
+```text
+Base      → Pass
+Head      → Pass
+Mutant    → Fail
+```
+
+この結果から、テストが変更前後で同じ振る舞いを観測し、対象のバグが入れば実際に失敗することを確認します。既存テストがMutationを検知できなかった場合は、テスト不足として調査します。
+
+```text
+外部Event送信を削除
+      ↓
+既存テストが成功
+      ↓
+境界契約のAssertionを追加
+      ↓
+元コードで成功
+      ↓
+同じMutationで失敗
+```
+
+ただし、内部メソッドの削除や呼び出し順序の変更など、観測可能な振る舞いを変えないMutationは、テストへ強制的に検知させません。Mutation Scoreは成功基準にしません。
+
+## 書き込みポリシー
+
+既定のModeは**Review-only**です。PR、GitHub、リポジトリのWorking Treeのいずれへも書き込みません。
+
+- GitHubへ自動投稿しない
+- Headの本番コードを変更しない
+- 比較テストとMutationは隔離環境で実行する
+- 実行時の成果物は既定で一時的——実行後に保存しない・ローカル保存・Markdown出力から選択する
+- コメント候補だけを提示する
+
+ユーザーがテスト追加を明示的に依頼した場合のみ**Apply tests**へ切り替え、確認済みIntentに基づくテストをWorking Treeへ追加します。Version Control操作はどちらのModeでもユーザーに残ります。
+
+Socraticは、変更確認とBase・Head Snapshot出力のために、Allowlist化した読み取り専用のローカルGitコマンドだけを使えます。Stage、Commit、Push、Fetch、Branch切替、Worktree作成、Remote接続、`gh`呼び出し、Pull Request作成、コメント投稿は行いません。その許可も求めず、Version Control操作はすべてユーザーへ残します。
+
+## 内部アーキテクチャ
+
+```text
+Pull Request / Local Diff
+          |
+          v
+      Socratic
+          |
+          +-- Maieutic
+          |     - クライアントの目標を特定
+          |     - 観測可能な振る舞いを抽出
+          |     - 依存を分類してOracleを選ぶ
+          |     - 未確定のIntentを整理
+          |     - 回答しやすい質問を生成
+          |     - Intent Contractを管理
+          |
+          +-- Elenchus
+                - BaseとHeadを隔離実行
+                - 同じBehavior Testで比較
+                - Intent Mutationを生成
+                - テストの検知能力を評価
+                - Behavior Diffを分類
+          |
+          v
+Review This / We Verified / Still at Risk
+          |
+          v
+Copy-ready Comments
+```
+
+MaieuticとElenchusをつなぐのは[Intent Contract](docs/ja/protocol.md)です。既定では一時的な実行Artifactであり、保存を選択した場合のみ`.socratic/intent-contract.json`へ書き込みます。判断、不変条件、副作用、根拠、テストによる保護状況を、小さく追跡可能な記録として保持します。
 
 名前は次の関係を表します。
 
@@ -56,23 +333,13 @@ MaieuticとElenchusをつなぐのは、既定で`.socratic/intent-contract.json
 - **Maieutic**: 実装からは確定できない意図を人間から引き出すStage
 - **Elenchus**: テストがその意図を実際に守るか反証するStage
 
-## 2つの検証モード
-
-### Catch Mode
-
-親リビジョンでは成功し、リスクを表すMutantでは失敗するテストを生成し、提案された変更へ実行します。親では成功し変更後では失敗する結果は、人間がその振る舞いの変化を意図したものかどうか確認するまでWeak Catchとして扱います。
-
-### Harden Mode
-
-意図の確定後、変更後コードに対して、もっともらしい誤解を表すIntent Mutationを生成します。生存したMutantは、シナリオ不足、Assertion不足、境界値不足、観測されていない副作用、曖昧な仕様、または実装依存テストを示します。
-
 ## リポジトリ構成
 
 ```text
 skills/
   socratic/   End-to-end Orchestration
-  maieutic/   意図の引き出しとQA観点による単体テスト
-  elenchus/   Intent Mutationによる検証
+  maieutic/   意図の引き出しとテスト設計・補完
+  elenchus/   Base/Head比較とIntent Mutationによる検証
 docs/
   protocol.md 共通概念とライフサイクル
 schemas/
@@ -101,15 +368,33 @@ npx skills add Shogo1222/socratic --skill '*'
 
 その後、コード変更に対して`$socratic`を実行します。一方のStageだけが必要な場合は`$maieutic`または`$elenchus`を直接実行します。
 
-## 設計原則
+## MVPの範囲
 
-- 実装を仕様とみなさない
-- 重要なテストオラクルを変える質問だけを行う
-- テストコードを人間に読ませる前に、観測可能な変更前後の振る舞いを提示する
-- 重要なテストとMutationを、確認済みContract項目へ関連付ける
-- Mutation Scoreではなく、重大インシデントを表す少数のMutationを優先する
-- 本番コードへMutationを残さない
-- 意味的なIntent Mutationと従来の構文Mutationを相互補完として扱う。評価対象のTaskでは、どちらも他方を一貫してSubsumptionしなかった
+v0.2では、次の条件へ対象を絞ります。
+
+- 既存のテスト環境がある
+- BaseとHeadをローカルで実行できる
+- 戻り値、例外、状態、副作用を決定的に観測できる
+- Feature ReviewかRefactor Guardか判断できる
+- 重要なBehavior Probeを最大3〜5件に限定する
+- BaseとHeadへ同一テストを実行する
+- 重要なMutationだけを選択する
+- GitHubへ自動投稿しない
+- ファイル名と行番号付きのコメント候補を生成する
+- 未検証範囲とテスト戦略上のトレードオフを報告する
+
+## 非ゴール
+
+v0.2では次を約束しません。
+
+- BaseとHeadの完全な振る舞い同値性
+- すべてのバグの検出
+- すべての変更行のレビュー
+- GitHubへの自動コメント投稿
+- Mutation Scoreの最大化
+- 4本の柱をすべて最大化すること
+- Baseの実装を正しい仕様として扱うこと
+- テストのために本番設計を不必要に変更すること
 
 ## 研究上の基盤
 
@@ -119,11 +404,13 @@ npx skills add Shogo1222/socratic --skill '*'
 - [Just-in-Time Catching Test Generation at Meta](https://arxiv.org/abs/2601.22832)は、この枠組みを産業規模で適用し、Diff-awareおよびIntent-awareなCatching Testの結果と、人間が振る舞いの変化を意図したか判断するための低負荷な確認方法を報告しています。
 - [Intent-Based Mutation Testing: From Naturally Written Programming Intents to Mutants](https://arxiv.org/abs/2607.05149)は、自然言語で表現された意図のVariantから実装を生成し、29プログラムを対象とした評価で、構文ベースMutationとは一部重ならない振る舞いとSubsumption関係を確認しています。
 
-Socraticはこれらの考え方を接続します。明示的なHuman-confirmed Intent Contract、Maieuticによる意図確定、Contract IDによるテストとMutationの対応付け、重大インシデント順のMutation選定、未挑戦リスクの明示、ElenchusによるHardening Loopは、論文の主張ではなくSocratic独自の設計です。本プロジェクトは独立したオープン実装であり、論文の著者または所属機関による実装や推奨ではありません。
+テスト設計の原則は、『単体テストの考え方/使い方』(Vladimir Khorikov著、Unit Testing Principles, Practices, and Patternsの邦訳)に基づきます。
+
+Socraticはこれらの考え方を接続します。明示的なHuman-confirmed Intent Contract、Maieuticによる意図確定、Contract IDによるテストとMutationの対応付け、正準の4ブロック出力、Copy-readyなコメント候補は、論文や書籍の主張ではなくSocratic独自の設計です。本プロジェクトは独立したオープン実装であり、論文や書籍の著者または所属機関による実装や推奨ではありません。
 
 ## 現在の状態
 
-現在はスキル設計の初期段階です。プロトコルとエージェントワークフローは利用できますが、決定的な言語別アダプターと、隔離されたMutation Runnerは今後の実装対象です。
+現在はv0.2のスキル設計段階です。プロトコルとエージェントワークフローは利用できますが、決定的な言語別アダプターと、隔離されたBase/Head比較・Mutation Runnerは今後の実装対象です。
 
 初期のコントリビューション方針は[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)を参照してください。
 

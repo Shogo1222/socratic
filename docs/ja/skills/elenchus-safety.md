@@ -9,7 +9,7 @@
 ## 必須規則
 
 - 主要Working Treeへ直接Mutationを適用しない。
-- 実行前に主要WorkspaceのStatusとDiffを記録し、実行後に比較する。
+- 実行前に対象範囲のFilesystem ManifestとContent Hashを記録し、実行後に比較する。
 - Mutantごとに新しい使い捨てWorkspaceを使用する。
 - 許可された未Commit変更を含め、正確なテスト対象状態を維持する。
 - Mutantは1件ずつ実行する。
@@ -18,26 +18,32 @@
 - Testにも外部副作用があり得るため、先にリポジトリの指示とテスト設定を確認する。
 - 成功、失敗、Timeout、中断のすべてで使い捨てMutation状態を削除または破棄する。
 - 本番コードにMutationが残っていないことを確認せず完了と報告しない。
+- ローカルまたはRemoteのGit状態を決して変更せず、その許可も求めない。
+
+## Git境界
+
+ローカルGitの利用は、`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`による読み取り専用の根拠収集とSnapshot出力に限定する。
+
+`git add`、`commit`、`amend`、`push`、`pull`、`fetch`、`checkout`、`switch`、`reset`、`stash`、`merge`、`rebase`、`cherry-pick`、`branch`、`tag`、`worktree`を実行しない。`gh`を呼び出さず、Pull Requestを作成せず、レビューコメントを投稿せず、Code HostのWrite APIを呼び出さない。BaseまたはHeadのObjectがローカルにない場合、Fetchせず利用不能として報告する。
 
 ## 隔離方法の選択
 
 次の順序で優先する。
 
-1. 対象状態がCommit済みなら、Immutable RevisionのTemporary Git Worktree
-2. 許可された未Commit変更があるなら、Temporary Worktreeと明示的に保存したPatch
-3. Repository Metadata、Cache、Secret、複製不要なDependencyを除外したTemporary Filesystem Copy
-4. 復元保証が文書化されたFramework固有のMutation Sandbox
+1. Hostまたはユーザーが提供した展開済みのBase・Head Directory
+2. ローカルにあるImmutable Objectから読み取り専用Gitで出力したTemporary Filesystem Snapshot
+3. 許可されたWorking Tree変更を保持しつつ、Repository Metadata、Cache、Secret、複製不要なDependencyを除外したTemporary Filesystem Copy
+4. 復元保証が文書化され、Git状態を変更しないFramework固有のMutation Sandbox
 
-主要な安全策としてStash、Reset、Checkoutによる復元、広範な削除を使わない。これらはユーザーの作業を上書きする可能性がある。
+BranchやWorktreeを作成・切替しない。Stash、Reset、Checkoutによる復元、広範な削除を安全策として使わない。これらはユーザーの作業を上書きする可能性がある。
 
 ## 実行前の証跡
 
 次を記録する。
 
 - 主要Repository Path
-- Revisionと対象Diff
-- 簡潔なWorking Tree Status
-- 本番DiffのHashまたは保存表現
+- BaseまたはHead Snapshotの識別子と対象変更の説明
+- 対象範囲の本番ファイルManifestとContent Hash
 - Sandbox Path
 - 対象テストコマンドとTimeout
 - 関連する環境の隔離状態
@@ -46,7 +52,7 @@
 
 次を確認する。
 
-- 許可されたテスト変更を除き、主要Statusと本番Diffが実行前と一致する
+- 許可されたTest・Doc変更を除き、対象範囲の主要ManifestとContent Hashが実行前証跡と一致する
 - Mutation MarkerまたはMutant Patchが本番ファイルに存在しない
 - 使い捨てWorkspaceが削除されている。Cleanupが阻害された場合は明示的に報告する
 - 元コードが関連テストに成功する

@@ -4,7 +4,7 @@
 
 # Intent Contract
 
-現在のContractを`.socratic/intent-contract.json`へ保存し、`intent-contract.schema.json`で検証する。以下はYAMLによる説明例であり、保存形式はJSONとする。
+現在のContractを一時的な実行Artifactとして管理し、`intent-contract.schema.json`で検証する。`.socratic/intent-contract.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。以下はYAMLによる説明例であり、保存形式はJSONとする。
 
 ```yaml
 version: 1
@@ -62,4 +62,4 @@ coverage:
 - 各テストをContract IDへ関連付ける。
 - 推論は`intent.evidence`、未解決選択は`unresolved`へ置く。
 - 互換性、Security、Money、Permission、破壊的処理の期待値を暗黙にしない。
-- 別SkillまたはSessionへ渡す前に永続化して検証する。
+- Contractを検証し、Artifact Pathを別SkillまたはSessionへ渡す。保存はユーザーの明示的な選択がある場合だけ行う。

@@ -6,12 +6,14 @@ English | [日本語](ja/protocol.md)
 
 The protocol keeps specification evidence separate from code behavior and makes the Maieutic-to-Elenchus handoff, orchestrated by Socratic, persistent and auditable.
 
-## Persistent artifacts
+## Run artifacts
+
+Run artifacts are chat-first and ephemeral by default. During a run, the Intent Contract and the Catch or Harden report are temporary artifacts outside the repository working tree, validated against schemas bundled with the installed skills and handed between stages by path. A conversation-only contract is a fallback, not the normal handoff.
+
+After the final surface is rendered, the user chooses through a structured question: discard (default), save locally, or output as Markdown. When saved locally, the canonical paths are:
 
 - `.socratic/intent-contract.json`: active Intent Contract produced by Maieutic;
 - `.socratic/elenchus-report.json`: latest Catch or Harden report produced by Elenchus.
-
-Both artifacts are validated against schemas bundled with the installed skills. A conversation-only contract is a fallback, not the normal handoff.
 
 ## Main lifecycle
 
@@ -35,7 +37,7 @@ HARDENED
   Selected high-risk mutants are killed and unchallenged risk is explicit.
 ```
 
-An unresolved item cannot advance to `TESTED`. Passing implementation behavior is not confirmation. Budget exhaustion is not `HARDENED` unless unchallenged items and residual risk are explicitly accepted.
+An unresolved item cannot advance to `TESTED`. Passing implementation behavior is not confirmation. Budget exhaustion is not `HARDENED` unless unchallenged items and residual risk are explicitly accepted. `TESTED` and `HARDENED` also require tests that persist beyond the run — pre-existing tests or tests applied to the working tree; a Review-only run whose proof rests on proposed tests stops at `CONFIRMED` or `CHALLENGED`.
 
 ## Catch branch
 
@@ -67,7 +69,7 @@ Unconfirmed reasoning belongs in `intent.evidence`. Unresolved oracle choices be
 
 ### Mutation Result and Report
 
-[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Catch classifications. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with baseline evidence, unchallenged Contract IDs, unresolved decisions, added tests, and postflight mutation-removal proof.
+[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Catch classifications. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, unchallenged Contract IDs, unresolved decisions, test changes with their disposition (existing, proposed, or applied), authorized workspace changes, and postflight mutation-removal proof.
 
 ## Human decision boundary
 
@@ -79,6 +81,24 @@ Escalate a question only when:
 4. a wrong guess has meaningful cost.
 
 Present the smallest concrete behavior delta or explicit options. Ranking considers severity, confidence, and human dismissal cost. If no answer arrives, persist `needs-decision`, continue independent confirmed work only, and never invent an answer.
+
+Decisions are presented through the host's structured question tool when available — `AskUserQuestion` on Claude Code, `request_user_input` on Codex — and as copyable Markdown otherwise. A batch is one to three questions, each with two or three mutually exclusive options, a one-sentence observable consequence per option, a free-form alternative, and the oracle the answer changes. Only the main agent asks; subagents investigate, test, and mutate, and return open decisions. The protocol guarantees the structured question content; rendering it belongs to the host.
+
+## Review output boundary
+
+The reviewer-facing surface is exactly four blocks: Review This, We Verified, Still at Risk, and Copy-ready Comments. Findings route by state, not type: unconfirmed behavior differences and unresolved decisions are Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection are We Verified; everything unverified is Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet.
+
+Comment candidates are at most one to three, tagged `Intent decision`, `Behavior difference`, or `Test gap`, anchored to file and line. The answerer of an `Intent decision` is the specification owner; an AI code author is neither specification evidence nor an answerer. Skills never post to a code host and never report merge readiness, a confidence level, or an overall score — the merge decision stays with the reviewer. Details such as the contract, mutation results, test strategy, and executed commands live in the run artifacts.
+
+## Write-mode boundary
+
+Review-only is the default: probes, comparison tests, and mutations exist only in disposable environments, the working tree is untouched, and proven missing tests are reported as proposals. Apply tests requires an explicit user request and adds only tests that encode confirmed intent. Version-control operations remain prohibited in both modes.
+
+## Oracle selection boundary
+
+Classify dependencies before choosing oracles: in-process dependencies are verified through the client-observable final result; managed out-of-process state through its actual final state; unmanaged out-of-process dependencies through message content and count at the application boundary. Prefer output values, then observable final state, then boundary communication.
+
+Implementation details — internal call order and counts, intermediate state, freely replaceable algorithms — are never oracles. A probe coupled to them produces false positives and must not be reported as a behavior difference, and a mutation that preserves client-observable behavior must not be forced into detection.
 
 ## Evidence boundary
 
@@ -106,3 +126,9 @@ When unit tests cannot observe an artifact, use the narrowest deterministic repo
 ## Safety boundary
 
 All production mutations live only in disposable workspaces. The primary workspace may receive authorized test or documentation changes, never temporary production mutations. Preflight and postflight evidence is required, and no compile or infrastructure failure counts as a behavioral kill or catch.
+
+## Version-control safety boundary
+
+Skills may use only allowlisted, read-only local Git commands to inspect evidence and export immutable Base and Head snapshots. They never stage, commit, amend, push, pull, fetch, create or switch branches, check out files, reset, stash, merge, rebase, cherry-pick, tag, create worktrees, invoke `gh`, create pull requests, or post comments. They do not request permission for prohibited operations; every version-control decision remains with the user.
+
+Base and Head are snapshot identities, not branches the skill manages. Materialize them as host-provided directories or disposable filesystem snapshots. If a required object is unavailable locally and would require a remote operation, mark the comparison blocked. Mutation safety uses scoped filesystem manifests and content hashes, not Git restoration.

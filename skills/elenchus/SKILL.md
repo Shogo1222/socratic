@@ -1,25 +1,31 @@
 ---
 name: elenchus
-description: Evaluate whether tests detect plausible bugs by generating risk-ranked mutations from programming intent, applying each mutation only in an isolated workspace, analyzing catches and survivors, adding missing tests, and proving tests kill the mutation. Use for intent-aware catching, regression hardening, test-quality assessment, critical diff validation, or requests such as「ミューテーションテストして」「テストがバグを検知できるか確認して」「変更リスクを反証して」.
+description: Evaluate whether tests detect plausible bugs by generating risk-ranked mutations from programming intent, applying each mutation only in an isolated workspace, analyzing catches and survivors, adding missing tests, proving tests kill the mutation, and contributing Behavior difference and Test gap findings as copy-ready review material. Use for intent-aware catching, regression hardening, refactor guarding, test-quality assessment, critical diff validation, or requests such as「ミューテーションテストして」「テストがバグを検知できるか確認して」「リファクタリングで振る舞いが変わっていないか確認して」.
 ---
 
 # Elenchus
 
-Challenge a test suite with plausible misunderstandings of programming intent. Optimize for confidence in important behavior, not mutation score.
+Challenge a test suite with plausible misunderstandings of programming intent. Optimize for confidence in important behavior, not mutation score. Mutation is the internal evidence engine, not the headline: report each result as the incident it represents, never as an operator name or a score.
 
 ## Required references
 
 Read [references/mutation-design.md](references/mutation-design.md) before generating mutants and [references/safety.md](references/safety.md) before changing or executing code. Validate inputs and outputs with the bundled [intent-contract.schema.json](references/intent-contract.schema.json), [mutation-result.schema.json](references/mutation-result.schema.json), and [mutation-report.schema.json](references/mutation-report.schema.json).
 
+## Git safety boundary
+
+Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. Never change local or remote Git state. Never run any staging, commit, amend, push, pull, fetch, checkout, switch, reset, stash, merge, rebase, cherry-pick, branch, tag, or worktree operation. Never invoke `gh` or a code-host write API. Do not request permission to perform a prohibited operation.
+
+Materialize Base and Head as disposable filesystem snapshots without branch switching or Git worktrees. If the required object is unavailable locally and obtaining it would require `fetch`, stop and report the snapshot as unavailable.
+
 ## Locate the Intent Contract
 
 Load the contract in this order:
 
-1. an explicit path supplied by the user, Maieutic, or the Socratic orchestrator;
-2. `.socratic/intent-contract.json` in the repository;
+1. an explicit path supplied by the user, Maieutic, or the Socratic orchestrator, including a temporary run artifact;
+2. `.socratic/intent-contract.json` in the repository, present when a previous run saved locally;
 3. a complete contract in the current conversation.
 
-If none exists, stop and ask the user to run `$maieutic`, run the full `$socratic` workflow, or supply a contract. Do not reconstruct confirmed intent from implementation. Persist the final report at `.socratic/elenchus-report.json` unless the user supplies another path.
+If none exists, stop and ask the user to run `$maieutic`, run the full `$socratic` workflow, or supply a contract. Do not reconstruct confirmed intent from implementation. Keep the final report as a temporary run artifact outside the working tree; write `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy, or another explicitly supplied path.
 
 ## Choose mode and preconditions
 
@@ -31,7 +37,7 @@ Require a `confirmed` or `tested` contract for every challenged oracle. Mutate c
 
 Allow a `provisional` or `needs-decision` contract when both the parent revision and proposed diff are identified. Generate tests from risk mutants of the parent, then check whether the proposed diff exhibits the same risky behavior. A Catch Mode result may create decisions; it must not pretend intent was already confirmed.
 
-For either mode, identify the exact revision, changed and high-risk locations, focused test command, isolation strategy, and baseline result. If no runnable tests exist, stop mutation execution and return to Maieutic for test-infrastructure selection; do not install a framework without authorization.
+For either mode, identify the exact immutable snapshot identity, changed and high-risk locations, focused test command, isolation strategy, and baseline result. If no runnable tests exist, stop mutation execution and return to Maieutic for test-infrastructure selection; do not install a framework without authorization.
 
 ## Baseline policy
 
@@ -67,6 +73,8 @@ Generate or select a test that:
 
 A compile error, missing symbol, changed test API, test-runner failure, or unrelated exception is not a catching signal.
 
+Build each probe on observable behavior — output values first, then observable final state, then application-boundary communication for unmanaged dependencies. A probe coupled to internal call order, call counts, or intermediate state produces false positives: never use it, and never report its failure as a behavior difference.
+
 ### 4. Run against the proposed diff
 
 Run each candidate test on the proposed diff in a fresh disposable workspace:
@@ -78,7 +86,7 @@ Run each candidate test on the proposed diff in a fresh disposable workspace:
 
 ### 5. Resolve weak catches
 
-Present the smallest observed parent-versus-diff behavior change through Maieutic, or through Socratic when it is orchestrating the run. Classify:
+Present the smallest observed parent-versus-diff behavior change through Maieutic, or through Socratic when it is orchestrating the run; the structured question itself is asked by the main agent, never by a subagent. Shape it as a copy-ready `Behavior difference` comment anchored to the changed file and line — the parent behavior, the head behavior, and the question whether the change is intended — addressed to the specification owner. Treat the parent as an observed fact, never as the specification. Classify:
 
 - human says unintended: `strong-catch`;
 - human says intended: `false-positive`;
@@ -105,18 +113,18 @@ For each selected item:
 5. describe the smallest attributable code change;
 6. name the observable test expected to kill it.
 
-Prefer semantic and omission faults. Use traditional operator mutations only when they represent a real boundary or interpretation risk. Reject irrelevant, uncompilable-by-design, or broad unattributable rewrites.
+Prefer semantic and omission faults. Use traditional operator mutations only when they represent a real boundary or interpretation risk. Reject irrelevant, uncompilable-by-design, or broad unattributable rewrites. Mutate only client-observable behavior: never force tests to detect a mutation that preserves observable behavior, such as a change to internal call order or intermediate state.
 
 ### 3. Establish isolation and baseline
 
-Follow every rule in `references/safety.md`. Capture primary workspace status and diff, create a disposable workspace with the exact target state, and apply the Baseline Policy there.
+Follow every rule in `references/safety.md`. Capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, and apply the Baseline Policy there. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism.
 
 ### 4. Execute one mutant at a time
 
 For each mutant:
 
-1. start from a fresh disposable copy of the unmutated revision;
-2. apply only that mutant and inspect its diff;
+1. start from a fresh disposable copy of the unmutated snapshot;
+2. apply only that mutant and inspect the changed files;
 3. compile or run the narrowest stable tests with a timeout;
 4. classify the result;
 5. discard mutated state before the next mutant.
@@ -140,29 +148,37 @@ Return unresolved intent to Maieutic rather than generating an oracle. Persist `
 
 ### 6. Add and prove tests
 
-When the contract is resolved, add the smallest behavioral test that fails on the mutant and passes on original code. Apply test changes to the primary workspace only when authorized.
+When the contract is resolved, add the smallest behavioral test that fails on the mutant and passes on original code. In Review-only mode, the default, keep the proven test in the disposable workspace and report it as a proposed test; apply test changes to the primary workspace only in Apply tests mode, when the user has explicitly requested test additions. A proposed test proves detectability within the run only: it does not advance the contract to `tested` or `hardened`, and the report must note as residual risk that the protection is not yet persistent.
 
 Verify both directions:
 
 1. original production code plus new test passes;
 2. isolated mutant plus new test fails for the expected assertion.
 
-Then run the broader relevant unit-test suite. Do not weaken assertions or alter production behavior merely to kill a mutant.
+Then run the broader relevant unit-test suite. Do not weaken assertions, couple tests to implementation details, or alter production behavior merely to kill a mutant.
+
+Report each resolved survivor as a `Test gap` finding: the incident the mutant represents, the assertion added, and both directions of proof — for example, "deleting the event emission left existing tests green; a boundary-contract assertion was added and now fails on that mutation".
 
 ### 7. Restore and audit
 
-Discard all mutation sandboxes. Compare primary workspace state with preflight evidence. Confirm no production mutation remains and preserve only authorized test or documentation changes.
+Discard all mutation sandboxes. Compare the scoped primary-workspace manifest and content hashes with preflight evidence. Confirm no production mutation remains and preserve only authorized test or documentation changes. Never use Git restoration and never stage, commit, or push preserved changes.
 
-## Persisted report
+## Reviewer-facing summary
 
-Write `.socratic/elenchus-report.json` using the bundled report schema. Include:
+Contribute findings to the canonical four-block surface, routed by state, not type: unconfirmed behavior differences and unresolved decisions to Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection to We Verified; unchallenged Contract IDs, reduced scope, and non-comparable ranges to Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. Emit at most one to three copy-ready comment candidates (`Behavior difference` or `Test gap`) with file, line, comment body, and generation evidence; never post them. Never report merge readiness, a confidence level, or a score.
+
+## Report artifact
+
+Produce the report against the bundled report schema as a temporary run artifact; it is written to `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy. Include:
 
 - mode, contract path, and stable baseline evidence;
 - each mutation record and classification;
 - catching outcomes and human verdicts when applicable;
-- tests added and bidirectional proof;
+- the write mode, every test change with its disposition (existing, proposed, or applied), authorized workspace changes, and bidirectional proof;
 - every `not_challenged` Contract ID and reason;
 - unresolved decisions and reduced test scope;
 - postflight proof that primary production code is mutation-free.
 
 Mutation score may be secondary context, never the success criterion. Never equate budget exhaustion with a fully hardened contract.
+
+Delete the temporary report on every exit path — success, failure, timeout, or interruption — unless the user chose to keep it, and report the exact path if a deletion fails.
