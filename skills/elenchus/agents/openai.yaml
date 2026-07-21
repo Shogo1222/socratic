@@ -1,0 +1,4 @@
+interface:
+  display_name: "Elenchus"
+  short_description: "Challenge tests with intent-driven mutations"
+  default_prompt: "Use $elenchus to verify that tests detect risk-driven mutations of the confirmed intent."

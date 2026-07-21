@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Intent Contract",
+  "type": "object",
+  "required": ["version", "status", "change", "intent", "decisions", "invariants", "side_effects", "unresolved", "coverage"],
+  "properties": {
+    "version": { "const": 1 },
+    "status": { "enum": ["provisional", "needs-decision", "confirmed", "tested", "challenged", "hardened"] },
+    "change": {
+      "type": "object",
+      "required": ["base", "head", "summary"],
+      "properties": {
+        "base": { "type": "string", "minLength": 1 },
+        "head": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "intent": {
+      "type": "object",
+      "required": ["statement", "confidence", "evidence"],
+      "properties": {
+        "statement": { "type": "string", "minLength": 1 },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source", "supports"],
+            "properties": {
+              "source": { "type": "string", "minLength": 1 },
+              "supports": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/decision" }
+    },
+    "invariants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/invariant" }
+    },
+    "side_effects": {
+      "type": "object",
+      "required": ["required", "prohibited"],
+      "properties": {
+        "required": { "type": "array", "items": { "$ref": "#/$defs/statement" } },
+        "prohibited": { "type": "array", "items": { "$ref": "#/$defs/statement" } }
+      },
+      "additionalProperties": false
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "test_impact"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^UNR-[0-9]{3,}$" },
+          "statement": { "type": "string", "minLength": 1 },
+          "test_impact": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["contract_id", "tests"],
+        "properties": {
+          "contract_id": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+          "tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "statement": {
+      "type": "object",
+      "required": ["id", "statement"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^FX-[0-9]{3,}$" },
+        "statement": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": ["id", "question", "expected", "provenance"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^DEC-[0-9]{3,}$" },
+        "question": { "type": "string", "minLength": 1 },
+        "expected": { "type": "string", "minLength": 1 },
+        "provenance": { "enum": ["user-confirmed", "repository-established"] }
+      },
+      "additionalProperties": false
+    },
+    "invariant": {
+      "type": "object",
+      "required": ["id", "statement", "severity"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^INV-[0-9]{3,}$" },
+        "statement": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["critical", "high", "medium", "low"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

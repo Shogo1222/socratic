@@ -1,0 +1,4 @@
+interface:
+  display_name: "Socratic"
+  short_description: "Orchestrate intent discovery and test refutation"
+  default_prompt: "Use $socratic to confirm the intent behind this change, complete its tests, and challenge them with risk-directed mutations."

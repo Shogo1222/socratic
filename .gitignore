@@ -1,0 +1,11 @@
+# Local agent/session state
+.claude/
+.socratic/
+demo/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

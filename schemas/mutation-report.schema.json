@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Elenchus Mutation Report",
+  "type": "object",
+  "required": [
+    "version",
+    "mode",
+    "intent_contract",
+    "baseline",
+    "mutations",
+    "not_challenged",
+    "unresolved",
+    "tests_added",
+    "postflight"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "mode": { "enum": ["harden", "catch"] },
+    "intent_contract": {
+      "type": "object",
+      "required": ["path", "status"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["provisional", "needs-decision", "confirmed", "tested", "challenged", "hardened"] }
+      },
+      "additionalProperties": false
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["command", "status", "attempts", "stable_tests", "excluded_tests"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["green", "baseline-red", "flaky-reduced", "not-runnable"] },
+        "attempts": { "type": "integer", "minimum": 1 },
+        "stable_tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "excluded_tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "mutations": {
+      "type": "array",
+      "items": { "$ref": "mutation-result.schema.json" }
+    },
+    "not_challenged": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["contract_id", "reason", "residual_risk"],
+        "properties": {
+          "contract_id": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+          "reason": { "enum": ["budget", "not-observable", "not-applicable", "deferred", "blocked"] },
+          "residual_risk": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^UNR-[0-9]{3,}$" },
+      "uniqueItems": true
+    },
+    "tests_added": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "postflight": {
+      "type": "object",
+      "required": ["primary_workspace_matches_preflight", "production_mutation_free", "notes"],
+      "properties": {
+        "primary_workspace_matches_preflight": { "type": "boolean" },
+        "production_mutation_free": { "type": "boolean" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

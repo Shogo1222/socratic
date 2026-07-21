@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maieutic"
+  short_description: "Draw out intent and complete risk-driven unit tests"
+  default_prompt: "Use $maieutic to analyze this diff, clarify only decisions that change test expectations, and complete missing unit tests."
