@@ -1,5 +1,11 @@
 {
-  "version": 6,
+  "version": 7,
+  "run": {
+    "id": "11111111111111111111111111111111",
+    "entrypoint": "socratic/scripts/run_review.py",
+    "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "ledger_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
   "mode": "harden",
   "write_mode": "apply-tests",
   "intent_contract": {

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Socratic Run Manifest",
+  "type": "object",
+  "required": [
+    "version", "run_id", "status", "write_mode", "socratic_version",
+    "entrypoint", "skill_root", "primary_root", "sandbox_root",
+    "protection", "environment", "ledger_path"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "run_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "status": { "enum": ["ready", "blocked"] },
+    "write_mode": { "const": "review-only" },
+    "socratic_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "entrypoint": { "const": "socratic/scripts/run_review.py" },
+    "skill_root": { "type": "string", "minLength": 1 },
+    "primary_root": { "type": "string", "minLength": 1 },
+    "sandbox_root": { "type": ["string", "null"] },
+    "protection": {
+      "type": "object",
+      "required": ["mode", "verified", "primary_root", "details"],
+      "properties": {
+        "mode": { "enum": ["os-read-only", "permission-read-only", "host-events", "os-audit", "unavailable"] },
+        "verified": { "type": "boolean" },
+        "primary_root": { "type": "string", "minLength": 1 },
+        "details": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "required": ["HOME", "TMPDIR", "XDG_CACHE_HOME", "npm_config_cache"],
+      "properties": {
+        "HOME": { "type": "string", "minLength": 1 },
+        "TMPDIR": { "type": "string", "minLength": 1 },
+        "XDG_CACHE_HOME": { "type": "string", "minLength": 1 },
+        "npm_config_cache": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "ledger_path": { "type": "string", "minLength": 1 },
+    "blocked_reason": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "ready" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "sandbox_root": { "type": "string", "minLength": 1 },
+          "protection": { "properties": { "verified": { "const": true } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
+      "then": { "required": ["blocked_reason"] }
+    }
+  ],
+  "additionalProperties": false
+}

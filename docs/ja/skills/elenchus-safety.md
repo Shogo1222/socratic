@@ -9,6 +9,7 @@
 ## 必須規則
 
 - 主要Working Treeへ直接Mutationを適用しない。
+- Socraticでは、必須`run_review.py`のManifest、Guarded Mutation Ledger、Finish Commandを通った場合だけReview-only Mutationを正規Runとする。Gateが欠ける場合は手作業で代替せず`blocked`とする。
 - 実行前に対象範囲のFilesystem ManifestとContent Hashを記録し、実行後に比較する。
 - Mutantごとに新しい使い捨てWorkspaceを使用する。
 - 許可された未Commit変更を含め、正確なテスト対象状態を維持する。
@@ -24,6 +25,7 @@
 - Primary Rootを包含するGit Repository Rootへ解決する。DependencyやBuild ToolのLinkを含め、Sandbox内のどのSymlinkでもRepository内へ解決するものは拒否する。
 - Cache、一時Directory、Package Manager State、Framework Build OutputをDisposable Sandbox内へRedirectする。
 - Repository Root全体を覆う検証済みHost Read-only保護またはOS/Host Write-event Monitorがある場合だけ、`primary_written_during_run: false`を記録する。
+- 復元、最終Clean、最終Hash一致によって、Run中に発生したPrimary Writeを取り消したことにはならない。
 
 ## Git境界
 

@@ -86,6 +86,12 @@ Before executing a repository-defined command, inspect the command and the scrip
 
 ## Workflow
 
+### Mandatory Review-only entrypoint
+
+Every Review-only mutation run must use `scripts/run_review.py` for all phases: `preflight`, each guarded `mutate` or `register-prebuilt`, every test/build `execute`, and `finish`. The preflight manifest is the run identity and the finish command is the only valid terminal renderer. If this entrypoint, its schema, or verified host read-only/write-monitor attestation is unavailable, stop as `blocked` before running any mutation. Manual approximation, direct Primary mutation followed by restoration, repository commands outside `execute`, hand-written artifacts, and hand-written four-block output are non-compliant and must never be presented as a Socratic run.
+
+`preflight` creates the repository-external disposable copy, `.socratic-disposable` marker, isolated cache/temp/home directories, immutable manifest, and mutation ledger. `execute` forces repository commands into that sandbox and environment. Preflight does not itself manufacture host protection: the attestation must come from the host or OS boundary and cover the entire resolved Git repository. `finish` binds the manifest and ledger hashes to Mutation Report v7, validates all schemas and cross-artifact gates, and returns renderer stdout as the complete terminal review.
+
 ### 1. Establish scope
 
 Identify the diff, immutable Base and Head snapshot identities, repository instructions, affected behavior, focused test command, and risk partitions. Obtain them from host-provided change context, already-materialized directories, or the read-only Git allowlist. Never create or switch branches or worktrees. If both snapshots cannot be materialized without a prohibited operation, report Refactor Guard as blocked instead of weakening the comparison. State any excluded partition. Determine the review purpose and choose the workflow branch:
@@ -160,7 +166,7 @@ The terminal summary is exactly four blocks, in this order, and nothing else:
 
 Every reviewer-facing test statement must say whether the test was **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. State **Working tree unchanged during this Review-only run** only when Elenchus records `primary_written_during_run: false` and final primary hashes match preflight. Final hash equality alone cannot prove an unchanged run. Do not imply that Socratic created pre-existing changes.
 
-The canonical surface remains four blocks. Before completion, validate the Intent Contract, Mutation Report, and canonical review object with the bundled schemas and cross-artifact checks, then render only through `scripts/validate_and_render.py`. Treat its stdout as the complete reviewer-facing result and verify the report's canonical-output hash; do not translate, summarize, or append prose. Render retained JSON artifacts only with the bundled strict JSON renderer. Parse failure, schema failure, unknown Contract references, an unsafe Review-only postflight, or prose outside the renderer output blocks completion. Present proven-test disposition afterward through the host's structured question UI, not as a fifth review block; use the three-option Markdown fallback only when structured questions are unavailable.
+The canonical surface remains four blocks. Before completion, invoke `scripts/run_review.py finish`; do not call the lower-level validator as a substitute. The finish entrypoint validates the run manifest, guarded-write ledger, Intent Contract, Mutation Report, and canonical review object, then delegates to `scripts/validate_and_render.py`. Treat its stdout as the complete reviewer-facing result and verify the report's canonical-output hash; do not translate, summarize, or append prose. Render retained JSON artifacts only with the bundled strict JSON renderer. Parse failure, schema failure, missing or mismatched run identity, unknown Contract references, an unsafe Review-only postflight, or prose outside the renderer output blocks completion. Present proven-test disposition afterward through the host's structured question UI, not as a fifth review block; use the three-option Markdown fallback only when structured questions are unavailable.
 
 Route findings by state, not by type:
 

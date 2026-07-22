@@ -6,6 +6,7 @@
     "version",
     "mode",
     "write_mode",
+    "run",
     "intent_contract",
     "baseline",
     "assessment",
@@ -21,9 +22,20 @@
     "postflight"
   ],
   "properties": {
-    "version": { "const": 6 },
+    "version": { "const": 7 },
     "mode": { "enum": ["assessment", "harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
+    "run": {
+      "type": "object",
+      "required": ["id", "entrypoint", "manifest_sha256", "ledger_sha256"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "entrypoint": { "const": "socratic/scripts/run_review.py" },
+        "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "ledger_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
     "intent_contract": {
       "type": "object",
       "required": ["path", "status"],

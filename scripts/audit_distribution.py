@@ -33,6 +33,8 @@ EXPECTED_FILES = (
     "socratic/SKILL.md",
     "socratic/agents/openai.yaml",
     "socratic/references/canonical-review.schema.json",
+    "socratic/references/run-manifest.schema.json",
+    "socratic/scripts/run_review.py",
     "socratic/scripts/validate_and_render.py",
 )
 ALLOWED_EXTENSIONS = {".json", ".md", ".py", ".yaml"}
@@ -88,6 +90,12 @@ REQUIRED_SAFETY_TEXT = {
         "Review-only report records a primary workspace write",
         "Elenchus is blocked for unresolved Contract IDs",
         "canonical output hash does not match renderer stdout",
+    ),
+    "socratic/scripts/run_review.py": (
+        "Mandatory fail-closed entrypoint",
+        "verified primary protection is required",
+        "Review-only run wrote to the primary repository, even if later restored",
+        "reported mutations do not match guarded write ledger",
     ),
 }
 

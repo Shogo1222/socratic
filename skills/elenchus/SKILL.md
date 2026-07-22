@@ -194,6 +194,8 @@ Prefer semantic and omission faults. Use traditional operator mutations only whe
 
 Follow every rule in `references/safety.md`. Capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, mark it with `.socratic-disposable`, and apply the Baseline Policy there. Route every mutation write through the bundled `scripts/isolation_gate.py` `IsolationGate.write_bytes` or `write_text` API; a preflight authorization followed by an unguarded write is prohibited. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism.
 
+When Socratic invokes Elenchus, accept only the ready manifest produced by Socratic's mandatory `scripts/run_review.py preflight`. Route every mutation through its `mutate` command so the IsolationGate evidence is bound to that run's ledger. If the manifest, verified host protection, or command is unavailable, return `blocked` without mutation. Never approximate these phases manually or mutate Primary and restore it later.
+
 Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires verified host read-only protection or a verified write-event monitor.
 
 ### 4. Execute one mutant at a time

@@ -26,6 +26,9 @@ SCHEMA_MIRRORS = {
     "schemas/canonical-review.schema.json": (
         "skills/socratic/references/canonical-review.schema.json",
     ),
+    "schemas/run-manifest.schema.json": (
+        "skills/socratic/references/run-manifest.schema.json",
+    ),
 }
 
 TRANSLATION_PAIRS = {

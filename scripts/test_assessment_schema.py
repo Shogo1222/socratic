@@ -17,7 +17,8 @@ class AssessmentSchemaTest(unittest.TestCase):
         )
 
     def test_assessment_mode_is_versioned_and_required(self) -> None:
-        self.assertEqual(self.report["properties"]["version"]["const"], 6)
+        self.assertEqual(self.report["properties"]["version"]["const"], 7)
+        self.assertIn("run", self.report["required"])
         self.assertIn("assessment", self.report["required"])
         self.assertIn("assessment", self.report["properties"]["mode"]["enum"])
         self.assertIn("assessment", self.result["properties"]["mode"]["enum"])

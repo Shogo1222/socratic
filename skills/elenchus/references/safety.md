@@ -5,6 +5,7 @@ Treat every mutation as destructive temporary state.
 ## Non-negotiable rules
 
 - Never apply a mutation directly to the primary working tree.
+- Under Socratic, a Review-only mutation is valid only through the mandatory `socratic/scripts/run_review.py` manifest, guarded mutation ledger, and finish command. Missing gates mean `blocked`, not a manual fallback.
 - Capture a scoped filesystem manifest and content hashes before execution and compare them afterward.
 - Use a fresh disposable workspace for each mutant.
 - Preserve the exact code-under-test state, including authorized uncommitted changes.
@@ -20,6 +21,7 @@ Treat every mutation as destructive temporary state.
 - Resolve the primary root to the enclosing Git repository. Reject any symlink anywhere in the sandbox that resolves into that repository, including dependency and build-tool links.
 - Redirect caches, temporary directories, package-manager state, and framework build output into the disposable sandbox.
 - Record `primary_written_during_run: false` only with verified host read-only protection or a verified OS or host write-event monitor covering the entire repository root.
+- Restoration, final cleanliness, and matching final hashes never erase a Primary write that occurred during the run.
 
 ## Git boundary
 
