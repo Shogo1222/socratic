@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "provisional",
+  "status": "needs-decision",
   "change": {
     "base": "demo-tests-before-ai-edit",
     "head": "demo-tests-after-ai-edit",

@@ -31,6 +31,13 @@ def _is_within(path: Path, root: Path) -> bool:
     return True
 
 
+def _repository_root(path: Path) -> Path:
+    for candidate in (path, *path.parents):
+        if (candidate / ".git").exists():
+            return candidate.resolve(strict=False)
+    return path.resolve(strict=False)
+
+
 def _reject_symlink_components(path: Path) -> None:
     current = Path(path.anchor)
     for component in path.parts[1:]:
@@ -59,6 +66,17 @@ def _reject_symlinks_below(root: Path, target: Path) -> None:
             raise IsolationViolation(f"symlink component is not allowed: {current}")
 
 
+def _reject_repository_directed_symlinks(sandbox: Path, repository: Path) -> None:
+    for path in sandbox.rglob("*"):
+        if not path.is_symlink():
+            continue
+        resolved = path.resolve(strict=False)
+        if _is_within(resolved, repository):
+            raise IsolationViolation(
+                f"sandbox symlink resolves into the primary repository: {path} -> {resolved}"
+            )
+
+
 @dataclass(frozen=True)
 class TargetEvidence:
     primary_root: str
@@ -76,7 +94,8 @@ class IsolationGate:
     def __init__(self, primary_root: Path, sandbox_root: Path) -> None:
         self.requested_primary_root = _absolute(primary_root)
         self.requested_sandbox_root = _absolute(sandbox_root)
-        self.primary_root = _resolved(_absolute(primary_root))
+        requested_primary = _resolved(_absolute(primary_root))
+        self.primary_root = _repository_root(requested_primary)
         self.sandbox_root = _resolved(_absolute(sandbox_root))
         self.write_events: list[dict[str, object]] = []
 
@@ -96,6 +115,7 @@ class IsolationGate:
             raise IsolationViolation(
                 f"sandbox is not explicitly disposable; missing {self.MARKER}"
             )
+        _reject_repository_directed_symlinks(self.sandbox_root, self.primary_root)
 
     def authorize(self, target: Path) -> TargetEvidence:
         requested = _absolute(target)

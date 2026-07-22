@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -12,6 +14,9 @@ from typing import Any
 
 class ArtifactError(ValueError):
     """Raised when run artifacts cannot safely be treated as complete."""
+
+
+CONTRACT_ID_PATTERN = re.compile(r"\b(?:DEC|INV|FX)-[0-9]{3,}\b")
 
 
 def load_strict_json(path: Path) -> dict[str, Any]:
@@ -45,10 +50,22 @@ def validate_cross_artifact(contract: dict[str, Any], report: dict[str, Any]) ->
             errors.append(f"{mutation.get('id', '<unknown>')} references unknown Contract IDs: {missing}")
 
     report_unresolved = set(report.get("unresolved", []))
-    if report_unresolved - unresolved:
+    if report_unresolved != unresolved:
         errors.append(
-            f"report references unknown unresolved IDs: {sorted(report_unresolved - unresolved)}"
+            "Contract and report unresolved IDs differ: "
+            f"contract={sorted(unresolved)}, report={sorted(report_unresolved)}"
         )
+
+    contract_status = contract.get("status")
+    report_status = report.get("intent_contract", {}).get("status")
+    if contract_status != report_status:
+        errors.append(
+            f"Contract and report statuses differ: {contract_status!r} != {report_status!r}"
+        )
+    if unresolved and contract_status != "needs-decision":
+        errors.append("a Contract with unresolved items must have status needs-decision")
+    if not unresolved and contract_status == "needs-decision":
+        errors.append("needs-decision requires at least one unresolved item")
 
     isolation = report.get("isolation", {})
     sandbox_root = Path(isolation.get("sandbox_root", "/__missing_sandbox__")).resolve(strict=False)
@@ -80,9 +97,72 @@ def validate_cross_artifact(contract: dict[str, Any], report: dict[str, Any]) ->
         errors.append("production mutation remains after the run")
     if not postflight.get("sandbox_destroyed", False):
         errors.append("mutation sandbox was not destroyed")
+    host_verified = isolation.get("host_protection", {}).get("verified", False)
+    monitor_verified = isolation.get("write_monitor", {}).get("verified", False)
+    if (
+        postflight.get("primary_written_during_run") is False
+        and not host_verified
+        and not monitor_verified
+    ):
+        errors.append(
+            "primary_written_during_run=false requires verified host protection or a verified write monitor"
+        )
+
+    persistent = report.get("persistent_side_effects", {})
+    writes = persistent.get("writes", [])
+    if writes and persistent.get("authorization") != "explicitly-authorized":
+        errors.append("persistent writes require separate explicit authorization")
+    if any(not write.get("authorized", False) for write in writes):
+        errors.append("persistent side-effect ledger contains an unauthorized write")
 
     if errors:
         raise ArtifactError("; ".join(errors))
+
+
+def _blocked_contract_ids(unresolved_item: dict[str, Any]) -> set[str]:
+    explicit = set(unresolved_item.get("blocked_contract_ids", []))
+    if explicit:
+        return explicit
+    return set(CONTRACT_ID_PATTERN.findall(unresolved_item.get("test_impact", "")))
+
+
+def assert_elenchus_allowed(contract: dict[str, Any], contract_ids: list[str]) -> None:
+    blocked: set[str] = set()
+    for item in contract.get("unresolved", []):
+        mapped = _blocked_contract_ids(item)
+        # Missing mappings fail closed for every challenged oracle.
+        if not mapped:
+            blocked.update(contract_ids)
+        else:
+            blocked.update(mapped)
+    challenged = sorted(set(contract_ids) & blocked)
+    if challenged:
+        raise ArtifactError(
+            f"Elenchus is blocked for unresolved Contract IDs: {challenged}"
+        )
+
+
+def route_intent_decision(
+    *,
+    evidence_resolves: bool,
+    multiple_reasonable_expectations: bool,
+    answer_changes_oracle: bool,
+    answerer_has_authority: bool | None,
+) -> str:
+    if evidence_resolves:
+        return "repository-established"
+    if not multiple_reasonable_expectations or not answer_changes_oracle:
+        return "no-question"
+    if answerer_has_authority is False:
+        return "defer-to-specification-owner"
+    return "ask-structured-question"
+
+
+def decision_options(options: list[str], *, answerer_has_authority: bool | None) -> list[str]:
+    result = list(options)
+    if answerer_has_authority is not True:
+        result.append("Defer / confirm with specification owner")
+    return result
 
 
 def validate_with_schemas(
@@ -130,6 +210,11 @@ def validate_with_schemas(
             detail = "; ".join(error.message for error in errors)
             raise ArtifactError(f"{name} validation failed: {detail}")
     validate_cross_artifact(contract, report)
+    rendered = render_review(review)
+    canonical_output = report.get("canonical_output", {})
+    rendered_hash = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    if canonical_output.get("sha256") != rendered_hash:
+        raise ArtifactError("canonical output hash does not match renderer stdout")
 
 
 def render_review(review: dict[str, Any]) -> str:
@@ -159,6 +244,12 @@ def render_review(review: dict[str, Any]) -> str:
             )
         )
     return "\n".join(lines) + "\n"
+
+
+def render_artifact_json(artifact: dict[str, Any]) -> str:
+    """Render an already validated artifact without translating or summarizing it."""
+    encoded = json.dumps(artifact, indent=2, ensure_ascii=False, sort_keys=True)
+    return f"```json\n{encoded}\n```\n"
 
 
 def main() -> int:

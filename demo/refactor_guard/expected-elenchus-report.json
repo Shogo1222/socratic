@@ -1,10 +1,10 @@
 {
-  "version": 5,
+  "version": 6,
   "mode": "catch",
   "write_mode": "review-only",
   "intent_contract": {
     "path": "demo/refactor_guard/intent-contract.json",
-    "status": "provisional"
+    "status": "needs-decision"
   },
   "baseline": {
     "command": "DEMO_IMPL=demo.refactor_guard.base python3 -m unittest -q demo.refactor_guard.probes",
@@ -33,6 +33,8 @@
       "expected_detection": "The end-date probe renews on base and raises on the mutant",
       "result": "strong-catch",
       "detecting_tests": ["test_renews_on_the_exact_end_date"],
+      "observed_failure_reason": "The exact end-date probe passes on Base and fails behaviorally on Head",
+      "contract_violation_observed": true,
       "catch": {
         "parent_outcome": "pass",
         "mutant_outcome": "fail",
@@ -69,8 +71,22 @@
       "verified": false,
       "details": "The demo represents base, head, and probes as separate modules"
     },
+    "write_monitor": {
+      "mode": "host-events",
+      "verified": true,
+      "details": "The deterministic demo runner writes no production modules"
+    },
     "mutation_targets": [],
     "write_events": []
+  },
+  "persistent_side_effects": {
+    "authorization": "not-requested",
+    "writes": []
+  },
+  "canonical_output": {
+    "renderer": "socratic/scripts/validate_and_render.py",
+    "sha256": "6eb61700cb413c773224030b905fc236204429fe3b4b143e3ffecf7c0a361edd",
+    "extra_prose": false
   },
   "postflight": {
     "primary_written_during_run": false,

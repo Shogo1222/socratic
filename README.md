@@ -49,7 +49,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin to a published release
-gh skill install Shogo1222/socratic --all --pin v0.2.3
+gh skill install Shogo1222/socratic --all --pin v0.2.5
 ```
 
 Or with the open Agent Skills CLI:
@@ -464,7 +464,7 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v5, and a canonical four-block renderer; deterministic language adapters and host-level read-only adapters remain future work.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v6, and a canonical four-block renderer; deterministic language adapters and host-level read-only adapters remain future work.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 

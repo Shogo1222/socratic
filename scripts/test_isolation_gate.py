@@ -100,6 +100,24 @@ class IsolationGateTest(unittest.TestCase):
             with self.assertRaises(IsolationViolation):
                 IsolationGate(primary, nested)
 
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlinks unavailable")
+    def test_derives_repository_root_and_rejects_dependency_symlink_into_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "repository"
+            narrow_primary = repository / "packages" / "app"
+            dependency = repository / "node_modules"
+            sandbox = root / "sandbox"
+            narrow_primary.mkdir(parents=True)
+            dependency.mkdir()
+            (repository / ".git").mkdir()
+            sandbox.mkdir()
+            (sandbox / IsolationGate.MARKER).write_text("disposable\n", encoding="utf-8")
+            os.symlink(dependency, sandbox / "node_modules")
+
+            with self.assertRaises(IsolationViolation):
+                IsolationGate(narrow_primary, sandbox)
+
 
 if __name__ == "__main__":
     unittest.main()

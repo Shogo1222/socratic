@@ -17,6 +17,9 @@ FIXTURES = {
     "demo/refactor_guard/expected-elenchus-report.json": "mutation-report.schema.json",
     "demo/test_assessment/intent-contract.json": "intent-contract.schema.json",
     "demo/test_assessment/expected-elenchus-report.json": "mutation-report.schema.json",
+    "demo/subscription_renewal/canonical-review.json": "canonical-review.schema.json",
+    "demo/refactor_guard/canonical-review.json": "canonical-review.schema.json",
+    "demo/test_assessment/canonical-review.json": "canonical-review.schema.json",
 }
 
 EXPECTED_REPORT_MODES = {
