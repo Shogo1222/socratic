@@ -32,6 +32,7 @@
     },
     "baseline": {
       "type": "object",
+      "description": "When a cohort comparison exists, this baseline and each mutations[].result record the changed cohort; existing-cohort outcomes appear only in assessment.comparisons.",
       "required": ["command", "status", "attempts", "stable_tests", "excluded_tests"],
       "properties": {
         "command": { "type": "string", "minLength": 1 },
@@ -173,8 +174,7 @@
   "allOf": [
     {
       "if": { "properties": { "mode": { "const": "assessment" } }, "required": ["mode"] },
-      "then": { "properties": { "assessment": { "type": "object" } } },
-      "else": { "properties": { "assessment": { "type": "null" } } }
+      "then": { "properties": { "assessment": { "type": "object" } } }
     },
     {
       "if": { "properties": { "write_mode": { "const": "review-only" } }, "required": ["write_mode"] },
