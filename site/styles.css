@@ -118,13 +118,27 @@ nav a:not(.nav-cta):hover { color: var(--orange); }
 
 .eyebrow { display: flex; align-items: center; gap: 10px; }
 .eyebrow span { width: 28px; height: 2px; background: var(--orange); }
-.mobile-break { display: none; }
 
 h1, h2, h3, p { overflow-wrap: anywhere; }
 h1, h2, h3 { margin-top: 0; line-height: 1.16; letter-spacing: -.035em; }
 
 h1 { margin-bottom: 30px; font-size: clamp(47px, 5.5vw, 78px); font-weight: 860; }
 h1 span { color: var(--orange); }
+
+.product-headline { display: grid; gap: 2px; }
+.product-headline span {
+  color: var(--ink);
+  font-size: clamp(36px, 4.2vw, 58px);
+  line-height: 1.03;
+  letter-spacing: -.045em;
+}
+.product-headline strong {
+  margin-top: 13px;
+  color: var(--orange);
+  font-size: clamp(49px, 5.5vw, 78px);
+  line-height: .94;
+  letter-spacing: -.055em;
+}
 
 .hero-lead { max-width: 660px; margin: 0 0 34px; color: #3f4854; font-size: 17px; line-height: 2; }
 .hero-lead strong { color: var(--ink); }
@@ -299,7 +313,9 @@ footer { padding: 58px 0; }
   .hero { padding: 58px 0 76px; }
   .hero-grid { gap: 58px; }
   h1 { font-size: clamp(32px, 8.4vw, 44px); word-break: keep-all; overflow-wrap: normal; }
-  .mobile-break { display: block; }
+  .product-headline { gap: 3px; }
+  .product-headline span { font-size: clamp(29px, 8vw, 39px); }
+  .product-headline strong { margin-top: 10px; font-size: clamp(39px, 10.5vw, 51px); }
   .hero-lead { font-size: 15px; }
   .hero-actions { align-items: stretch; flex-direction: column; }
   .button { width: 100%; }
