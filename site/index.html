@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
     <link rel="icon" href="assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=20260722-1555">
+    <link rel="stylesheet" href="styles.css?v=20260722-1605">
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -69,7 +69,7 @@
         <div class="shell problem-grid">
           <div>
             <p class="section-kicker">THE PROBLEM</p>
-            <h2 class="balanced-heading problem-heading"><span>テストは<em class="green-word">Green</em></span></h2>
+            <h2 class="balanced-heading problem-heading"><span>テストは<em class="green-word">Green</em></span>でも安心できない。</h2>
           </div>
           <div class="problem-copy">
             <p>
@@ -315,6 +315,80 @@
           </div>
         </div>
       </section>
+
+      <section class="origin section" id="origin">
+        <div class="shell">
+          <div class="origin-intro">
+            <div>
+              <p class="section-kicker light">WHY SOCRATIC?</p>
+              <h2>問い、引き出し、<br>反証する。</h2>
+            </div>
+            <p>
+              名前はソクラテスの問答法に由来します。分かっていないことを自覚して問いを立て、
+              対話によって相手の中から考えを引き出し、反駁によって主張を吟味する。
+              その進め方を、コードレビューの手順にしています。
+            </p>
+          </div>
+
+          <div class="name-flow" aria-label="Socratic、Maieutic、Elenchusという名称とレビュー工程の関係">
+            <article>
+              <span>01 / INQUIRE</span>
+              <h3>Socratic</h3>
+              <strong>問いを立てる</strong>
+              <p>コードだけでは分からないことを認め、人間が判断すべき変更意図を見つけます。</p>
+            </article>
+            <article>
+              <span>02 / ELICIT</span>
+              <h3>Maieutic</h3>
+              <strong>考えを引き出す</strong>
+              <p>産婆術のように対話を通じて期待する振る舞いを言葉にし、Intent Contractへ記録します。</p>
+            </article>
+            <article>
+              <span>03 / REFUTE</span>
+              <h3>Elenchus</h3>
+              <strong>反証して確かめる</strong>
+              <p>意図と異なる振る舞いをあえて作り、テストが実際に検知できるかを確かめます。</p>
+            </article>
+          </div>
+
+          <div class="research-intro">
+            <div>
+              <p class="section-kicker light">RESEARCH ROOTS</p>
+              <h3>Research behind<br>the workflow.</h3>
+            </div>
+            <p>
+              Socraticは、変更時にバグを捕まえるテストと、自然言語の意図から振る舞いの変種を作る
+              Mutation Testingという、相互補完的な研究を接続しています。
+            </p>
+          </div>
+
+          <div class="paper-grid">
+            <article>
+              <span>2025 / JIT TESTING</span>
+              <h4>Harden and Catch for Just-in-Time Assured LLM-Based Software Testing</h4>
+              <p>将来の回帰を防ぐHardening Testと、変更で生じた欠陥を着地前に捕まえるCatching Testを定義し、Just-in-Timeなテスト生成の研究課題を整理した基礎論文です。</p>
+              <a href="https://arxiv.org/abs/2504.16472" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <article>
+              <span>2026 / INDUSTRIAL SCALE</span>
+              <h4>Just-in-Time Catching Test Generation at Meta</h4>
+              <p>Metaの大規模バックエンドで22,126件の生成テストを分析。変更を理解する生成と判定器により、人間の確認負荷を抑えながら本番前に重大な欠陥を捕捉できることを報告しています。</p>
+              <a href="https://arxiv.org/abs/2601.22832" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <article>
+              <span>2026 / INTENT MUTATION</span>
+              <h4>Intent-Based Mutation Testing: From Naturally Written Programming Intents to Mutants</h4>
+              <p>自然言語で書かれた意図を少し変え、その意図を実装するMutantを生成する手法です。29プログラムの評価で、構文ベースMutationとは異なる欠陥クラスを補完できる可能性を示しています。</p>
+              <a href="https://arxiv.org/abs/2607.05149" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+          </div>
+
+          <p class="research-note">
+            SocraticのHuman-confirmed Intent Contract、4ブロックのレビュー結果、Copy-ready Commentsは独自設計です。
+            本プロジェクトは、各論文の著者・所属機関による実装または推奨ではありません。
+          </p>
+        </div>
+      </section>
     </main>
 
     <footer>
@@ -323,6 +397,7 @@
         <p>Review the decisions that matter.</p>
         <div>
           <a href="https://github.com/Shogo1222/socratic">GitHub</a>
+          <a href="#origin">Research</a>
           <a href="https://github.com/Shogo1222/socratic/blob/main/README.md">English</a>
           <a href="https://github.com/Shogo1222/socratic/blob/main/LICENSE">MIT License</a>
         </div>

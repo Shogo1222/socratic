@@ -338,11 +338,31 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .terminal-hint { margin: 0; padding: 14px 20px; color: #8997a9; background: rgba(255,255,255,.025); font-size: 11px; }
 .terminal-hint code { color: #dce8f5; }
 
+.origin { color: #f6f0e5; background: var(--ink); }
+.origin-intro, .research-intro { display: grid; grid-template-columns: .8fr 1.2fr; gap: 90px; align-items: end; }
+.origin-intro h2 { font-size: clamp(42px, 5.1vw, 66px); }
+.origin-intro > p, .research-intro > p { margin: 0 0 6px; color: #aeb8c5; font-size: 15px; line-height: 2; }
+.name-flow { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 68px; border-top: 1px solid rgba(255,255,255,.17); border-left: 1px solid rgba(255,255,255,.17); }
+.name-flow article { min-height: 300px; padding: 32px; border-right: 1px solid rgba(255,255,255,.17); border-bottom: 1px solid rgba(255,255,255,.17); }
+.name-flow article > span, .paper-grid article > span { color: var(--orange-soft); font: 900 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .15em; }
+.name-flow h3 { margin: 45px 0 10px; font: 800 clamp(26px, 3vw, 38px)/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.name-flow strong { display: block; color: var(--orange-soft); font-size: 14px; }
+.name-flow p { margin: 30px 0 0; color: #aeb8c5; font-size: 13px; }
+.research-intro { margin-top: 110px; padding-top: 80px; border-top: 1px solid rgba(255,255,255,.17); }
+.research-intro h3 { margin: 0; font: 800 clamp(34px, 4.2vw, 54px)/1.05 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.paper-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 52px; }
+.paper-grid article { min-height: 380px; display: flex; flex-direction: column; padding: 30px; border: 1px solid rgba(255,255,255,.17); background: rgba(255,255,255,.025); }
+.paper-grid h4 { margin: 38px 0 20px; color: #f6f0e5; font: 760 18px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: -.03em; }
+.paper-grid p { margin: 0 0 30px; color: #aeb8c5; font-size: 12px; line-height: 1.85; }
+.paper-grid a { margin-top: auto; color: #f6f0e5; font-size: 11px; font-weight: 850; text-underline-offset: 5px; }
+.paper-grid a span { color: var(--orange-soft); }
+.research-note { max-width: 900px; margin: 50px 0 0; padding-left: 20px; border-left: 3px solid var(--orange); color: #8f9aaa; font-size: 11px; }
+
 footer { padding: 58px 0; }
 .footer-inner { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 30px; padding-top: 34px; border-top: 1px solid var(--line); }
 .footer-inner img { width: 130px; }
 .footer-inner p { color: var(--muted); font-family: Georgia, serif; font-size: 13px; font-style: italic; }
-.footer-inner div { display: flex; justify-self: end; gap: 20px; }
+.footer-inner div { display: flex; justify-self: end; gap: 20px; flex-wrap: wrap; }
 .footer-inner a { color: var(--muted); font-size: 11px; font-weight: 800; text-underline-offset: 4px; }
 
 :focus-visible { outline: 3px solid var(--orange); outline-offset: 4px; }
@@ -350,7 +370,7 @@ footer { padding: 58px 0; }
 @media (max-width: 980px) {
   .hero { min-height: auto; }
   .review-card-wrap { width: min(620px, 100%); margin-inline: auto; }
-  .problem-grid, .section-heading, .output-grid, .principles-grid, .install-card { grid-template-columns: 1fr; gap: 46px; }
+  .problem-grid, .section-heading, .output-grid, .principles-grid, .install-card, .origin-intro, .research-intro { grid-template-columns: 1fr; gap: 46px; }
   .problem-copy { padding-top: 0; }
   .intent-flow { grid-template-columns: 1fr; gap: 0; margin-top: 48px; }
   .diff-input, .flow-node { min-height: 0; padding: 24px; }
@@ -361,6 +381,8 @@ footer { padding: 58px 0; }
   .step-socratic { grid-column: auto; }
   .step-featured-grid { grid-template-columns: 1fr; gap: 28px; }
   .case-grid { grid-template-columns: 1fr; }
+  .name-flow, .paper-grid { grid-template-columns: 1fr; }
+  .name-flow article, .paper-grid article { min-height: 0; }
   .case-grid article { min-height: 0; }
   .case-label { margin-bottom: 18px; }
   .install-card { padding: 56px; }
