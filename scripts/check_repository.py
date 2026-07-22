@@ -41,6 +41,14 @@ TRANSLATION_PAIRS = {
     "skills/elenchus/references/mutation-design.md": "docs/ja/skills/elenchus-mutation-design.md",
     "skills/elenchus/references/safety.md": "docs/ja/skills/elenchus-safety.md",
     "skills/elenchus/references/test-handoff.md": "docs/ja/skills/elenchus-test-handoff.md",
+    "demo/README.md": "demo/README.ja.md",
+    "demo/subscription_renewal/README.md": "demo/subscription_renewal/README.ja.md",
+    "demo/subscription_renewal/walkthrough.md": "demo/subscription_renewal/walkthrough.ja.md",
+    "demo/refactor_guard/walkthrough.md": "demo/refactor_guard/walkthrough.ja.md",
+    "demo/test_assessment/walkthrough.md": "demo/test_assessment/walkthrough.ja.md",
+    "demo/subscription_renewal/maieutic-session.md": "demo/subscription_renewal/maieutic-session.ja.md",
+    "demo/refactor_guard/README.md": "demo/refactor_guard/README.ja.md",
+    "demo/test_assessment/README.md": "demo/test_assessment/README.ja.md",
 }
 
 

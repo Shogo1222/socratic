@@ -40,6 +40,17 @@ jobs:
           python3 -m compileall -q scripts
           python3 -m unittest discover -s scripts -p 'test_*.py'
 
+      - name: Run executable demos
+        run: |
+          python3 -m demo.subscription_renewal.run_demo
+          python3 -m demo.refactor_guard.run_demo
+          python3 -m demo.test_assessment.run_demo
+
+      - name: Validate demo fixtures against schemas
+        run: |
+          python3 -m pip install --quiet jsonschema referencing
+          python3 scripts/validate_fixtures.py
+
       - name: Validate Agent Skills metadata
         run: gh skill publish --dry-run
 

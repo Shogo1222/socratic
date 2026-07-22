@@ -29,9 +29,15 @@ Socraticは、現在初期設計段階です。コントリビューションで
 ```bash
 python3 scripts/check_repository.py
 python3 -m unittest discover -s scripts -p 'test_*.py'
+python3 -m demo.subscription_renewal.run_demo
+python3 -m demo.refactor_guard.run_demo
+python3 -m demo.test_assessment.run_demo
+python3 scripts/validate_fixtures.py
 python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
+
+Fixture検証には`jsonschema`と`referencing`が必要です(`python3 -m pip install jsonschema referencing`)。それ以外は標準ライブラリだけで動作します。
 
 Distribution Auditでは、配布するSkill Fileを16個のUTF-8 Text Fileへ意図的に固定しています。Skill Resource、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
 

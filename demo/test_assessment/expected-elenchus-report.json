@@ -1,0 +1,143 @@
+{
+  "version": 4,
+  "mode": "assessment",
+  "write_mode": "review-only",
+  "intent_contract": {
+    "path": "demo/test_assessment/intent-contract.json",
+    "status": "provisional"
+  },
+  "baseline": {
+    "command": "DEMO_IMPL=demo.test_assessment.pricing python3 -m unittest -q demo.test_assessment.tests_changed",
+    "status": "green",
+    "attempts": 1,
+    "stable_tests": [
+      "test_small_order_pays_full_price",
+      "test_volume_orders_get_some_discount",
+      "test_bulk_discount_at_one_hundred_items"
+    ],
+    "excluded_tests": []
+  },
+  "assessment": {
+    "selected_scope": "current-change",
+    "selection_reason": "The diff changes only the pricing tests, so existing and changed cohorts around pricing.py are compared",
+    "production_files": ["demo/test_assessment/pricing.py"],
+    "existing_tests": ["demo/test_assessment/tests_existing.py"],
+    "changed_tests": ["demo/test_assessment/tests_changed.py"],
+    "excluded_scope": [],
+    "comparisons": [
+      {
+        "mutation_id": "MUT-001",
+        "existing_result": "killed",
+        "changed_result": "survived",
+        "classification": "protection-regression"
+      },
+      {
+        "mutation_id": "MUT-002",
+        "existing_result": "killed",
+        "changed_result": "killed",
+        "classification": "existing-protection"
+      },
+      {
+        "mutation_id": "MUT-003",
+        "existing_result": "survived",
+        "changed_result": "survived",
+        "classification": "unprotected"
+      },
+      {
+        "mutation_id": "MUT-004",
+        "existing_result": "survived",
+        "changed_result": "killed",
+        "classification": "incremental-protection"
+      }
+    ]
+  },
+  "mutations": [
+    {
+      "id": "MUT-001",
+      "mode": "assessment",
+      "contract_ids": ["INV-001"],
+      "source_intent": "The volume discount starts at exactly ten items",
+      "changed_intent": "The volume discount starts at eleven items",
+      "represented_risk": "Customers at the advertised threshold are overcharged",
+      "severity": "high",
+      "likelihood": "medium",
+      "code_change": "Replace quantity >= 10 with quantity > 10",
+      "code_location": "demo/test_assessment/pricing.py:total_price",
+      "expected_detection": "An exact-total assertion at ten items",
+      "result": "survived",
+      "detecting_tests": [],
+      "follow_up": "decision"
+    },
+    {
+      "id": "MUT-002",
+      "mode": "assessment",
+      "contract_ids": ["INV-001"],
+      "source_intent": "Ten or more items receive the 10% volume discount",
+      "changed_intent": "No volume discount exists",
+      "represented_risk": "Every volume customer is overcharged",
+      "severity": "high",
+      "likelihood": "low",
+      "code_change": "Remove the >= 10 discount branch",
+      "code_location": "demo/test_assessment/pricing.py:total_price",
+      "expected_detection": "Any assertion that observes a discounted volume total",
+      "result": "killed",
+      "detecting_tests": ["test_volume_orders_get_some_discount"],
+      "follow_up": "none"
+    },
+    {
+      "id": "MUT-003",
+      "mode": "assessment",
+      "contract_ids": ["INV-003"],
+      "source_intent": "A negative quantity is rejected",
+      "changed_intent": "A negative quantity silently produces a negative total",
+      "represented_risk": "Refund-like totals from malformed input",
+      "severity": "medium",
+      "likelihood": "medium",
+      "code_change": "Remove the negative-quantity guard",
+      "code_location": "demo/test_assessment/pricing.py:total_price",
+      "expected_detection": "A test asserting ValueError for a negative quantity",
+      "result": "survived",
+      "detecting_tests": [],
+      "follow_up": "decision"
+    },
+    {
+      "id": "MUT-004",
+      "mode": "assessment",
+      "contract_ids": ["INV-002"],
+      "source_intent": "One hundred or more items receive the 20% bulk discount",
+      "changed_intent": "Bulk orders only ever receive the 10% discount",
+      "represented_risk": "Large customers are overcharged",
+      "severity": "high",
+      "likelihood": "medium",
+      "code_change": "Remove the >= 100 bulk branch",
+      "code_location": "demo/test_assessment/pricing.py:total_price",
+      "expected_detection": "An exact-total assertion at one hundred items",
+      "result": "killed",
+      "detecting_tests": ["test_bulk_discount_at_one_hundred_items"],
+      "follow_up": "none"
+    }
+  ],
+  "not_challenged": [],
+  "unresolved": ["UNR-001"],
+  "test_changes": [
+    {
+      "name": "test_small_order_pays_full_price",
+      "disposition": "existing"
+    },
+    {
+      "name": "test_volume_orders_get_some_discount",
+      "disposition": "existing"
+    },
+    {
+      "name": "test_bulk_discount_at_one_hundred_items",
+      "disposition": "existing"
+    }
+  ],
+  "test_handoff": null,
+  "authorized_workspace_changes": [],
+  "postflight": {
+    "primary_workspace_matches_preflight": true,
+    "production_mutation_free": true,
+    "notes": "Cohorts and mutants are separate modules; pricing.py is never edited. Baseline and mutation results record the changed cohort; existing-cohort outcomes live in assessment.comparisons"
+  }
+}

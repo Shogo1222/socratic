@@ -88,6 +88,11 @@ jobs:
           python3 scripts/check_repository.py
           python3 -m compileall -q scripts
           python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 -m demo.subscription_renewal.run_demo
+          python3 -m demo.refactor_guard.run_demo
+          python3 -m demo.test_assessment.run_demo
+          python3 -m pip install --quiet jsonschema referencing
+          python3 scripts/validate_fixtures.py
           gh skill publish --dry-run
 
       - name: Verify installed distribution

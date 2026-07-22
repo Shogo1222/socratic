@@ -1,7 +1,6 @@
 # Local agent/session state
 .claude/
 .socratic/
-demo/
 
 # Python
 __pycache__/
