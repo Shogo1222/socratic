@@ -139,36 +139,59 @@
           <div class="section-heading">
             <div>
               <p class="section-kicker">HOW IT WORKS</p>
-              <h2>Ask. Elicit. Refute.</h2>
+              <h2>Ask. Clarify. Verify.</h2>
             </div>
             <p>
-              ソクラテスの問答法を、AI時代のコードレビューへ。
-              3つのSkillが順番に働き、曖昧な不安を判断可能な材料へ変えます。
+              変更を比較し、意図を明確にし、テストで確かめる。
+              3つのSkillが、曖昧な不安を判断可能な材料へ変えます。
             </p>
           </div>
 
           <div class="steps">
             <article class="step step-socratic">
               <div class="step-head"><span>01</span><small>ORCHESTRATE</small></div>
-              <h3>Socratic</h3>
-              <p class="step-ja">問いを立てる</p>
-              <p>変更前後を比べ、仕様判断・振る舞い差・テスト不足を絞り込み、レビュー全体を組み立てます。</p>
+              <div class="step-featured-grid">
+                <div class="step-copy">
+                  <h3>Socratic</h3>
+                  <p class="step-ja">比較して、論点を絞る</p>
+                  <p><strong>BaseとHeadの変更前後を比較</strong>し、仕様判断・振る舞い差・テスト不足を抽出。レビュー全体を組み立てます。</p>
+                </div>
+                <div class="comparison-map" role="img" aria-label="BaseとHeadを比較し、仕様判断、振る舞い差、テスト不足を抽出してReview Planを作る流れ">
+                  <div class="compare-pair">
+                    <span><small>BEFORE</small>Base</span>
+                    <b aria-hidden="true">↔</b>
+                    <span><small>AFTER</small>Head</span>
+                  </div>
+                  <div class="flow-connector"><span>COMPARE</span></div>
+                  <div class="review-signals">
+                    <span>仕様判断</span>
+                    <span>振る舞い差</span>
+                    <span>テスト不足</span>
+                  </div>
+                  <div class="flow-connector"><span>ORCHESTRATE</span></div>
+                  <div class="review-plan-node"><small>REVIEW PLAN</small><strong>人間が決めるべき論点</strong></div>
+                </div>
+              </div>
               <div class="step-outcome"><span>OUTCOME</span> 大きなDiffが、少数の判断事項になる</div>
             </article>
-            <div class="step-arrow" aria-hidden="true">→</div>
             <article class="step step-maieutic">
               <div class="step-head"><span>02</span><small>ELICIT</small></div>
               <h3>Maieutic</h3>
               <p class="step-ja">意図を引き出す</p>
               <p>実装だけでは確定できない期待を、仕様オーナーが答えられる具体的な質問へ変換します。</p>
+              <div class="compact-diagram" role="img" aria-label="未確定の仕様を具体的な質問にし、人間の回答をIntent Contractへ記録する流れ">
+                <span>未確定の仕様</span><b aria-hidden="true">→</b><span>人間への質問</span><b aria-hidden="true">→</b><span>Intent Contract</span>
+              </div>
               <div class="step-outcome"><span>OUTCOME</span> 曖昧な不安が、答えられる仕様質問になる</div>
             </article>
-            <div class="step-arrow" aria-hidden="true">→</div>
             <article class="step step-elenchus">
               <div class="step-head"><span>03</span><small>REFUTE</small></div>
               <h3>Elenchus</h3>
               <p class="step-ja">反証して確かめる</p>
               <p>BaseとHeadへ同じテストを実行し、さらにバグを注入してテストの検知能力を証明します。</p>
+              <div class="compact-diagram" role="img" aria-label="BaseとHeadで同じテストを実行し、Mutationを使って検知能力の証拠を得る流れ">
+                <span>Base / Head</span><b aria-hidden="true">→</b><span>Mutation</span><b aria-hidden="true">→</b><span>検知の証拠</span>
+              </div>
               <div class="step-outcome"><span>OUTCOME</span> 「Green」が、バグを検知できる証拠になる</div>
             </article>
           </div>
