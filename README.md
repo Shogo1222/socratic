@@ -402,17 +402,17 @@ For company-managed devices, preview the pinned release before installing it at 
 
 ```bash
 GH_TELEMETRY=false gh skill preview \
-  Shogo1222/socratic socratic@v0.2.2
+  Shogo1222/socratic socratic@v0.2.3
 
 GH_TELEMETRY=false gh skill install \
   Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.2.2
+  --pin v0.2.3
 ```
 
-Replace `v0.2.2` with the [latest release](https://github.com/Shogo1222/socratic/releases) approved by your organization.
+Replace `v0.2.3` with the [latest release](https://github.com/Shogo1222/socratic/releases) approved by your organization.
 
 The GitHub CLI Agent Skills commands are currently in preview. Confirm that your organization permits the CLI and selected AI host. Project scope limits installation to the current repository; it does not control what repository data the host sends to its AI provider.
 
@@ -477,8 +477,8 @@ The release workflow does not modify source files. The Git tag is the immutable 
 Verify a published release and a downloaded asset with GitHub CLI:
 
 ```bash
-gh release verify v0.2.2 --repo Shogo1222/socratic
-gh release verify-asset v0.2.2 ./socratic-v0.2.2.zip \
+gh release verify v0.2.3 --repo Shogo1222/socratic
+gh release verify-asset v0.2.3 ./socratic-v0.2.3.zip \
   --repo Shogo1222/socratic
 ```
 

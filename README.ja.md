@@ -402,17 +402,17 @@ schemas/
 
 ```bash
 GH_TELEMETRY=false gh skill preview \
-  Shogo1222/socratic socratic@v0.2.2
+  Shogo1222/socratic socratic@v0.2.3
 
 GH_TELEMETRY=false gh skill install \
   Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.2.2
+  --pin v0.2.3
 ```
 
-`v0.2.2`は、組織が承認した[最新のRelease](https://github.com/Shogo1222/socratic/releases)へ置き換えてください。
+`v0.2.3`は、組織が承認した[最新のRelease](https://github.com/Shogo1222/socratic/releases)へ置き換えてください。
 
 GitHub CLIのAgent Skills Commandは現在Previewです。会社でCLIと対象AI Hostが許可されていることを確認してください。Project ScopeはInstall先を現在のRepositoryへ限定しますが、HostがRepository DataをAI Providerへ送信するかどうかは制御しません。
 
@@ -477,8 +477,8 @@ Release WorkflowはSource Fileを変更しません。Git Tagを公開済みRele
 公開済みReleaseとDownloadしたAssetはGitHub CLIで検証できます。
 
 ```bash
-gh release verify v0.2.2 --repo Shogo1222/socratic
-gh release verify-asset v0.2.2 ./socratic-v0.2.2.zip \
+gh release verify v0.2.3 --repo Shogo1222/socratic
+gh release verify-asset v0.2.3 ./socratic-v0.2.3.zip \
   --repo Shogo1222/socratic
 ```
 
