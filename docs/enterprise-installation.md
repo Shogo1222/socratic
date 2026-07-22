@@ -15,6 +15,14 @@ Confirm all of the following with the responsible organization:
 - test commands can run in a disposable environment without production access or billable side effects; and
 - the [security model](security-model.md) and [security policy](../SECURITY.md) have been reviewed.
 
+Provide Python 3 with the runner's runtime dependencies in a Host-managed virtual environment or managed Python runtime, rather than installing them globally:
+
+```bash
+python3 -m pip install jsonschema referencing
+```
+
+If either dependency is unavailable, the mandatory runner fails closed and the review remains `blocked`.
+
 ## Verify a release
 
 Use an immutable published release and pin the installation to its exact tag. Replace `v0.2.0` below with the approved release.
@@ -32,7 +40,8 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.2.0
 GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
-The expected distribution contains 16 text files, no executable files, no binaries, and no symbolic links. Compare the preview with the release manifest and checksums.
+<!-- socratic-distribution-file-count: 21 -->
+The expected distribution contains 21 UTF-8 text files, including three Python source helpers. Those helpers have no POSIX execute bits but are run by a Python interpreter. The distribution audit's “executable” rejection specifically checks the POSIX `0o111` execute-bit mask. The distribution contains no binaries or symbolic links. Compare the preview with the release manifest and checksums.
 
 ## Install with project scope
 

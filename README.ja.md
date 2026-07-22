@@ -49,7 +49,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # 公開Releaseへピン留め
-gh skill install Shogo1222/socratic --all --pin v0.2.6
+gh skill install Shogo1222/socratic --all --pin v0.2.7
 ```
 
 または、Open Agent Skills CLIを使います。
@@ -59,6 +59,14 @@ npx skills add Shogo1222/socratic --skill '*'
 ```
 
 その後、コード変更に対して`$socratic`を実行します。一方のStageだけが必要な場合は`$maieutic`または`$elenchus`を直接実行します。
+
+必須Review Runnerには、Python 3の`jsonschema`と`referencing`が必要です。
+
+```bash
+python3 -m pip install jsonschema referencing
+```
+
+Global環境へ導入するのではなく、Host管理のVirtual EnvironmentまたはManaged Python Runtimeを使用してください。どちらかの依存Packageが利用できない場合、RunnerはFail-closedで`blocked`になります。
 
 組織での導入(Releaseの検証・Preview・Project Scope)は[企業向け導入ガイド](docs/ja/enterprise-installation.md)を参照してください。
 

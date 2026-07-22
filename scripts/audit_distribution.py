@@ -65,7 +65,7 @@ REQUIRED_SAFETY_TEXT = {
         "ask the user to choose the assessment scope through a structured question",
         "incremental-protection",
         "An import, runtime, or environment failure that is compatible with the Contract is not a kill.",
-        "A claim of `primary_written_during_run: false` requires verified host read-only protection or a verified write-event monitor.",
+        "A claim of `primary_written_during_run: false` requires an accepted Host attestation for read-only protection or write-event monitoring.",
     ),
     "elenchus/references/safety.md": (
         "Never apply a mutation directly to the primary working tree.",
@@ -94,7 +94,7 @@ REQUIRED_SAFETY_TEXT = {
     "socratic/scripts/run_review.py": (
         "Host-gated fail-closed entrypoint",
         "self-asserted JSON is not accepted",
-        "verified primary protection is required",
+        "a trusted Host protection attestation is required",
         "Review-only run wrote to the primary repository, even if later restored",
         "every reported mutation requires guarded mutation and execution evidence",
         "append-only mutation ledger chain is invalid",

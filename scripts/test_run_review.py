@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,6 +146,52 @@ class RunReviewTest(unittest.TestCase):
             for value in manifest["environment"].values():
                 self.assertTrue(Path(value, "probe").is_file())
                 self.assertTrue(Path(value).is_relative_to(sandbox))
+
+    def test_execute_passes_only_allowlisted_and_manifest_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            output = Path(manifest["sandbox_root"]) / "environment.json"
+            inherited = {
+                "PATH": os.environ.get("PATH", ""),
+                "LANG": "en_US.UTF-8",
+                "LC_TEST": "allowed-locale",
+                "GITHUB_TOKEN": "github-secret-value",
+                "OPENAI_API_KEY": "openai-secret-value",
+                "UNKNOWN_SECRET": "unknown-secret-value",
+                "PYTHONPATH": "/secret/pythonpath",
+                "NODE_OPTIONS": "--require=/secret/hook.js",
+            }
+            script = (
+                "import json,os,pathlib; "
+                f"pathlib.Path({str(output)!r}).write_text(json.dumps(dict(os.environ), sort_keys=True))"
+            )
+            with patch.dict(os.environ, inherited, clear=True):
+                self.assertEqual(
+                    self.runner.execute(
+                        manifest_path, "baseline", None, [sys.executable, "-c", script], 10
+                    ),
+                    0,
+                )
+
+            child_environment = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(child_environment["LANG"], "en_US.UTF-8")
+            self.assertEqual(child_environment["LC_TEST"], "allowed-locale")
+            for key, value in manifest["environment"].items():
+                self.assertEqual(child_environment[key], value)
+            for key in (
+                "GITHUB_TOKEN", "OPENAI_API_KEY", "UNKNOWN_SECRET", "PYTHONPATH", "NODE_OPTIONS"
+            ):
+                self.assertNotIn(key, child_environment)
+
+            ledger_text = Path(manifest["ledger_path"]).read_text(encoding="utf-8")
+            for secret in (
+                "GITHUB_TOKEN", "github-secret-value", "OPENAI_API_KEY", "openai-secret-value",
+                "UNKNOWN_SECRET", "unknown-secret-value", "PYTHONPATH", "/secret/pythonpath",
+                "NODE_OPTIONS", "--require=/secret/hook.js",
+            ):
+                self.assertNotIn(secret, ledger_text)
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlinks unavailable")
     def test_mutation_rechecks_primary_directed_symlinks_created_after_preflight(self) -> None:

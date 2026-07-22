@@ -49,7 +49,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin to a published release
-gh skill install Shogo1222/socratic --all --pin v0.2.6
+gh skill install Shogo1222/socratic --all --pin v0.2.7
 ```
 
 Or with the open Agent Skills CLI:
@@ -59,6 +59,14 @@ npx skills add Shogo1222/socratic --skill '*'
 ```
 
 Then invoke `$socratic` on a code change. Invoke `$maieutic` or `$elenchus` directly when only that stage is needed.
+
+The mandatory review runner requires Python 3 with `jsonschema` and `referencing`:
+
+```bash
+python3 -m pip install jsonschema referencing
+```
+
+Use a Host-managed virtual environment or managed Python runtime instead of installing these packages globally. If either dependency is unavailable, the runner fails closed with a `blocked` result.
 
 For organizational rollout — release verification, preview, and project scope — follow the [enterprise installation guide](docs/enterprise-installation.md).
 

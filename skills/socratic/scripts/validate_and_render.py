@@ -105,7 +105,7 @@ def validate_cross_artifact(contract: dict[str, Any], report: dict[str, Any]) ->
         and not monitor_verified
     ):
         errors.append(
-            "primary_written_during_run=false requires verified host protection or a verified write monitor"
+            "primary_written_during_run=false requires an accepted Host protection or write-monitor attestation"
         )
 
     persistent = report.get("persistent_side_effects", {})

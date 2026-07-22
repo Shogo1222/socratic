@@ -4,10 +4,19 @@ import re
 import sys
 from pathlib import Path
 
+from audit_distribution import EXPECTED_FILES
+
 
 ROOT = Path(__file__).resolve().parent.parent
 JAPANESE = re.compile(r"[ぁ-んァ-ヶ一-龠]")
 SEMVER = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
+EXPECTED_DISTRIBUTION_FILE_COUNT = len(EXPECTED_FILES)
+DISTRIBUTION_COUNT_DOCUMENTS = (
+    "docs/security-model.md",
+    "docs/ja/security-model.md",
+    "docs/enterprise-installation.md",
+    "docs/ja/enterprise-installation.md",
+)
 
 SCHEMA_MIRRORS = {
     "schemas/intent-contract.schema.json": (
@@ -77,6 +86,21 @@ def check_release_version() -> None:
     version = raw.strip()
     if raw != f"{version}\n" or not SEMVER.fullmatch(version):
         fail("VERSION must contain exactly one semantic version followed by a newline")
+
+
+def check_distribution_documentation() -> None:
+    expected_marker = (
+        f"<!-- socratic-distribution-file-count: {EXPECTED_DISTRIBUTION_FILE_COUNT} -->"
+    )
+    marker_pattern = re.compile(r"<!-- socratic-distribution-file-count: ([0-9]+) -->")
+    for relative in DISTRIBUTION_COUNT_DOCUMENTS:
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        markers = marker_pattern.findall(text)
+        if markers != [str(EXPECTED_DISTRIBUTION_FILE_COUNT)] or text.count(expected_marker) != 1:
+            fail(
+                f"documented distribution file count is stale: {relative} "
+                f"(expected {EXPECTED_DISTRIBUTION_FILE_COUNT})"
+            )
 
 
 def check_schema_references() -> None:
@@ -156,6 +180,7 @@ def check_skill_structure() -> None:
 
 def main() -> int:
     check_release_version()
+    check_distribution_documentation()
     check_schema_mirrors()
     check_schema_references()
     check_translations()

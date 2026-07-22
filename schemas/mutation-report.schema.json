@@ -186,7 +186,7 @@
           "required": ["mode", "verified", "details"],
           "properties": {
             "mode": { "enum": ["os-read-only", "permission-read-only", "unavailable"] },
-            "verified": { "type": "boolean" },
+            "verified": { "type": "boolean", "description": "Schema v7 compatibility field: true means the Runner accepted a trusted Host attestation; it does not assert independent OS verification by the Runner." },
             "details": { "type": "string" }
           },
           "additionalProperties": false
@@ -196,7 +196,7 @@
           "required": ["mode", "verified", "details"],
           "properties": {
             "mode": { "enum": ["host-events", "os-audit", "unavailable"] },
-            "verified": { "type": "boolean" },
+            "verified": { "type": "boolean", "description": "Schema v7 compatibility field: true means the Runner accepted a trusted Host attestation; it does not assert independent OS verification by the Runner." },
             "details": { "type": "string" }
           },
           "additionalProperties": false

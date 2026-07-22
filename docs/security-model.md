@@ -2,11 +2,12 @@
 
 [日本語](ja/security-model.md)
 
-This document explains the intended security boundaries of Socratic, Maieutic, and Elenchus. They are natural-language agent skills, not an operating-system sandbox or an executable security product.
+This document explains the intended security boundaries of Socratic, Maieutic, and Elenchus. They combine natural-language agent instructions with bundled mechanical helpers; they are not an operating-system sandbox or a standalone security product.
 
 ## Distribution
 
-The release distribution contains exactly 16 UTF-8 text files under the three skill directories. CI rejects unexpected files, unsupported extensions, executable files, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
+<!-- socratic-distribution-file-count: 21 -->
+The release distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
 
 The repository contains documentation, CI scripts, and executable demos in addition to the skill distribution. Installing a skill does not install those repository-level files.
 
@@ -21,6 +22,8 @@ They must not read or copy `.env` files, private keys, tokens, credential stores
 Review-only is the default. In this mode, probes, comparison tests, mutations, contracts, and reports remain outside the primary working tree in disposable storage. The primary working tree must match its preflight state when the run ends.
 
 For mutation execution, final-state equality is necessary but not sufficient. The mandatory Host Adapter issues a nonce and protected storage capability before the runner creates a repository-external sandbox. Manifest, ledger, and sandbox paths are validated outside Primary; the manifest is create-once and ledger events form an append-only hash chain. Every reported mutation requires a phase-bound test execution. A Primary write invalidates the run even when restoration returns the tree to identical bytes. Without Host integration, the standalone runner remains `blocked`.
+
+Schema v7 retains the JSON field name `verified` for compatibility. In protection evidence, `verified: true` means that the Runner accepted an attestation issued by the trusted Host Adapter; it does not mean that the Runner independently verified an operating-system protection boundary.
 
 Apply tests is available only after an explicit user request. It may write only tests that represent a confirmed intent and must report every changed path. It does not authorize production-code changes or version-control operations.
 

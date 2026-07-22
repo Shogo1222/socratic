@@ -24,7 +24,7 @@
 - Targetを各書き込み直前にResolve・検証する。Sandbox外、主要Root内、Sandbox内Symlink経由のTargetはHard Abortし、BackupとRestoreを隔離として認めない。
 - Primary Rootを包含するGit Repository Rootへ解決する。DependencyやBuild ToolのLinkを含め、Sandbox内のどのSymlinkでもRepository内へ解決するものは拒否する。
 - Cache、一時Directory、Package Manager State、Framework Build OutputをDisposable Sandbox内へRedirectする。
-- Repository Root全体を覆う検証済みHost Read-only保護またはOS/Host Write-event Monitorがある場合だけ、`primary_written_during_run: false`を記録する。
+- Repository Root全体を覆う、受理済みHost AttestationによるRead-only保護またはOS/Host Write-event Monitorがある場合だけ、`primary_written_during_run: false`を記録する。Schema v7の`verified: true`はHost Assertionの受理を意味し、Runnerによる独立したOS検証ではない。
 - 復元、最終Clean、最終Hash一致によって、Run中に発生したPrimary Writeを取り消したことにはならない。
 
 ## Git境界
