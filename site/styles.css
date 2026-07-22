@@ -245,9 +245,7 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .output { color: #f6f0e5; background: var(--ink); }
 .output-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 100px; }
 .section-kicker.light { color: var(--orange-soft); }
-.output-intro > p:not(.section-kicker) { margin: 28px 0 42px; color: #aeb8c5; }
-.output blockquote { margin: 0; padding: 24px 0 24px 24px; border-left: 2px solid var(--orange); color: #9ea9b8; font-family: "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif; font-size: 18px; font-style: italic; }
-.output blockquote strong { color: white; }
+.output-intro > p:not(.section-kicker) { margin: 28px 0 0; color: #aeb8c5; }
 .output-list { border-top: 1px solid rgba(255,255,255,.17); }
 .output-list article { min-height: 132px; display: grid; grid-template-columns: 46px 1fr 44px; gap: 22px; align-items: center; border-bottom: 1px solid rgba(255,255,255,.17); }
 .output-number { color: #7f8a99; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
