@@ -120,9 +120,9 @@ Compile FailureはCompile自体がContractでない限りKillではない。Equi
 
 Scenario、Assertion、Boundary、副作用・状態遷移、曖昧仕様、実装依存、未到達Pathのどれが原因か特定する。未解決IntentはMaieuticへ戻し、`needs-decision`を保存して独立項目だけを続ける。
 
-### 6. テストを追加して証明する
+### 6. テストを設計・証明する
 
-Contract解決済みなら、Mutantで失敗し元コードで成功する最小の振る舞いテストを追加する。既定のReview-only modeでは、証明済みテストをDisposable Workspaceに保持して提案テストとして報告する。主要Workspaceへの適用は、ユーザーがテスト追加を明示的に依頼したApply tests modeの場合だけ行う。提案テストが証明するのは実行内での検知可能性だけであり、Contractを`tested`や`hardened`へ進めない。保護がまだ永続的でないことを残存リスクとしてReportへ記録する。
+Contract解決済みなら、Mutantで失敗し元コードで成功する最小の振る舞いテストを設計する。既定のReview-only modeでは、Disposable Workspaceだけで実装・証明し、**Disposable環境で提案・証明済み**と報告する。Apply tests modeでは、ユーザーがテスト追加を明示的に依頼した後だけ主要Workspaceへ適用し、**明示依頼後に今回の実行が適用**と報告する。Preflight時点で存在したテストは、同じ会話の先で作成された場合でも**実行開始時点で既存**とする。単に「追加した」と記述しない。提案テストが証明するのは実行内での検知可能性だけであり、Contractを`tested`や`hardened`へ進めない。保護がまだ永続的でないことを残存リスクとしてReportへ記録する。
 
 1. 元の本番コードと新テストが成功
 2. 隔離Mutantと新テストが期待したAssertionで失敗
@@ -137,11 +137,11 @@ Contract解決済みなら、Mutantで失敗し元コードで成功する最小
 
 ## レビュアー向けサマリー
 
-発見を正準の4ブロックSurfaceへ、種類ではなく状態で振り分けて提供する。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未挑戦のContract ID・縮小したScope・比較不能だった範囲はStill at Riskへ。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載する。ファイル・行番号・コメント本文・生成根拠を持つCopy-readyなコメント候補(`Behavior difference`または`Test gap`)を最大1〜3件出し、決して投稿しない。マージ可否、信頼度、スコアを報告しない。
+発見を正準の4ブロックSurfaceへ、種類ではなく状態で振り分けて提供する。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未挑戦のContract ID・縮小したScope・比較不能だった範囲はStill at Riskへ。各テストに**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかを付ける。Review-onlyのPostflightがPreflightと一致した場合は**今回のReview-only実行中、Working Treeは不変**と報告する。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載する。ファイル・行番号・コメント本文・生成根拠を持つCopy-readyなコメント候補(`Behavior difference`または`Test gap`)を最大1〜3件出し、決して投稿しない。マージ可否、信頼度、スコアを報告しない。
 
 ## Reportの成果物
 
-同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Mutation分類、Catch結果と人間のVerdict、Write Mode、Disposition(existing・proposed・applied)付きの全Test Change、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
+同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
 
 Mutation Scoreは補助情報であり成功基準ではない。予算切れをContract全体のHardening完了とみなさない。
 

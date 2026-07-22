@@ -94,6 +94,8 @@ Decision Provenanceは次の2値だけです。
 
 既定はReview-onlyです。Probe、比較テスト、MutationはDisposable環境だけに存在し、Working Treeへ触れず、証明済みの不足テストは提案として報告します。Apply testsはユーザーの明示的な依頼を必要とし、確認済みIntentを表すテストだけを追加します。Version Control操作はどちらのModeでも禁止のままです。
 
+テストのDispositionは、周辺の会話やGit HistoryではなくSocratic実行開始時のPreflightを基準にします。Preflight時点で存在するテストは、同じ会話の先の依頼で作成された場合でも`existing`、Disposable環境だけのテストは`proposed`、明示許可された今回の実行が主要Workspaceへ書き込んだテストだけが`applied`です。レビュワー向けの文章では、**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**と明記します。Review-onlyのPostflightが一致した場合は、**今回のReview-only実行中、Working Treeは不変**と報告します。
+
 ## Oracle選択の境界
 
 Oracleを選ぶ前に依存を分類します。プロセス内の依存はクライアントから観測できる最終結果で、管理下のプロセス外状態は実際の最終状態で、管理外のプロセス外依存はアプリケーション境界での送信内容と回数で検証します。出力値を最優先し、次に観測可能な最終状態、最後に境界のコミュニケーションを使います。
