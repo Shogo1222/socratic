@@ -1,6 +1,6 @@
 ---
 name: elenchus
-description: Evaluate whether tests detect plausible bugs by generating risk-ranked mutations from programming intent, applying each mutation only in an isolated workspace, analyzing catches and survivors, adding missing tests, proving tests kill the mutation, and contributing Behavior difference and Test gap findings as copy-ready review material. Use for intent-aware catching, regression hardening, refactor guarding, test-quality assessment, critical diff validation, or requests such as「ミューテーションテストして」「テストがバグを検知できるか確認して」「リファクタリングで振る舞いが変わっていないか確認して」.
+description: Evaluate existing and changed tests by challenging them with risk-ranked mutations, measuring incremental protection and protection regressions, analyzing catches and survivors, and proving explicitly requested missing tests only in isolated workspaces. Use for standalone test-quality assessment, AI-generated test review, intent-aware catching, regression hardening, refactor guarding, critical diff validation, or requests such as「既存テストを評価して」「追加された単体テストが有効か確認して」「ミューテーションテストして」「テストがバグを検知できるか確認して」.
 ---
 
 # Elenchus
@@ -31,11 +31,29 @@ Load the contract in this order:
 2. `.socratic/intent-contract.json` in the repository, present when a previous run saved locally;
 3. a complete contract in the current conversation.
 
-If none exists, stop and ask the user to run `$maieutic`, run the full `$socratic` workflow, or supply a contract. Do not reconstruct confirmed intent from implementation. Keep the final report as a temporary run artifact outside the working tree; write `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy, or another explicitly supplied path.
+If none exists, Test Assessment Mode may create a temporary **provisional assessment contract** from the explicit user request, public behavior and repository documentation, and observable change evidence. Never treat implementation or tests as confirmed specification. Mark every such item provisional, route any result whose acceptability depends on missing intent to Maieutic, and never claim that a test protects confirmed intent from provisional evidence alone. Harden and Catch Mode still require the contract states described below; otherwise stop and ask the user to run `$maieutic`, run the full `$socratic` workflow, or supply a contract.
+
+Keep the final report as a temporary run artifact outside the working tree; write `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy, or another explicitly supplied path.
 
 ## Choose mode and preconditions
 
-### Harden Mode — default
+### Test Assessment Mode — standalone default
+
+Use for a direct `$elenchus` invocation unless the user explicitly requests Catch or Harden Mode. Before generating mutations, inspect the diff and available test topology, then ask the user to choose the assessment scope through a structured question. Preselect **Current change: existing and changed tests** as the recommendation.
+
+Offer exactly these choices, adapted with detected file counts and expected cost:
+
+1. **Current change: existing and changed tests (Recommended)** — assess existing protection around changed production code and the incremental effect of added, modified, or removed tests.
+2. **Changed tests only** — assess only the test changes and their pre-change counterparts; faster, but not a broader existing-suite audit.
+3. **Broader target** — let the user name a module or repository-wide scope; state that execution time and mutation count increase.
+
+If the user selects **Broader target** without naming it in the free-form response, ask one short follow-up question for the module or path before generating mutants.
+
+Use the host's structured-question tool when available and a numbered Markdown fallback otherwise. Ask from the main agent only. If Socratic supplies an exact scope, inherit it and do not ask the scope question again. If neither a diff nor an explicit target exists, still ask the same question but replace the recommendation with the smallest repository-supported test target that can be identified safely.
+
+Assessment is Review-only and assessment-only by default. Report survivors as gaps; do not design, prove, or apply missing tests unless the user explicitly asks to harden them. If they ask to harden, require confirmed intent and continue in Harden Mode. Apply tests still requires a separate explicit request.
+
+### Harden Mode
 
 Require a `confirmed` or `tested` contract for every challenged oracle. Mutate confirmed intent and verify that tests kill the resulting code mutants.
 
@@ -43,7 +61,7 @@ Require a `confirmed` or `tested` contract for every challenged oracle. Mutate c
 
 Allow a `provisional` or `needs-decision` contract when both the parent revision and proposed diff are identified. Generate tests from risk mutants of the parent, then check whether the proposed diff exhibits the same risky behavior. A Catch Mode result may create decisions; it must not pretend intent was already confirmed.
 
-For either mode, identify the exact immutable snapshot identity, changed and high-risk locations, focused test command, isolation strategy, and baseline result. If no runnable tests exist, stop mutation execution and return to Maieutic for test-infrastructure selection; do not install a framework without authorization.
+For every mode, identify the exact immutable snapshot identity, changed and high-risk locations, focused test command, isolation strategy, and baseline result. If no runnable tests exist, stop mutation execution and return to Maieutic for test-infrastructure selection; do not install a framework without authorization.
 
 ## Baseline policy
 
@@ -55,7 +73,56 @@ Run baselines only in a disposable workspace. If the focused baseline fails:
 4. exclude flaky tests only when a stable green subset still observes the challenged contract;
 5. otherwise stop as `inconclusive`.
 
-Never use a flaky or pre-existing failure as evidence that a mutant was killed or survived. Record reduced test scope in the report.
+Never use a flaky or pre-existing failure as evidence that a mutant was killed or survived. In Test Assessment Mode, apply this policy independently to every test cohort. Record reduced test scope in the report.
+
+## Test Assessment Mode workflow
+
+### 1. Confirm the assessment scope
+
+Discover changed production files, existing related tests, and added, modified, or removed tests before asking the structured scope question. Record the selected option, detected files, user-provided target, excluded scope, and reason for the recommendation. Do not generate or execute mutants before the user chooses.
+
+### 2. Build comparable test cohorts
+
+Materialize cohorts only in disposable snapshots:
+
+- **Existing cohort** — Head production code with the pre-change form of relevant tests when comparable. With no test changes, the current relevant suite is the existing cohort.
+- **Changed cohort** — the same Head production code with all current added, modified, and removed test changes applied.
+
+Never edit the primary working tree to construct a cohort. When an API or fixture change prevents the pre-change tests from building against Head, classify that range as `not-comparable`; do not call it lost or gained protection. If Base test state is unavailable without prohibited Git operations, assess the current suite and report incremental comparison as blocked.
+
+### 3. Generate test-independent risks
+
+Generate a small risk-ranked set from the confirmed contract when available, otherwise from the provisional assessment contract. Derive the risks before inspecting assertion details, and include at least one holdout risk not tailored to an added test when the budget permits. Reject mutations that preserve client-observable behavior. A killed provisional mutant proves detection of that represented behavior, not correctness of the behavior.
+
+### 4. Execute the comparison matrix
+
+Run the same valid mutant against fresh copies of every selected cohort. Classify the pair:
+
+| Existing cohort | Changed cohort | Assessment |
+| --- | --- | --- |
+| killed | killed | `existing-protection` — already detected; the changed test may be redundant for this incident |
+| survived | killed | `incremental-protection` — the test change adds detection |
+| killed | survived | `protection-regression` — the test change weakens detection |
+| survived | survived | `unprotected` — neither cohort detects the incident |
+| unavailable or unstable | any | `not-comparable` or `inconclusive` |
+
+Redundancy is not automatically a defect: report it as neutral unless it adds disproportionate maintenance cost. Attribute a kill only when the failure reaches the intended behavioral assertion.
+
+### 5. Evaluate test quality
+
+Separate mutation detection from test design quality. Flag implementation-detail coupling, interaction assertions against managed dependencies, weak or absent assertions, unreachable setup, excessive fixture cost, flaky behavior, and deleted coverage. Prefer output, observable final state, and unmanaged-boundary communication in that order. Never recommend a brittle assertion merely to kill a mutant.
+
+### 6. Report assessment outcomes
+
+For a standalone run, report these sections in order:
+
+1. **Assessment Scope** — selected option, detected production and test files, mutation budget, and exclusions.
+2. **Existing Protection** — important incidents already detected by the existing cohort.
+3. **Changed Test Contribution** — incremental protection, neutral overlap, and protection regressions caused by the test diff.
+4. **Still at Risk** — surviving, blocked, inconclusive, and unchallenged risks.
+5. **Test Quality Concerns** — maintainability or refactoring-resistance concerns separate from detection.
+
+State **Working tree unchanged during this Review-only run** after postflight evidence confirms it. Do not produce an overall score or merge recommendation. Under Socratic, map the same evidence into its canonical four blocks instead of emitting this standalone surface.
 
 ## Catch Mode workflow
 
@@ -177,11 +244,14 @@ Discard all mutation sandboxes. Keep only an unresolved `available` test handoff
 
 Contribute findings to the canonical four-block surface, routed by state, not type: unconfirmed behavior differences and unresolved decisions to Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection to We Verified; unchallenged Contract IDs, reduced scope, and non-comparable ranges to Still at Risk. Attribute every test as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. If Review-only postflight evidence matches preflight, state **Working tree unchanged during this Review-only run**. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. Emit at most one to three copy-ready comment candidates (`Behavior difference` or `Test gap`) with file, line, comment body, and generation evidence; never post them. Never report merge readiness, a confidence level, or a score.
 
+For direct Test Assessment Mode, use the standalone assessment surface from its workflow. When Socratic invokes Elenchus, suppress the standalone scope question and surface, inherit Socratic's exact scope, and contribute the assessment evidence to the canonical four blocks.
+
 ## Report artifact
 
 Produce the report against the bundled report schema as a temporary run artifact; it is written to `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy. Include:
 
 - mode, contract path, and stable baseline evidence;
+- Test Assessment scope selection, existing and changed cohorts, comparison classifications, and excluded scope, or `null` for Catch and Harden Mode;
 - each mutation record and classification;
 - catching outcomes and human verdicts when applicable;
 - the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), test handoff or `null`, authorized workspace changes, and bidirectional proof;

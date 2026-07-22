@@ -8,6 +8,7 @@
     "write_mode",
     "intent_contract",
     "baseline",
+    "assessment",
     "mutations",
     "not_challenged",
     "unresolved",
@@ -17,8 +18,8 @@
     "postflight"
   ],
   "properties": {
-    "version": { "const": 3 },
-    "mode": { "enum": ["harden", "catch"] },
+    "version": { "const": 4 },
+    "mode": { "enum": ["assessment", "harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
     "intent_contract": {
       "type": "object",
@@ -40,6 +41,75 @@
         "excluded_tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
       },
       "additionalProperties": false
+    },
+    "assessment": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": [
+            "selected_scope",
+            "selection_reason",
+            "production_files",
+            "existing_tests",
+            "changed_tests",
+            "excluded_scope",
+            "comparisons"
+          ],
+          "properties": {
+            "selected_scope": { "enum": ["current-change", "changed-tests", "broader-target"] },
+            "selection_reason": { "type": "string", "minLength": 1 },
+            "production_files": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "existing_tests": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "changed_tests": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "excluded_scope": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "comparisons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["mutation_id", "existing_result", "changed_result", "classification"],
+                "properties": {
+                  "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+                  "existing_result": {
+                    "enum": ["killed", "survived", "not-run", "not-comparable", "inconclusive"]
+                  },
+                  "changed_result": {
+                    "enum": ["killed", "survived", "not-run", "not-comparable", "inconclusive"]
+                  },
+                  "classification": {
+                    "enum": [
+                      "existing-protection",
+                      "incremental-protection",
+                      "protection-regression",
+                      "unprotected",
+                      "not-comparable",
+                      "inconclusive"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "mutations": {
       "type": "array",
@@ -101,6 +171,11 @@
     }
   },
   "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "assessment" } }, "required": ["mode"] },
+      "then": { "properties": { "assessment": { "type": "object" } } },
+      "else": { "properties": { "assessment": { "type": "null" } } }
+    },
     {
       "if": { "properties": { "write_mode": { "const": "review-only" } }, "required": ["write_mode"] },
       "then": {

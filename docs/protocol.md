@@ -71,7 +71,7 @@ Unconfirmed reasoning belongs in `intent.evidence`. Unresolved oracle choices be
 
 ### Mutation Result, Report, and Test Handoff
 
-[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Catch classifications. [test-handoff.schema.json](../schemas/test-handoff.schema.json) represents an exact proven test patch, its file-hash preconditions and postimages, Contract mappings, and bidirectional proof. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, unchallenged Contract IDs, unresolved decisions, test changes and handoff status, authorized workspace changes, and postflight mutation-removal proof.
+[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Assessment and Catch classifications. [test-handoff.schema.json](../schemas/test-handoff.schema.json) represents an exact proven test patch, its file-hash preconditions and postimages, Contract mappings, and bidirectional proof. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, Test Assessment scope and cohort comparisons, unchallenged Contract IDs, unresolved decisions, test changes and handoff status, authorized workspace changes, and postflight mutation-removal proof.
 
 ## Human decision boundary
 
@@ -85,6 +85,14 @@ Escalate a question only when:
 Present the smallest concrete behavior delta or explicit options. Ranking considers severity, confidence, and human dismissal cost. If no answer arrives, persist `needs-decision`, continue independent confirmed work only, and never invent an answer.
 
 Decisions are presented through the host's structured question tool when available — `AskUserQuestion` on Claude Code, `request_user_input` on Codex — and as copyable Markdown otherwise. A batch is one to three questions, each with two or three mutually exclusive options, a one-sentence observable consequence per option, a free-form alternative, and the oracle the answer changes. Only the main agent asks; subagents investigate, test, and mutate, and return open decisions. The protocol guarantees the structured question content; rendering it belongs to the host.
+
+## Elenchus assessment-scope boundary
+
+A direct `$elenchus` invocation defaults to Test Assessment Mode. It discovers changed production files, related existing tests, and changed tests, then asks one structured scope question before generating mutants: current change with existing and changed tests (recommended), changed tests only, or a broader user-selected target. Socratic passes its exact scope and suppresses this duplicate question.
+
+Assessment compares the same risk mutants against disposable existing and changed test cohorts. Report `existing-protection`, `incremental-protection`, `protection-regression`, `unprotected`, and non-comparable or inconclusive outcomes separately. Derive risks before inspecting changed assertions and include a holdout risk when practical. Without confirmed intent, a provisional assessment can prove detection of represented behavior but cannot prove that behavior is correct.
+
+Standalone assessment is Review-only and does not create tests by default. Hardening a surviving gap requires a separate request and confirmed intent; applying the resulting test requires another explicit authorization.
 
 ## Review output boundary
 

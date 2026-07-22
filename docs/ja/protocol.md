@@ -71,7 +71,7 @@ Decision Provenanceは次の2値だけです。
 
 ### Mutation Result、Report、Test Handoff
 
-[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをCatch分類を含めて表現します。[test-handoff.schema.json](../../schemas/test-handoff.schema.json)は、証明済みテストの正確なPatch、ファイルHashのPreconditionとPostimage、Contract対応、双方向証跡を表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、未挑戦Contract ID、未解決判断、Test Changeと引き渡しStatus、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。
+[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをAssessment・Catch分類を含めて表現します。[test-handoff.schema.json](../../schemas/test-handoff.schema.json)は、証明済みテストの正確なPatch、ファイルHashのPreconditionとPostimage、Contract対応、双方向証跡を表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、Test AssessmentのScopeとCohort比較、未挑戦Contract ID、未解決判断、Test Changeと引き渡しStatus、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。
 
 ## 人間が判断する境界
 
@@ -85,6 +85,14 @@ Decision Provenanceは次の2値だけです。
 最小で具体的な振る舞いの差または明示的な選択肢を提示します。順位付けでは重大度、確信度、人間のDismiss Costを考慮します。無回答なら`needs-decision`を永続化し、独立した確認済み作業だけを続け、回答を捏造しません。
 
 判断は、利用可能ならHostの構造化質問ツール——Claude Codeでは`AskUserQuestion`、Codexでは`request_user_input`——で提示し、利用できなければコピー可能なMarkdownとして提示します。1回のBatchは1〜3問で、各質問に相互排他的な選択肢を2〜3個、選択肢ごとに観測可能な影響の1文、自由入力の受け付け、回答によって変わるOracleを含めます。質問はメインエージェントだけが行い、サブエージェントは調査・テスト・Mutationを担当して未解決の判断を返します。プロトコルが保証するのは構造化された質問内容であり、その表示はHostの機能です。
+
+## Elenchus Assessment Scopeの境界
+
+直接の`$elenchus`実行はTest Assessment Modeを既定とします。変更本番File、関連する既存Test、変更Testを検出し、Mutant生成前に1つの構造化Scope質問を行います。選択肢は、今回の変更と既存・変更Test(推奨)、変更Testのみ、ユーザー指定の広いTargetです。Socraticは正確なScopeを渡し、この重複質問を抑止します。
+
+Assessmentでは同一のRisk MutantをDisposableなExisting・Changed Test Cohortへ実行し、`existing-protection`、`incremental-protection`、`protection-regression`、`unprotected`、比較不能・判定不能を分けて報告します。変更Assertionを調べる前にRiskを導出し、実用的ならHoldout Riskを含めます。確認済みIntentがなければ、暫定Assessmentが証明できるのは表現した振る舞いの検知であり、その振る舞いの正しさではありません。
+
+Standalone AssessmentはReview-onlyで、既定ではTestを作りません。Surviving GapのHardeningには別の依頼と確認済みIntentを必要とし、そのTestの適用にはさらに明示的な許可を必要とします。
 
 ## Review出力の境界
 

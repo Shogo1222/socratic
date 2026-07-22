@@ -32,7 +32,7 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.2.0
 GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
-The expected distribution contains 14 text files, no executable files, no binaries, and no symbolic links. Compare the preview with the release manifest and checksums.
+The expected distribution contains 16 text files, no executable files, no binaries, and no symbolic links. Compare the preview with the release manifest and checksums.
 
 ## Install with project scope
 

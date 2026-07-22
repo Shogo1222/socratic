@@ -347,13 +347,34 @@ The names describe their relationship:
 - **Maieutic** is the elicitation stage: help humans articulate intent the implementation cannot establish.
 - **Elenchus** is the refutation stage: challenge whether tests actually defend that intent.
 
+## Run Elenchus independently
+
+Invoke `$elenchus` without memorizing a mode or writing a detailed prompt. A standalone run first inspects the diff and test topology, then asks one structured scope question with a detected recommendation:
+
+1. **Current change: existing and changed tests (Recommended)** — evaluate existing protection and the incremental effect of added, modified, or removed tests.
+2. **Changed tests only** — evaluate the test diff and its pre-change counterparts with a smaller budget.
+3. **Broader target** — select a module or repository-wide scope with higher execution cost.
+
+If production code changed without test changes, Elenchus audits the relevant existing suite. If tests changed, it compares the same risk mutations against the existing and changed test cohorts. It distinguishes:
+
+| Existing tests | Changed tests | Outcome |
+| --- | --- | --- |
+| detect | detect | Existing Protection |
+| miss | detect | Incremental Protection |
+| detect | miss | Protection Regression |
+| miss | miss | Still at Risk |
+
+The standalone output is **Assessment Scope**, **Existing Protection**, **Changed Test Contribution**, **Still at Risk**, and **Test Quality Concerns**. Assessment is Review-only and does not create missing tests by default. Ask Elenchus to harden a confirmed gap to prove a proposed test in a disposable workspace; ask separately to apply tests to the working tree.
+
+When Socratic invokes Elenchus, it passes the already-confirmed scope, so Elenchus does not ask the scope question again and maps the same evidence into Socratic's canonical four-block review surface.
+
 ## Repository layout
 
 ```text
 skills/
   socratic/   End-to-end orchestration
   maieutic/   Intent elicitation and test design/completion
-  elenchus/   Base/head comparison and intent-mutation validation
+  elenchus/   Existing/changed-test assessment and intent-mutation validation
 docs/
   protocol.md Shared concepts and lifecycle
 schemas/
@@ -438,7 +459,7 @@ Socratic connects these ideas. The explicit human-confirmed Intent Contract, Mai
 
 ## CI and releases
 
-GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 14-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
+GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 16-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
 
 The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
 

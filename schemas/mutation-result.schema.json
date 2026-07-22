@@ -20,7 +20,7 @@
   ],
   "properties": {
     "id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
-    "mode": { "enum": ["harden", "catch"] },
+    "mode": { "enum": ["assessment", "harden", "catch"] },
     "contract_ids": {
       "type": "array",
       "items": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },

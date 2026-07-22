@@ -8,9 +8,9 @@ Use the same fields from candidate generation through persisted result:
 
 ```yaml
 id: MUT-001
-mode: harden | catch
+mode: assessment | harden | catch
 contract_ids: [INV-001]
-source_intent: <confirmed behavior in Harden Mode or provisional intent in Catch Mode>
+source_intent: <confirmed behavior in Harden Mode or provisional evidence in Assessment/Catch Mode>
 changed_intent: <nearby misunderstanding>
 represented_risk: <failure or incident>
 severity: critical | high | medium | low
@@ -23,6 +23,8 @@ detecting_tests: [<test names>]
 equivalence_evidence: <required when result is equivalent>
 follow_up: <test, decision, or none>
 ```
+
+In Assessment Mode, `source_intent` may be provisional assessment evidence rather than confirmed intent. State that limitation in `follow_up`; a kill proves detection of the represented behavior, not that the behavior is correct. Generate assessment risks before inspecting the changed tests' assertion details and include a holdout risk when the budget permits.
 
 Reject a candidate if `changed_intent` cannot be stated independently of code syntax.
 

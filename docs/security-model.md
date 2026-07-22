@@ -6,7 +6,7 @@ This document explains the intended security boundaries of Socratic, Maieutic, a
 
 ## Distribution
 
-The release distribution contains exactly 14 UTF-8 text files under the three skill directories. CI rejects unexpected files, unsupported extensions, executable files, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
+The release distribution contains exactly 16 UTF-8 text files under the three skill directories. CI rejects unexpected files, unsupported extensions, executable files, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
 
 The repository contains documentation and CI scripts in addition to the skill distribution. Installing a skill does not install those repository-level files.
 

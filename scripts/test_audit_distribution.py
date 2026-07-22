@@ -89,6 +89,20 @@ class DistributionAuditTest(unittest.TestCase):
             _, errors = inspect_tree(skill_root, require_safety_text=True)
             self.assertTrue(any("required safety rule is missing" in error for error in errors))
 
+    def test_rejects_missing_assessment_scope_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            skill_root = self.copy_skills(Path(directory))
+            skill = skill_root / "elenchus" / "SKILL.md"
+            text = skill.read_text(encoding="utf-8").replace(
+                "ask the user to choose the assessment scope through a structured question",
+                "select the assessment scope silently",
+                1,
+            )
+            skill.write_text(text, encoding="utf-8")
+
+            _, errors = inspect_tree(skill_root, require_safety_text=True)
+            self.assertTrue(any("required safety rule is missing" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
