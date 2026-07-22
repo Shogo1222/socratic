@@ -39,7 +39,7 @@ The first audience is senior engineers and tech leads reviewing AI-generated PRs
 
 The answerer of a specification question is not necessarily the code author. The specification owner answers — the PR author, reviewer, product owner, domain expert, tech lead, or the owner of the API or data. When AI generated the code, the AI is neither specification evidence nor an answerer. When the reviewer lacks the authority to decide, the comment candidates are their tool for confirming with the owner.
 
-## Two use cases
+## Use cases
 
 ### Feature Review
 
@@ -79,6 +79,10 @@ If this refactoring is meant to preserve behavior, this may be an unintended cha
 ```
 
 For Refactor Guard to be trustworthy, comparison tests must verify observable behavior, not internal structure. False positives produced by implementation-coupled tests are never reported as behavior diffs.
+
+### Test Assessment
+
+For evaluating the tests themselves — especially tests an AI just added — run `$elenchus` standalone. It compares the same risk mutations against the existing and changed test suites and separates existing protection, incremental protection, protection regressions, and unprotected risks. See [Run Elenchus independently](#run-elenchus-independently).
 
 ## Behavior diff classification
 
@@ -330,6 +334,7 @@ Pull Request / Local Diff
                 - compare with the same behavior tests
                 - generate intent mutations
                 - evaluate detection ability
+                - compare existing and changed test cohorts
                 - classify behavior diffs
           |
           v
@@ -397,15 +402,17 @@ For company-managed devices, preview the pinned release before installing it at 
 
 ```bash
 GH_TELEMETRY=false gh skill preview \
-  Shogo1222/socratic socratic@v0.2.0
+  Shogo1222/socratic socratic@v0.2.2
 
 GH_TELEMETRY=false gh skill install \
   Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.2.0
+  --pin v0.2.2
 ```
+
+Replace `v0.2.2` with the [latest release](https://github.com/Shogo1222/socratic/releases) approved by your organization.
 
 The GitHub CLI Agent Skills commands are currently in preview. Confirm that your organization permits the CLI and selected AI host. Project scope limits installation to the current repository; it does not control what repository data the host sends to its AI provider.
 
@@ -424,7 +431,7 @@ v0.2 narrows its target to changes where:
 - an existing test environment is available;
 - base and head can be run locally;
 - return values, exceptions, state, and side effects are deterministically observable;
-- Feature Review or Refactor Guard can be identified as the purpose;
+- Feature Review, Refactor Guard, or Test Assessment can be identified as the purpose;
 - important behavior probes are limited to three to five;
 - the same tests run on both base and head;
 - only important mutations are selected;
@@ -470,8 +477,8 @@ The release workflow does not modify source files. The Git tag is the immutable 
 Verify a published release and a downloaded asset with GitHub CLI:
 
 ```bash
-gh release verify v0.2.0 --repo Shogo1222/socratic
-gh release verify-asset v0.2.0 ./socratic-v0.2.0.zip \
+gh release verify v0.2.2 --repo Shogo1222/socratic
+gh release verify-asset v0.2.2 ./socratic-v0.2.2.zip \
   --repo Shogo1222/socratic
 ```
 
@@ -483,7 +490,7 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-The project is at the v0.2 skill-design stage. The protocol and agent workflows are usable, while deterministic language adapters and an isolated base/head comparison and mutation runner remain future work.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, run artifacts are schema-validated, and the CI and release pipeline is operational. Deterministic language adapters and a dedicated isolated mutation runner remain future work.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 
