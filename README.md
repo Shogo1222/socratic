@@ -11,9 +11,13 @@ English | [日本語](README.ja.md)
 
 > Don't review every line. Review the decisions that matter.
 
-Socratic is not a tool that explains every line of a pull request. It compares behavior before and after a change and extracts only what matters: specifications a human must decide, changes that may be unintended, and important risks the existing tests cannot detect.
+Socratic is a set of three Agent Skills that support reviewing AI-generated PRs.
 
-It converts the vague unease of a PR into concrete questions a specification owner can answer and evidence-backed behavior differences.
+The names come from the Socratic method — recognize what is not yet known and inquire (Socratic), draw ideas out of the other person through dialogue (Maieutic, the art of midwifery), and examine claims by refutation (Elenchus) — and the review follows exactly that sequence.
+
+- **Socratic** — the orchestrator. It compares behavior before and after a change, extracts only the specifications a human must decide, the changes that may be unintended, and the important risks the existing tests cannot detect, and delivers the four-block review surface with copy-ready comment candidates. **Outcome**: instead of reading the whole diff, you review a handful of decisions and paste-ready comments.
+- **Maieutic** — the elicitation skill. It converts expectations the implementation alone cannot establish into concrete questions a specification owner can answer, and records the answers in the Intent Contract linked to their tests. **Outcome**: vague unease becomes answerable specification questions and a test-backed record of confirmed intent.
+- **Elenchus** — the refutation skill. It runs the same behavior tests against base and head to detect behavior differences and proves the tests' detection ability with mutations. Run standalone, it assesses existing and changed tests (Test Assessment). **Outcome**: not "the tests are green" but proof that injecting the bug actually makes a test fail.
 
 ## The problem
 
@@ -33,13 +37,46 @@ Socratic lets a reviewer grasp four things quickly:
 3. which incidents are plausible;
 4. whether the tests would actually detect them.
 
+## Installation
+
+Install the three skills with the GitHub CLI:
+
+```bash
+# choose skills interactively
+gh skill install Shogo1222/socratic
+
+# install everything without prompts
+gh skill install Shogo1222/socratic --all
+
+# pin to a published release
+gh skill install Shogo1222/socratic --all --pin v0.2.3
+```
+
+Or with the open Agent Skills CLI:
+
+```bash
+npx skills add Shogo1222/socratic --skill '*'
+```
+
+Then invoke `$socratic` on a code change. Invoke `$maieutic` or `$elenchus` directly when only that stage is needed.
+
+For organizational rollout — release verification, preview, and project scope — follow the [enterprise installation guide](docs/enterprise-installation.md).
+
 ## Who it is for
 
-The first audience is senior engineers and tech leads reviewing AI-generated PRs. Socratic does not replace review; it prepares the material that lets the reviewer focus on important decisions. It never posts to GitHub: it generates inline comment candidates the reviewer can copy onto the exact lines, and the reviewer decides what to post, edit, or discard.
+- senior engineers and tech leads reviewing AI-generated PRs;
+- reviewers who want to know quickly which decisions a large diff actually needs;
+- teams that want to check whether AI-added tests really protect anything.
 
-The answerer of a specification question is not necessarily the code author. The specification owner answers — the PR author, reviewer, product owner, domain expert, tech lead, or the owner of the API or data. When AI generated the code, the AI is neither specification evidence nor an answerer. When the reviewer lacks the authority to decide, the comment candidates are their tool for confirming with the owner.
+How Socratic positions itself:
 
-## Two use cases
+- it does not replace review; it prepares the material that lets the reviewer focus on important decisions;
+- it never posts to GitHub — it generates copy-ready inline comment candidates, and the reviewer decides what to post, edit, or discard;
+- specification questions are answered by the specification owner: the PR author, reviewer, product owner, domain expert, tech lead, or the owner of the API or data;
+- when AI generated the code, the AI is neither specification evidence nor an answerer;
+- when the reviewer lacks the authority to decide, the comment candidates are their tool for confirming with the owner.
+
+## Use cases
 
 ### Feature Review
 
@@ -79,6 +116,10 @@ If this refactoring is meant to preserve behavior, this may be an unintended cha
 ```
 
 For Refactor Guard to be trustworthy, comparison tests must verify observable behavior, not internal structure. False positives produced by implementation-coupled tests are never reported as behavior diffs.
+
+### Test Assessment
+
+For evaluating the tests themselves — especially tests an AI just added — run `$elenchus` standalone. It compares the same risk mutations against the existing and changed test suites and separates existing protection, incremental protection, protection regressions, and unprotected risks. See [Run Elenchus independently](#run-elenchus-independently).
 
 ## Behavior diff classification
 
@@ -330,6 +371,7 @@ Pull Request / Local Diff
                 - compare with the same behavior tests
                 - generate intent mutations
                 - evaluate detection ability
+                - compare existing and changed test cohorts
                 - classify behavior diffs
           |
           v
@@ -389,49 +431,6 @@ schemas/
 
 Each directory under `skills/` is an Agent Skill compatible with Codex and Claude Code. Install all three to use the integrated `$socratic` workflow. `$maieutic` and `$elenchus` can also be invoked independently when only one stage is needed.
 
-## Installation
-
-Install all three skills from [Shogo1222/socratic](https://github.com/Shogo1222/socratic).
-
-For company-managed devices, preview the pinned release before installing it at project scope:
-
-```bash
-GH_TELEMETRY=false gh skill preview \
-  Shogo1222/socratic socratic@v0.2.0
-
-GH_TELEMETRY=false gh skill install \
-  Shogo1222/socratic \
-  --all \
-  --agent codex \
-  --scope project \
-  --pin v0.2.0
-```
-
-The GitHub CLI Agent Skills commands are currently in preview. Confirm that your organization permits the CLI and selected AI host. Project scope limits installation to the current repository; it does not control what repository data the host sends to its AI provider.
-
-For compatibility, the open Agent Skills CLI remains available for personal evaluation, but the unpinned command is not the recommended enterprise installation path:
-
-```bash
-npx skills add Shogo1222/socratic --skill '*'
-```
-
-Then invoke `$socratic` on a code change. Invoke `$maieutic` or `$elenchus` directly when only that stage is needed.
-
-## MVP scope
-
-v0.2 narrows its target to changes where:
-
-- an existing test environment is available;
-- base and head can be run locally;
-- return values, exceptions, state, and side effects are deterministically observable;
-- Feature Review or Refactor Guard can be identified as the purpose;
-- important behavior probes are limited to three to five;
-- the same tests run on both base and head;
-- only important mutations are selected;
-- nothing is auto-posted to GitHub;
-- comment candidates carry file names and line numbers;
-- unverified scope and test-strategy trade-offs are always reported.
-
 ## Non-goals
 
 v0.2 does not promise:
@@ -457,24 +456,6 @@ The test design principles follow Vladimir Khorikov's *Unit Testing Principles, 
 
 Socratic connects these ideas. The explicit human-confirmed Intent Contract, Maieutic intent elicitation, Contract-ID links between tests and mutations, the canonical four-block output, and copy-ready comment candidates are Socratic's own design, not claims of the papers or the book. Socratic is an independent open implementation, not an implementation published or endorsed by the authors of these works or their institutions.
 
-## CI and releases
-
-GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 16-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
-
-The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
-
-For a new version such as `0.2.1`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.2.1` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes.
-
-The release workflow does not modify source files. The Git tag is the immutable identity of a published release. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
-
-Verify a published release and a downloaded asset with GitHub CLI:
-
-```bash
-gh release verify v0.2.0 --repo Shogo1222/socratic
-gh release verify-asset v0.2.0 ./socratic-v0.2.0.zip \
-  --repo Shogo1222/socratic
-```
-
 ## Security
 
 For organizational adoption, review the [security model](docs/security-model.md) and follow the [enterprise installation guide](docs/enterprise-installation.md). Report suspected vulnerabilities privately according to the [security policy](SECURITY.md).
@@ -483,7 +464,7 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-The project is at the v0.2 skill-design stage. The protocol and agent workflows are usable, while deterministic language adapters and an isolated base/head comparison and mutation runner remain future work.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, run artifacts are schema-validated, and the CI and release pipeline is operational. Deterministic language adapters and a dedicated isolated mutation runner remain future work.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 
