@@ -244,25 +244,43 @@
           </div>
           <div class="case-grid">
             <article>
-              <span class="case-label">FEATURE REVIEW</span>
-              <h3>新しい振る舞いの<br>「正しさ」を決める</h3>
+              <span class="case-label">01 / SPECIFICATION</span>
+              <h3>Feature Review</h3>
+              <p class="case-ja">新しい振る舞いの「正しさ」を決める</p>
               <p>境界条件や例外時の期待を質問にし、仕様オーナーの回答をIntent Contractとテストへ結びます。</p>
-              <div class="case-sample">
-                <span>QUESTION</span>
-                契約終了日と更新日が同日の場合も、更新を許可する意図でしょうか？
+              <div class="case-visual terminal-question" role="img" aria-label="ターミナルで仕様について質問し、選択肢から回答する例">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · feature-review</span></div>
+                <div class="terminal-question-body">
+                  <code><span>$</span> socratic review --feature</code>
+                  <p><b>?</b> 契約終了日と更新日が同日の場合も、更新を許可する意図でしょうか？</p>
+                  <ul aria-hidden="true">
+                    <li class="selected">❯ 許可する</li>
+                    <li>　許可しない</li>
+                  </ul>
+                </div>
               </div>
             </article>
             <article>
-              <span class="case-label">REFACTOR GUARD</span>
-              <h3>リファクタリングの<br>振る舞い差を見つける</h3>
+              <span class="case-label">02 / REGRESSION</span>
+              <h3>Refactor Guard</h3>
+              <p class="case-ja">リファクタリングの振る舞い差を見つける</p>
               <p>BaseとHeadへ同じBehavior Testを実行。差があれば、意図した変更か回帰かを人間へ確認します。</p>
-              <div class="mini-flow"><span>BASE</span><b>same test</b><span>HEAD</span></div>
+              <div class="case-visual test-compare-diagram" role="img" aria-label="BaseとHeadへ同じBehavior Testを実行し、観測結果を比較する流れ">
+                <div class="test-path"><span>BASE</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>観測結果 A</strong></div>
+                <div class="test-path"><span>HEAD</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>観測結果 B</strong></div>
+                <div class="diagram-verdict"><small>COMPARE OUTPUTS</small><strong>Behavior Diff?</strong></div>
+              </div>
             </article>
             <article>
-              <span class="case-label">TEST ASSESSMENT</span>
-              <h3>AIが追加したテストの<br>「検知力」を測る</h3>
+              <span class="case-label">03 / TEST QUALITY</span>
+              <h3>Test Assessment</h3>
+              <p class="case-ja">AIが追加したテストの「検知力」を測る</p>
               <p>同じリスクMutationを既存・変更後のテストへ当て、増えた保護と、まだ守られていないリスクを分離します。</p>
-              <div class="mutation-line"><span>BASE ✓</span><span>HEAD ✓</span><strong>MUTANT ×</strong></div>
+              <div class="case-visual mutation-diagram" role="img" aria-label="リスクMutationをBaseとHeadのテストへ入れ、テストが失敗してリスクを検知できるか確かめる流れ">
+                <div class="mutation-path"><span>BASE TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
+                <div class="mutation-path"><span>HEAD TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
+                <div class="diagram-verdict"><small>MUTANT KILLED</small><strong>Risk detected</strong></div>
+              </div>
             </article>
           </div>
         </div>
