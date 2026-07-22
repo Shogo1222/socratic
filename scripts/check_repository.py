@@ -20,6 +20,9 @@ SCHEMA_MIRRORS = {
     "schemas/mutation-report.schema.json": (
         "skills/elenchus/references/mutation-report.schema.json",
     ),
+    "schemas/test-handoff.schema.json": (
+        "skills/elenchus/references/test-handoff.schema.json",
+    ),
 }
 
 TRANSLATION_PAIRS = {
@@ -37,6 +40,7 @@ TRANSLATION_PAIRS = {
     "skills/elenchus/SKILL.md": "docs/ja/skills/elenchus.md",
     "skills/elenchus/references/mutation-design.md": "docs/ja/skills/elenchus-mutation-design.md",
     "skills/elenchus/references/safety.md": "docs/ja/skills/elenchus-safety.md",
+    "skills/elenchus/references/test-handoff.md": "docs/ja/skills/elenchus-test-handoff.md",
 }
 
 
@@ -59,6 +63,23 @@ def check_release_version() -> None:
     version = raw.strip()
     if raw != f"{version}\n" or not SEMVER.fullmatch(version):
         fail("VERSION must contain exactly one semantic version followed by a newline")
+
+
+def check_schema_references() -> None:
+    for path in ROOT.rglob("*.schema.json"):
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        pending = [schema]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                reference = value.get("$ref")
+                if isinstance(reference, str) and not reference.startswith(("#", "http://", "https://")):
+                    target = reference.split("#", 1)[0]
+                    if target and not (path.parent / target).is_file():
+                        fail(f"broken schema reference: {path.relative_to(ROOT)} -> {reference}")
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
 
 
 def check_translations() -> None:
@@ -122,6 +143,7 @@ def check_skill_structure() -> None:
 def main() -> int:
     check_release_version()
     check_schema_mirrors()
+    check_schema_references()
     check_translations()
     check_markdown_links()
     check_runtime_skills_are_english_only()

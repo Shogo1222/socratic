@@ -8,7 +8,7 @@
 
 ## 必須の参照資料
 
-Mutant生成前に[Intent駆動Mutation設計](elenchus-mutation-design.md)、コード変更・実行前に[Mutation安全Contract](elenchus-safety.md)を読む。同梱したIntent Contract、Mutation Result、Mutation ReportのSchemaで入出力を検証する。
+Mutant生成前に[Intent駆動Mutation設計](elenchus-mutation-design.md)、コード変更・実行前に[Mutation安全Contract](elenchus-safety.md)を読む。提案テストを証明または適用する場合は[証明済みテストの引き渡し](elenchus-test-handoff.md)も読む。同梱したIntent Contract、Mutation Result、Mutation Report、Test HandoffのSchemaで入出力を検証する。
 
 ## Git安全境界
 
@@ -135,11 +135,15 @@ Contract解決済みなら、Mutantで失敗し元コードで成功する最小
 
 両方向を確認後、広い関連Suiteを実行する。Kill目的でAssertionを弱める、テストを実装の詳細へ結び付ける、本番コードを変更する、のいずれも行わない。
 
+Review-onlyでは、証明したTest Batchごとに、テストSandboxを破棄する前に`references/test-handoff.md`で定義された検証済みのテスト専用PatchとManifestを出力する。主要Workspaceから本番・テストPrecondition Hashを、証明用Sandboxからテストファイルの適用後Hashを記録し、正確なコマンド、検知したMutation ID、広いSuiteのStatusを含める。引き渡しは一時的に保持し、初期Statusを`available`とする。
+
+Apply testsでは、明示許可後かつPatch Hash、全ファイルPrecondition、対応する確認済みIntentが一致する場合だけ、利用可能な引き渡しを使う。本番コードまたはドキュメントを変更しない。適用後Hashを確認し、新しいDisposable Mutation Workspaceで双方向の証明を繰り返し、実用的なら広い関連Suiteを実行してからStatusを`applied`にする。不一致の引き渡しは強制適用せず`stale`とし、再生成する。
+
 解決した各Survivorは`Test gap`として報告する。Mutantが表すインシデント、追加したAssertion、双方向の証明を含める。例:「Event送信を削除しても既存テストが成功していた。境界契約のAssertionを追加し、同じMutationで失敗することを確認した」。
 
 ### 7. 復元状態を監査する
 
-全Sandboxを破棄し、主要Workspaceの対象範囲にあるFilesystem ManifestとContent Hashを実行前証跡と比較する。本番Mutationがなく、許可されたTest・Doc変更だけが残ることを確認する。Gitによる復元は行わず、残した変更をStage、Commit、Pushしない。
+全Mutation Sandboxを破棄する。明示的な処理方法を待つ間だけ、未解決で`available`なテスト引き渡しを保持し、適用・出力・破棄・Stale・失敗・Timeout・中断後は削除する。主要Workspaceの対象範囲にあるFilesystem ManifestとContent Hashを実行前証跡と比較する。本番Mutationがなく、許可されたTest・Doc変更だけが残ることを確認する。Gitによる復元は行わず、残した変更をStage、Commit、Pushしない。
 
 ## レビュアー向けサマリー
 
@@ -147,8 +151,8 @@ Contract解決済みなら、Mutantで失敗し元コードで成功する最小
 
 ## Reportの成果物
 
-同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
+同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、テスト引き渡しまたは`null`、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
 
 Mutation Scoreは補助情報であり成功基準ではない。予算切れをContract全体のHardening完了とみなさない。
 
-一時Reportは、成功・失敗・Timeout・中断のどの終了経路でも、ユーザーが保持を選ばない限り削除し、削除できない場合は正確なPathを報告する。
+一時Reportは、成功・失敗・Timeout・中断のどの終了経路でも、ユーザーが保持を選ばない限り削除する。PatchとManifestには`references/test-handoff.md`の別Cleanup Lifecycleを適用し、削除できない場合は正確なPathを報告する。

@@ -36,6 +36,8 @@ Ask from the main agent only; structured question tools are unavailable in subag
 
 Chat-first, ephemeral by default. During the run, keep the Intent Contract and the Elenchus report as temporary artifacts outside the repository working tree, validated against the bundled schemas as usual.
 
+This general artifact policy governs the Contract and report. A proven-test patch and manifest use the shorter disposition lifecycle under **Proven test handoff** and are never saved under `.socratic/` by the run-artifact choice.
+
 After rendering the final surface, ask through the structured question tool how to keep the artifacts:
 
 1. **Discard** (default) — delete the temporary artifacts.
@@ -59,6 +61,16 @@ Treat test provenance as relative to the start of the Socratic run, not to the b
 - **applied by this run after explicit request** — written to the primary workspace during this Apply tests run.
 
 Never describe a test as merely "added", "changed", or "new" without this run-relative attribution.
+
+## Proven test handoff
+
+When Review-only proves a missing test, require Elenchus to create and validate the temporary test-only patch and manifest defined in [Proven Test Handoff](../elenchus/references/test-handoff.md) before discarding its test sandbox. Keep this handoff outside the working tree.
+
+After the canonical review surface, ask one structured operational question: **Apply tests**, **Output patch**, or **Discard**. Do not offer Apply tests for an unresolved mapped oracle. Selecting Apply tests is the explicit authorization required to continue the same cycle in Apply tests mode. Ask the separate run-artifact retention question in the same structured batch when the host supports it. Treat no answer as Discard.
+
+On Apply tests, verify the handoff patch hash and every production and test precondition. Apply only the exact test changes, verify postimage hashes, and repeat focused original-code tests, the attributable mutations, the broader relevant suite when practical, and production-file postflight. If any precondition differs, mark the handoff stale and regenerate it against the current workspace rather than forcing it. If a prior run already discarded the handoff, regenerate and re-prove the tests; never claim to reuse missing evidence.
+
+After a successful application, update the Contract and report from proposed to applied, record authorized test paths, and render the canonical surface again with the persistent protection and current residual risks. The earlier Review-only surface was the disposition prompt context, not the terminal Apply tests result.
 
 ## Git safety boundary
 
@@ -89,7 +101,7 @@ Apply `$maieutic` to the scoped change. Require it to:
 2. ask only justified human decisions;
 3. maintain and validate the Intent Contract as a temporary run artifact outside the working tree;
 4. review focused tests and, in Apply tests mode only, complete them for confirmed expectations;
-5. return the contract path, status, changed files, test command, results, and risk ranking.
+5. return the contract path, status, changed files, test command, results, risk ranking, and any proposed test paths with mapped Contract IDs.
 
 If relevant items remain `needs-decision`, pause those items. Continue only independent confirmed work. Do not start Harden Mode for an unresolved oracle.
 
@@ -99,13 +111,13 @@ Apply `$elenchus` with the exact contract path and Maieutic handoff.
 
 For the standard branch, use Harden Mode only when challenged items are `confirmed` or `tested`. For the catching branch, allow Catch Mode with a `provisional` or `needs-decision` contract when parent and proposed revisions are identified.
 
-Require isolated execution, a stable baseline, one attributable mutant at a time, explicit `not_challenged` items, and postflight proof that no production mutation remains.
+Require isolated execution, a stable baseline, one attributable mutant at a time, explicit `not_challenged` items, postflight proof that no production mutation remains, and a validated handoff when Review-only proves a proposed test.
 
 ### 4. Loop on discoveries
 
 Route findings by type:
 
-- missing or weak test with confirmed oracle: in Review-only, let Elenchus design and prove the focused test in a disposable workspace and report it as proposed; in Apply tests, apply and prove it only after the user's explicit request;
+- missing or weak test with confirmed oracle: in Review-only, let Elenchus design and prove the focused test in a disposable workspace, export its validated handoff, and report it as proposed; in Apply tests, apply the current handoff or regenerate it when stale or missing, then prove it only after the user's explicit request;
 - missing invariant or ambiguous oracle: return it to Maieutic as a concrete behavior question;
 - intended Catch Mode behavior change: record `false-positive` and update the contract when useful;
 - unintended Catch Mode behavior change: record `strong-catch` and report it without changing production code unless separately authorized;
@@ -122,7 +134,8 @@ Finish when:
 3. selected high-risk mutants are killed or honestly classified otherwise;
 4. unchallenged Contract IDs and residual risks are explicit;
 5. the primary workspace is mutation-free;
-6. the run artifacts reflect the final state.
+6. every proven-test handoff is applied, output, discarded, or reported stale;
+7. the run artifacts reflect the final state.
 
 Do not equate mutation score, test count, or exhausted budget with confidence.
 
@@ -140,6 +153,8 @@ The terminal summary is exactly four blocks, in this order, and nothing else:
 - **Copy-ready Comments** — comment candidates with target file, target line, comment body, and the internal generation evidence.
 
 Every reviewer-facing test statement must say whether the test was **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. If Review-only postflight evidence matches preflight, state **Working tree unchanged during this Review-only run**. Do not imply that Socratic created pre-existing changes.
+
+The canonical surface remains four blocks. Present proven-test disposition afterward through the host's structured question UI, not as a fifth review block; use the three-option Markdown fallback only when structured questions are unavailable.
 
 Route findings by state, not by type:
 
@@ -217,4 +232,4 @@ Record issues that cannot anchor to a line as `Residual risk` under Still at Ris
 
 ### Artifacts
 
-Keep what the terminal omits — the Intent Contract and its status, the Elenchus report, mutation results, test strategy, and executed commands — in the temporary run artifacts, and report every test change with its run-relative disposition (existing, proposed, or applied), original-code results, and postflight proof that no production mutation remains. `existing` means existing at Socratic preflight, even if another request created it earlier in the same conversation. Then apply the artifact policy: ask how to keep the artifacts and discard them unless the user chooses otherwise. Never stage, commit, or push an artifact; the user alone decides whether and how to preserve or track anything.
+Keep what the terminal omits — the Intent Contract and its status, the Elenchus report, proven-test handoff status, mutation results, test strategy, and executed commands — in the temporary run artifacts, and report every test change with its run-relative disposition (existing, proposed, or applied), original-code results, and postflight proof that no production mutation remains. `existing` means existing at Socratic preflight, even if another request created it earlier in the same conversation. Resolve the test handoff first, then apply the artifact policy. Never stage, commit, or push an artifact; the user alone decides whether and how to preserve or track anything.

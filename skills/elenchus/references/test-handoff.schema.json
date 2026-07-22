@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proven Test Handoff",
+  "type": "object",
+  "required": [
+    "version",
+    "repository",
+    "snapshot",
+    "patch",
+    "preconditions",
+    "test_files",
+    "tests",
+    "proof",
+    "status"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "repository": { "type": "string", "minLength": 1 },
+    "snapshot": { "type": "string", "minLength": 1 },
+    "patch": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "preconditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "kind", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          },
+          "kind": { "enum": ["production", "test"] },
+          "sha256": {
+            "oneOf": [
+              { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "test_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "postimage_sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          },
+          "postimage_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tests": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "contract_ids"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          },
+          "contract_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "proof": {
+      "type": "object",
+      "required": ["focused_command", "focused_passed", "mutation_ids", "broader_command", "broader_status"],
+      "properties": {
+        "focused_command": { "type": "string", "minLength": 1 },
+        "focused_passed": { "const": true },
+        "mutation_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" }
+        },
+        "broader_command": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "broader_status": { "enum": ["passed", "failed", "not-run"] }
+      },
+      "additionalProperties": false
+    },
+    "status": { "enum": ["available", "applied", "output", "discarded", "stale"] }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "proof": { "properties": { "broader_status": { "const": "not-run" } } } }
+      },
+      "then": {
+        "properties": { "proof": { "properties": { "broader_command": { "type": "null" } } } }
+      },
+      "else": {
+        "properties": { "proof": { "properties": { "broader_command": { "type": "string", "minLength": 1 } } } }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -12,11 +12,12 @@
     "not_challenged",
     "unresolved",
     "test_changes",
+    "test_handoff",
     "authorized_workspace_changes",
     "postflight"
   ],
   "properties": {
-    "version": { "const": 2 },
+    "version": { "const": 3 },
     "mode": { "enum": ["harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
     "intent_contract": {
@@ -73,6 +74,12 @@
         },
         "additionalProperties": false
       }
+    },
+    "test_handoff": {
+      "oneOf": [
+        { "$ref": "test-handoff.schema.json" },
+        { "type": "null" }
+      ]
     },
     "authorized_workspace_changes": {
       "type": "array",

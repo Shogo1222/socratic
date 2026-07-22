@@ -10,7 +10,9 @@ The protocol keeps specification evidence separate from code behavior and makes 
 
 Run artifacts are chat-first and ephemeral by default. During a run, the Intent Contract and the Catch or Harden report are temporary artifacts outside the repository working tree, validated against schemas bundled with the installed skills and handed between stages by path. A conversation-only contract is a fallback, not the normal handoff.
 
-After the final surface is rendered, the user chooses through a structured question: discard (default), save locally, or output as Markdown. When saved locally, the canonical paths are:
+When Review-only proves a missing test, Elenchus also creates a temporary proven-test handoff outside the working tree: a test-only patch plus a validated manifest. The handoff remains available only until the user chooses Apply tests, Output patch, or Discard. It is not a substitute for persistent tests.
+
+After the final surface is rendered, proven tests are resolved first through a structured Apply tests / Output patch / Discard question. The separate run-artifact question then offers discard (default), save locally, or output as Markdown. When saved locally, the canonical paths are:
 
 - `.socratic/intent-contract.json`: active Intent Contract produced by Maieutic;
 - `.socratic/elenchus-report.json`: latest Catch or Harden report produced by Elenchus.
@@ -67,9 +69,9 @@ Decision provenance has two values only:
 
 Unconfirmed reasoning belongs in `intent.evidence`. Unresolved oracle choices belong in `unresolved`.
 
-### Mutation Result and Report
+### Mutation Result, Report, and Test Handoff
 
-[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Catch classifications. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, unchallenged Contract IDs, unresolved decisions, test changes with their disposition (existing, proposed, or applied), authorized workspace changes, and postflight mutation-removal proof.
+[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Catch classifications. [test-handoff.schema.json](../schemas/test-handoff.schema.json) represents an exact proven test patch, its file-hash preconditions and postimages, Contract mappings, and bidirectional proof. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, unchallenged Contract IDs, unresolved decisions, test changes and handoff status, authorized workspace changes, and postflight mutation-removal proof.
 
 ## Human decision boundary
 
@@ -88,11 +90,17 @@ Decisions are presented through the host's structured question tool when availab
 
 The reviewer-facing surface is exactly four blocks: Review This, We Verified, Still at Risk, and Copy-ready Comments. Findings route by state, not type: unconfirmed behavior differences and unresolved decisions are Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection are We Verified; everything unverified is Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet.
 
+The operational proven-test choice appears after those four blocks through the host's structured question UI, not as a fifth review block.
+
 Comment candidates are at most one to three, tagged `Intent decision`, `Behavior difference`, or `Test gap`, anchored to file and line. The answerer of an `Intent decision` is the specification owner; an AI code author is neither specification evidence nor an answerer. Skills never post to a code host and never report merge readiness, a confidence level, or an overall score — the merge decision stays with the reviewer. Details such as the contract, mutation results, test strategy, and executed commands live in the run artifacts.
 
 ## Write-mode boundary
 
 Review-only is the default: probes, comparison tests, and mutations exist only in disposable environments, the working tree is untouched, and proven missing tests are reported as proposals. Apply tests requires an explicit user request and adds only tests that encode confirmed intent. Version-control operations remain prohibited in both modes.
+
+Before disposing a sandbox that contains a proven proposed test, export a test-only patch and validate its handoff manifest. Apply tests verifies the patch hash, production and test precondition hashes, confirmed Contract mappings, and test-file postimages. A mismatch makes the handoff stale; regenerate and repeat the original-pass / mutant-fail proof instead of forcing it. Missing or previously discarded handoffs are regenerated, never described as reused.
+
+After successful application, update the Contract and report to applied state and render the canonical four-block surface again. The preceding Review-only surface provided context for the disposition choice; it is not the terminal Apply tests result.
 
 Test disposition is relative to preflight at the start of the Socratic run, not to the surrounding conversation or Git history. A test present at preflight is `existing` even if an earlier request in the same conversation created it; a disposable-only test is `proposed`; only a test written to the primary workspace by this explicitly authorized run is `applied`. Reviewer-facing text must verbalize those states as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. A matching Review-only postflight is reported as **Working tree unchanged during this Review-only run**.
 
