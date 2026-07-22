@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/socratic-logo.png" alt="Socratic" height="120">
+</p>
+
 English | [日本語](README.ja.md)
 
 # Socratic
