@@ -11,9 +11,11 @@ English | [日本語](README.ja.md)
 
 > Don't review every line. Review the decisions that matter.
 
-Socratic is not a tool that explains every line of a pull request. It compares behavior before and after a change and extracts only what matters: specifications a human must decide, changes that may be unintended, and important risks the existing tests cannot detect.
+Socratic is a set of three Agent Skills that support reviewing AI-generated PRs.
 
-It converts the vague unease of a PR into concrete questions a specification owner can answer and evidence-backed behavior differences.
+- **Socratic** — the orchestrator. It compares behavior before and after a change, extracts only the specifications a human must decide, the changes that may be unintended, and the important risks the existing tests cannot detect, and delivers the four-block review surface with copy-ready comment candidates.
+- **Maieutic** — the elicitation skill. It converts expectations the implementation alone cannot establish into concrete questions a specification owner can answer, and records the answers in the Intent Contract linked to their tests.
+- **Elenchus** — the refutation skill. It runs the same behavior tests against base and head to detect behavior differences and proves the tests' detection ability with mutations. Run standalone, it assesses existing and changed tests (Test Assessment).
 
 ## The problem
 
