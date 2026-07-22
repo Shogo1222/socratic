@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 JAPANESE = re.compile(r"[ぁ-んァ-ヶ一-龠]")
+SEMVER = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
 
 SCHEMA_MIRRORS = {
     "schemas/intent-contract.schema.json": (
@@ -51,6 +52,13 @@ def check_schema_mirrors() -> None:
         for mirror in mirrors:
             if (ROOT / mirror).read_bytes() != source_bytes:
                 fail(f"schema mirror is stale: {mirror} != {source}")
+
+
+def check_release_version() -> None:
+    raw = (ROOT / "VERSION").read_text(encoding="utf-8")
+    version = raw.strip()
+    if raw != f"{version}\n" or not SEMVER.fullmatch(version):
+        fail("VERSION must contain exactly one semantic version followed by a newline")
 
 
 def check_translations() -> None:
@@ -112,6 +120,7 @@ def check_skill_structure() -> None:
 
 
 def main() -> int:
+    check_release_version()
     check_schema_mirrors()
     check_translations()
     check_markdown_links()
