@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
     <link rel="icon" href="assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=20260722-1525">
+    <link rel="stylesheet" href="styles.css?v=20260722-1530">
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -261,15 +261,17 @@
               <h3>Feature Review</h3>
               <p class="case-ja">新しい振る舞いの「正しさ」を決める</p>
               <p>境界条件や例外時の期待を質問にし、仕様オーナーの回答をIntent Contractとテストへ結びます。</p>
-              <div class="case-visual terminal-question" role="img" aria-label="ターミナルで仕様について質問し、選択肢から回答する例">
-                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · feature-review</span></div>
+              <div class="case-visual terminal-question" role="img" aria-label="ターミナル上で、境界条件の仕様が合っているかを選択式で確認する例">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · intent check</span></div>
                 <div class="terminal-question-body">
-                  <code><span>$</span> socratic review --feature</code>
-                  <p><b>?</b> 契約終了日と更新日が同日の場合も、更新を許可する意図でしょうか？</p>
+                  <code><span>›</span> Use <strong>$socratic</strong> to review this change<span class="terminal-cursor" aria-hidden="true"></span></code>
+                  <p><b>?</b> 契約終了日と更新日が同日の場合、更新を許可する仕様で合っていますか？</p>
                   <ul aria-hidden="true">
-                    <li class="selected">❯ 許可する</li>
-                    <li>　許可しない</li>
+                    <li class="selected"><b>❯</b><span><strong>はい</strong><small>同日も更新できます</small></span></li>
+                    <li><b> </b><span><strong>いいえ</strong><small>同日は更新できません</small></span></li>
+                    <li><b> </b><span><strong>別の仕様を入力する…</strong></span></li>
                   </ul>
+                  <div class="terminal-key-hint" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> 移動</span><span><kbd>enter</kbd> 決定</span></div>
                 </div>
               </div>
             </article>

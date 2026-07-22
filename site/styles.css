@@ -283,10 +283,23 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .case-terminal-bar i { color: #637185; font-size: 7px; font-style: normal; letter-spacing: 2px; }
 .terminal-question-body { padding: 17px; font: 600 10px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .terminal-question-body code { color: #c7d1de; }
-.terminal-question-body code span, .terminal-question-body p b { color: var(--orange-soft); }
-.terminal-question-body p { margin: 14px 0 12px; color: #f2f5f8; font: inherit; }
-.terminal-question-body ul { display: grid; gap: 4px; margin: 0; padding: 0; color: #8d99a9; list-style: none; }
-.terminal-question-body .selected { color: #bde8d0; }
+.terminal-question-body code > span:first-child, .terminal-question-body p > b { color: var(--orange-soft); }
+.terminal-question-body code strong { color: #eef4fb; }
+.terminal-cursor { width: 6px; height: 13px; display: inline-block; margin-left: 4px; background: #8ca4bd; vertical-align: -2px; animation: terminal-blink 1.1s steps(1) infinite; }
+.terminal-question-body p { margin: 14px 0 11px; color: #f2f5f8; font: inherit; }
+.terminal-question-body ul { display: grid; gap: 3px; margin: 0; padding: 0; color: #8d99a9; list-style: none; }
+.terminal-question-body li { min-height: 32px; display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 2px; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; }
+.terminal-question-body li > b { color: #7790aa; }
+.terminal-question-body li span { display: flex; align-items: baseline; gap: 8px; }
+.terminal-question-body li strong { color: #c4ceda; }
+.terminal-question-body li small { color: #758398; font: 600 8px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.terminal-question-body .selected { border-color: rgba(189,232,208,.22); background: rgba(89,165,124,.13); }
+.terminal-question-body .selected > b, .terminal-question-body .selected strong { color: #bde8d0; }
+.terminal-question-body .selected small { color: #8fbca4; }
+.terminal-key-hint { display: flex; justify-content: flex-end; gap: 11px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); color: #65748a; font-size: 7px; }
+.terminal-key-hint span { display: flex; align-items: center; gap: 3px; }
+.terminal-key-hint kbd { min-width: 16px; padding: 2px 4px; border: 1px solid #46556a; border-bottom-color: #718095; border-radius: 3px; color: #a5b2c2; background: #17253a; font: inherit; text-align: center; }
+@keyframes terminal-blink { 50% { opacity: 0; } }
 
 .test-compare-diagram, .mutation-diagram { padding: 14px; }
 .test-path { display: grid; grid-template-columns: 45px 14px 1fr 14px 1fr; align-items: center; gap: 4px; margin-bottom: 8px; font: 700 9px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
