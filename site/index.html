@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
     <link rel="icon" href="assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260722-1525">
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -110,7 +110,7 @@
         </div>
       </section>
 
-      <section class="problem band">
+      <section class="problem band" id="problem">
         <div class="shell problem-grid">
           <div>
             <p class="section-kicker">THE PROBLEM</p>
@@ -126,11 +126,24 @@
             </p>
           </div>
         </div>
-        <div class="shell question-row">
-          <article><span>01</span><p>ユーザーから見て<br><strong>何が変わる？</strong></p></article>
-          <article><span>02</span><p>人間の仕様判断が<br><strong>必要なのはどこ？</strong></p></article>
-          <article><span>03</span><p>どんな事故が<br><strong>起こり得る？</strong></p></article>
-          <article><span>04</span><p>テストはその事故を<br><strong>本当に検知する？</strong></p></article>
+        <div class="shell decision-map" role="img" aria-label="大きなDiffをSocraticで絞り込み、レビューで答えるべき4つの質問へ変える流れ">
+          <div class="diff-input">
+            <span>INPUT</span>
+            <strong>Large Diff</strong>
+            <div class="diff-stats" aria-hidden="true"><i>127 files</i><i>+2,418</i><i>−1,036</i></div>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><small>REDUCE</small><b>→</b></div>
+          <div class="filter-node">
+            <span>SOCRATIC</span>
+            <strong>全行ではなく<br>判断を抽出</strong>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><small>FOCUS</small><b>→</b></div>
+          <ol class="decision-questions">
+            <li><span>01</span><p>ユーザーから見て<strong>何が変わる？</strong></p></li>
+            <li><span>02</span><p>人間の仕様判断が<strong>必要なのはどこ？</strong></p></li>
+            <li><span>03</span><p>どんな事故が<strong>起こり得る？</strong></p></li>
+            <li><span>04</span><p>テストはその事故を<strong>本当に検知する？</strong></p></li>
+          </ol>
         </div>
       </section>
 
