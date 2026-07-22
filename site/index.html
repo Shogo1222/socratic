@@ -27,7 +27,7 @@
     <link rel="alternate" hreflang="ja" href="https://shogo1222.github.io/socratic/">
     <link rel="alternate" hreflang="en" href="https://shogo1222.github.io/socratic/en/">
     <link rel="icon" href="assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=20260722-1625">
+    <link rel="stylesheet" href="styles.css?v=20260722-1720">
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -263,10 +263,15 @@
               <h3>Refactor Guard</h3>
               <p class="case-ja">リファクタリングの振る舞い差を見つける</p>
               <p>BaseとHeadへ同じBehavior Testを実行。差があれば、意図した変更か回帰かを人間へ確認します。</p>
-              <div class="case-visual test-compare-diagram" role="img" aria-label="BaseとHeadへ同じBehavior Testを実行し、観測結果を比較する流れ">
-                <div class="test-path"><span>BASE</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>観測結果 A</strong></div>
-                <div class="test-path"><span>HEAD</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>観測結果 B</strong></div>
-                <div class="diagram-verdict"><small>COMPARE OUTPUTS</small><strong>Behavior Diff?</strong></div>
+              <div class="case-visual animated-terminal compare-terminal" role="img" aria-label="同じBehavior TestをBaseとHeadへ順番に実行し、テスト結果の差を検出するターミナル">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · refactor guard</span></div>
+                <div class="animated-terminal-body" aria-hidden="true">
+                  <code><span>›</span> Run the <strong>same behavior test</strong><span class="terminal-cursor"></span></code>
+                  <div class="test-target terminal-stage stage-one"><small>TEST</small><strong>contract renewal · expiry boundary</strong></div>
+                  <div class="terminal-run test-execution terminal-stage stage-two"><span>BASE</span><b><i></i> Running test…</b><em>PASS</em></div>
+                  <div class="terminal-run test-execution terminal-stage stage-three"><span>HEAD</span><b><i></i> Running same test…</b><em>FAIL</em></div>
+                  <div class="terminal-verdict terminal-stage stage-four"><span>Δ</span><div><small>TEST RESULT DIFF</small><strong>Behavior changed</strong></div></div>
+                </div>
               </div>
             </article>
             <article>
@@ -274,10 +279,15 @@
               <h3>Test Assessment</h3>
               <p class="case-ja">AIが追加したテストの「検知力」を測る</p>
               <p>同じリスクMutationを既存・変更後のテストへ当て、増えた保護と、まだ守られていないリスクを分離します。</p>
-              <div class="case-visual mutation-diagram" role="img" aria-label="リスクMutationをBaseとHeadのテストへ入れ、テストが失敗してリスクを検知できるか確かめる流れ">
-                <div class="mutation-path"><span>BASE TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
-                <div class="mutation-path"><span>HEAD TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
-                <div class="diagram-verdict"><small>MUTANT KILLED</small><strong>Risk detected</strong></div>
+              <div class="case-visual animated-terminal mutation-terminal" role="img" aria-label="同じMutationがBase Testsでは生き残り、Head Testsでは捕捉されることで追加テストの検知力を示すターミナル">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>elenchus · test assessment</span></div>
+                <div class="animated-terminal-body" aria-hidden="true">
+                  <code><span>›</span> Check whether tests <strong>catch the bug</strong><span class="terminal-cursor"></span></code>
+                  <div class="mutation-inject terminal-stage stage-one"><span>MUTATION</span><strong>remove event emission</strong><i>injected</i></div>
+                  <div class="terminal-run mutation-run terminal-stage stage-two"><span>BASE TESTS</span><b>mutant ran</b><em>SURVIVED ×</em></div>
+                  <div class="terminal-run mutation-run terminal-stage stage-three"><span>HEAD TESTS</span><b>mutant ran</b><em>KILLED ✓</em></div>
+                  <div class="terminal-verdict terminal-stage stage-four"><span>✓</span><div><small>MUTATION CAUGHT</small><strong>New test detects the risk</strong></div></div>
+                </div>
               </div>
             </article>
           </div>
