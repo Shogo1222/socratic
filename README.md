@@ -2,6 +2,9 @@ English | [日本語](README.ja.md)
 
 # Socratic
 
+[![CI](https://github.com/Shogo1222/socratic/actions/workflows/ci.yml/badge.svg)](https://github.com/Shogo1222/socratic/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/Shogo1222/socratic)](https://github.com/Shogo1222/socratic/releases)
+
 > Don't review every line. Review the decisions that matter.
 
 Socratic is not a tool that explains every line of a pull request. It compares behavior before and after a change and extracts only what matters: specifications a human must decide, changes that may be unintended, and important risks the existing tests cannot detect.
@@ -350,6 +353,9 @@ schemas/
   intent-contract.schema.json
   mutation-result.schema.json
   mutation-report.schema.json
+.github/workflows/
+  ci.yml         Repository validation
+  release.yml    Tag and GitHub Release creation
 ```
 
 Each directory under `skills/` is an Agent Skill compatible with Codex and Claude Code. Install all three to use the integrated `$socratic` workflow. `$maieutic` and `$elenchus` can also be invoked independently when only one stage is needed.
@@ -411,6 +417,14 @@ This project is inspired by two complementary research directions, represented b
 The test design principles follow Vladimir Khorikov's *Unit Testing Principles, Practices, and Patterns*.
 
 Socratic connects these ideas. The explicit human-confirmed Intent Contract, Maieutic intent elicitation, Contract-ID links between tests and mutations, the canonical four-block output, and copy-ready comment candidates are Socratic's own design, not claims of the papers or the book. Socratic is an independent open implementation, not an implementation published or endorsed by the authors of these works or their institutions.
+
+## CI and releases
+
+GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. The workflow also compiles the Python validation scripts to catch syntax errors.
+
+Maintainers create a release from **Actions → Release → Run workflow** on `main`. Enter a semantic version such as `0.2.0`; a leading `v` is accepted. The workflow validates the repository and version, rejects an existing tag, creates an annotated `v0.2.0` tag, and publishes a GitHub Release with generated notes. Draft and prerelease releases are supported.
+
+The release workflow does not modify source files. The Git tag is the release version of record.
 
 ## Status
 
