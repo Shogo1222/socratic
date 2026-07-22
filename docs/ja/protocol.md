@@ -96,7 +96,7 @@ Standalone AssessmentはReview-onlyで、既定ではTestを作りません。Su
 
 ## Review出力の境界
 
-レビュアー向けのSurfaceは、Review This、We Verified、Still at Risk、Copy-ready Commentsの4ブロックだけです。発見は種類ではなく状態で振り分けます。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未検証のすべてはStill at Riskです。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載します。
+レビュアー向けのSurfaceは、Review This、We Verified、Still at Risk、Copy-ready Commentsの4ブロックだけです。発見は種類ではなく状態で振り分けます。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未検証のすべてはStill at Riskです。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載します。この4ブロックSurfaceはSocraticが統合するReview出力に適用されます。StandaloneのTest Assessment実行は、Elenchus Assessment Scopeの境界で定義するAssessment Surfaceを使います。
 
 証明済みテストをどう処理するかという運用上の選択は、この4ブロックの後にHostの構造化質問UIで提示し、5つ目のReviewブロックにはしません。
 

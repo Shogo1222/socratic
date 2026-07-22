@@ -101,6 +101,8 @@ Cohort作成のために主要Working Treeを編集しない。APIまたはFixtu
 
 重複は自動的に欠陥としない。保守Costが不釣り合いでない限り中立として報告する。意図した振る舞いAssertionへ到達した失敗だけをKillとして帰属する。
 
+Reportの`baseline`と各`mutations[].result`はChanged Cohort基準で記録する。Existing Cohortの結果は比較Recordだけに置き、不安定または取得不能なExisting Cohortは`not-comparable`または`inconclusive`の比較として表現し、理由をReportのNotesへ記載する。
+
 ### 5. Test Qualityを評価する
 
 Mutation検知とTest設計品質を分離する。実装詳細への結合、管理下依存へのInteraction Assertion、弱い・欠落したAssertion、到達不能Setup、過大なFixture Cost、Flaky、Coverage削除を指摘する。Oracleは出力、観測可能な最終状態、管理外境界のCommunicationの順に優先する。MutantをKillするためだけの壊れやすいAssertionを推奨しない。
@@ -220,7 +222,7 @@ Apply testsでは、明示許可後かつPatch Hash、全ファイルPreconditio
 
 ## Reportの成果物
 
-同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test AssessmentのScope選択・ExistingとChanged Cohort・比較分類・除外Scope(Catch・Harden Modeでは`null`)、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、テスト引き渡しまたは`null`、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
+同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test AssessmentのScope選択・ExistingとChanged Cohort・比較分類・除外Scope(SocraticがCatch・Harden ModeでCohort比較を要求した場合も記録し、Cohort比較を行っていない場合は`null`)、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、テスト引き渡しまたは`null`、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
 
 Mutation Scoreは補助情報であり成功基準ではない。予算切れをContract全体のHardening完了とみなさない。
 

@@ -109,7 +109,7 @@ If relevant items remain `needs-decision`, pause those items. Continue only inde
 
 Apply `$elenchus` with the exact contract path and Maieutic handoff.
 
-Pass the exact Socratic scope, existing-test set, and changed-test set. Elenchus must inherit them without asking its standalone assessment-scope question. When relevant, require it to distinguish existing protection, incremental protection from changed tests, and protection regressions, then route that evidence into the canonical four-block surface.
+Pass the exact Socratic scope, existing-test set, and changed-test set. Elenchus must inherit them without asking its standalone assessment-scope question. When relevant, require it to distinguish existing protection, incremental protection from changed tests, and protection regressions, then route that evidence into the canonical four-block surface and record the cohort comparison in the report's `assessment` field.
 
 For the standard branch, use Harden Mode only when challenged items are `confirmed` or `tested`. For the catching branch, allow Catch Mode with a `provisional` or `needs-decision` contract when parent and proposed revisions are identified.
 

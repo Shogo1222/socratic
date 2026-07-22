@@ -108,6 +108,8 @@ Run the same valid mutant against fresh copies of every selected cohort. Classif
 
 Redundancy is not automatically a defect: report it as neutral unless it adds disproportionate maintenance cost. Attribute a kill only when the failure reaches the intended behavioral assertion.
 
+Record the report `baseline` and each `mutations[].result` from the changed cohort. Existing-cohort outcomes live only in the comparison records: represent an unstable or unavailable existing cohort as `not-comparable` or `inconclusive` comparisons and state the reason in the report notes.
+
 ### 5. Evaluate test quality
 
 Separate mutation detection from test design quality. Flag implementation-detail coupling, interaction assertions against managed dependencies, weak or absent assertions, unreachable setup, excessive fixture cost, flaky behavior, and deleted coverage. Prefer output, observable final state, and unmanaged-boundary communication in that order. Never recommend a brittle assertion merely to kill a mutant.
@@ -251,7 +253,7 @@ For direct Test Assessment Mode, use the standalone assessment surface from its 
 Produce the report against the bundled report schema as a temporary run artifact; it is written to `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy. Include:
 
 - mode, contract path, and stable baseline evidence;
-- Test Assessment scope selection, existing and changed cohorts, comparison classifications, and excluded scope, or `null` for Catch and Harden Mode;
+- Test Assessment scope selection, existing and changed cohorts, comparison classifications, and excluded scope — also recorded when Socratic requests a cohort comparison in Catch or Harden Mode — or `null` when no cohort comparison was performed;
 - each mutation record and classification;
 - catching outcomes and human verdicts when applicable;
 - the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), test handoff or `null`, authorized workspace changes, and bidirectional proof;

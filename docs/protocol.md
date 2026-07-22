@@ -96,7 +96,7 @@ Standalone assessment is Review-only and does not create tests by default. Harde
 
 ## Review output boundary
 
-The reviewer-facing surface is exactly four blocks: Review This, We Verified, Still at Risk, and Copy-ready Comments. Findings route by state, not type: unconfirmed behavior differences and unresolved decisions are Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection are We Verified; everything unverified is Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet.
+The reviewer-facing surface is exactly four blocks: Review This, We Verified, Still at Risk, and Copy-ready Comments. Findings route by state, not type: unconfirmed behavior differences and unresolved decisions are Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection are We Verified; everything unverified is Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. This four-block surface governs Socratic-orchestrated review output; a standalone Test Assessment run uses the assessment surface defined under the Elenchus assessment-scope boundary.
 
 The operational proven-test choice appears after those four blocks through the host's structured question UI, not as a fifth review block.
 
