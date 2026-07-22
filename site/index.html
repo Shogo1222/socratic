@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
     <link rel="icon" href="assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=20260722-1530">
+    <link rel="stylesheet" href="styles.css?v=20260722-1535">
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -61,51 +61,6 @@
               <a class="button button-primary" href="#how">See How It Works <span aria-hidden="true">↓</span></a>
               <a class="button button-ghost" href="https://github.com/Shogo1222/socratic">View on GitHub <span aria-hidden="true">↗</span></a>
             </div>
-            <ul class="trust-list" aria-label="Socratic principles">
-              <li>Doesn't replace human review</li>
-              <li>Never posts to GitHub automatically</li>
-              <li>Never decides whether to merge</li>
-            </ul>
-          </div>
-
-          <div class="review-card-wrap" aria-label="Socraticの出力例">
-            <div class="review-orbit orbit-one" aria-hidden="true"></div>
-            <div class="review-orbit orbit-two" aria-hidden="true"></div>
-            <article class="review-card">
-              <div class="review-topbar">
-                <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
-                <span>Socratic Review</span>
-                <span class="status">complete</span>
-              </div>
-              <div class="review-body">
-                <div class="review-line review-this">
-                  <span class="review-icon">!</span>
-                  <div><strong>Review This</strong><small>人間が決めること</small></div>
-                  <b>2</b>
-                </div>
-                <div class="review-line verified">
-                  <span class="review-icon">✓</span>
-                  <div><strong>We Verified</strong><small>証拠を持って確認したこと</small></div>
-                  <b>5</b>
-                </div>
-                <div class="review-line risk">
-                  <span class="review-icon">△</span>
-                  <div><strong>Still at Risk</strong><small>まだ検証できていないこと</small></div>
-                  <b>2</b>
-                </div>
-                <div class="review-line comments">
-                  <span class="review-icon">↗</span>
-                  <div><strong>Copy-ready Comments</strong><small>そのまま使えるコメント候補</small></div>
-                  <b>2</b>
-                </div>
-              </div>
-              <div class="review-footer">
-                <span>127 files changed</span>
-                <span class="arrow" aria-hidden="true">→</span>
-                <strong>2 decisions</strong>
-              </div>
-            </article>
-            <p class="hand-note note-one" aria-hidden="true">読む量ではなく、<br>決める量を減らす</p>
           </div>
         </div>
       </section>
@@ -222,26 +177,40 @@
             </p>
           </div>
 
-          <div class="output-list">
-            <article>
-              <span class="output-number">01</span>
-              <div><h3>Review This</h3><p>未確定の仕様、意図を確認できていない振る舞い差、未解決のテスト不足。</p></div>
-              <span class="output-mark mark-review">!</span>
-            </article>
-            <article>
-              <span class="output-number">02</span>
-              <div><h3>We Verified</h3><p>維持された振る舞い、確定した変更、Mutationで検知能力まで証明したテスト。</p></div>
-              <span class="output-mark mark-verified">✓</span>
-            </article>
-            <article>
-              <span class="output-number">03</span>
-              <div><h3>Still at Risk</h3><p>環境制約や非決定性など、今回のレビューで検証できなかった範囲。</p></div>
-              <span class="output-mark mark-risk">△</span>
-            </article>
-            <article>
-              <span class="output-number">04</span>
-              <div><h3>Copy-ready Comments</h3><p>観測事実と判断の影響を揃えた、GitHubへコピーして使えるコメント候補。</p></div>
-              <span class="output-mark mark-comment">↗</span>
+          <div class="review-card-wrap output-review-card" aria-label="整理されたSocraticレビュー結果の例">
+            <article class="review-card">
+              <div class="review-topbar">
+                <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+                <span>Socratic Review</span>
+                <span class="status">complete</span>
+              </div>
+              <div class="review-body">
+                <div class="review-line review-this">
+                  <span class="review-icon">!</span>
+                  <div><strong>Review This</strong><small>人間が決めること</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line verified">
+                  <span class="review-icon">✓</span>
+                  <div><strong>We Verified</strong><small>証拠を持って確認したこと</small></div>
+                  <b>5</b>
+                </div>
+                <div class="review-line risk">
+                  <span class="review-icon">△</span>
+                  <div><strong>Still at Risk</strong><small>まだ検証できていないこと</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line comments">
+                  <span class="review-icon">↗</span>
+                  <div><strong>Copy-ready Comments</strong><small>そのまま使えるコメント候補</small></div>
+                  <b>2</b>
+                </div>
+              </div>
+              <div class="review-footer">
+                <span>127 files changed</span>
+                <span class="arrow" aria-hidden="true">→</span>
+                <strong>2 decisions</strong>
+              </div>
             </article>
           </div>
         </div>
