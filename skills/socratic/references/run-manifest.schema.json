@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Socratic Run Manifest",
+  "type": "object",
+  "required": [
+    "version", "run_id", "status", "write_mode", "socratic_version",
+    "entrypoint", "skill_root", "primary_root", "sandbox_root", "host",
+    "protection", "environment", "ledger_path"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "run_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "status": { "const": "ready" },
+    "write_mode": { "const": "review-only" },
+    "socratic_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "entrypoint": { "const": "socratic/scripts/run_review.py" },
+    "skill_root": { "type": "string", "minLength": 1 },
+    "primary_root": { "type": "string", "minLength": 1 },
+    "sandbox_root": { "type": ["string", "null"] },
+    "host": {
+      "type": "object",
+      "required": ["adapter_id", "run_nonce", "storage_root"],
+      "properties": {
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "run_nonce": { "type": "string", "minLength": 32 },
+        "storage_root": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "protection": {
+      "type": "object",
+      "required": ["mode", "verified", "primary_root", "details"],
+      "properties": {
+        "mode": { "enum": ["os-read-only", "permission-read-only", "host-events", "os-audit", "unavailable"] },
+        "verified": { "type": "boolean" },
+        "primary_root": { "type": "string", "minLength": 1 },
+        "details": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "required": ["HOME", "TMPDIR", "XDG_CACHE_HOME", "npm_config_cache"],
+      "properties": {
+        "HOME": { "type": "string", "minLength": 1 },
+        "TMPDIR": { "type": "string", "minLength": 1 },
+        "XDG_CACHE_HOME": { "type": "string", "minLength": 1 },
+        "npm_config_cache": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "ledger_path": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "ready" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "sandbox_root": { "type": "string", "minLength": 1 },
+          "protection": { "properties": { "verified": { "const": true } } }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

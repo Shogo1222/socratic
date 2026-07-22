@@ -20,6 +20,8 @@ Skillは、依頼された変更を理解するために必要な範囲で、変
 
 既定はReview-onlyです。このModeではProbe、比較Test、Mutation、Contract、Reportを主要Working Tree外のDisposable Storageに保持します。実行終了時に主要Working TreeはPreflight時点と一致しなければなりません。
 
+Mutationでは最終状態一致だけでは不十分です。必須Host AdapterはRepository外Sandbox作成前にNonceと保護Storage Capabilityを発行する。Manifest、Ledger、Sandboxの全PathをPrimary外と検証し、ManifestをCreate-once、LedgerをAppend-only Hash Chainにする。各Report MutationにはPhase付きTest実行を要求する。復元後に同一Byteへ戻ってもPrimary Writeがあれば無効で、Host連携がなければStandalone Runnerは`blocked`となる。
+
 Apply testsは、ユーザーが明示的に依頼した後だけ利用できます。確認済みIntentを表すTestだけを書き込み、変更したすべてのPathを報告します。本番Codeの変更やVersion Control操作は許可しません。
 
 実行Artifactは既定で一時的です。ユーザーが明示的に保存を選択した場合だけ、`.socratic/`または指定された別の出力先へ書き込みます。

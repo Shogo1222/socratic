@@ -1,5 +1,13 @@
 {
-  "version": 6,
+  "version": 7,
+  "run": {
+    "id": "11111111111111111111111111111111",
+    "entrypoint": "socratic/scripts/run_review.py",
+    "host_adapter": "demo-host",
+    "run_nonce": "11111111111111111111111111111111",
+    "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "ledger_head": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
   "mode": "harden",
   "write_mode": "apply-tests",
   "intent_contract": {

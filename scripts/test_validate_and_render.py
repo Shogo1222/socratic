@@ -149,6 +149,9 @@ class ValidateAndRenderTest(unittest.TestCase):
         self.assertTrue(rendered.startswith("Review This:\n"))
         self.assertTrue(rendered.endswith("Evidence: The boundary incident survived.\n"))
 
+    def test_direct_cli_is_disabled_in_favor_of_mandatory_run_entrypoint(self) -> None:
+        self.assertEqual(validate_and_render.main([]), 2)
+
     @unittest.skipUnless(
         importlib.util.find_spec("jsonschema") and importlib.util.find_spec("referencing"),
         "schema validation dependencies unavailable",

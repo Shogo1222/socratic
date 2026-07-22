@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install schema validation dependencies
+        run: python3 -m pip install --quiet jsonschema referencing
+
       - name: Check repository consistency
         run: python3 scripts/check_repository.py
 
@@ -47,9 +50,7 @@ jobs:
           python3 -m demo.test_assessment.run_demo
 
       - name: Validate demo fixtures against schemas
-        run: |
-          python3 -m pip install --quiet jsonschema referencing
-          python3 scripts/validate_fixtures.py
+        run: python3 scripts/validate_fixtures.py
 
       - name: Validate Agent Skills metadata
         run: gh skill publish --dry-run

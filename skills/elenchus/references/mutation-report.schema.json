@@ -6,6 +6,7 @@
     "version",
     "mode",
     "write_mode",
+    "run",
     "intent_contract",
     "baseline",
     "assessment",
@@ -21,9 +22,22 @@
     "postflight"
   ],
   "properties": {
-    "version": { "const": 6 },
+    "version": { "const": 7 },
     "mode": { "enum": ["assessment", "harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
+    "run": {
+      "type": "object",
+      "required": ["id", "entrypoint", "host_adapter", "run_nonce", "manifest_sha256", "ledger_head"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "entrypoint": { "const": "socratic/scripts/run_review.py" },
+        "host_adapter": { "type": "string", "minLength": 1 },
+        "run_nonce": { "type": "string", "minLength": 32 },
+        "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "ledger_head": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
     "intent_contract": {
       "type": "object",
       "required": ["path", "status"],

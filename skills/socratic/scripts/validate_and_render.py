@@ -252,24 +252,14 @@ def render_artifact_json(artifact: dict[str, Any]) -> str:
     return f"```json\n{encoded}\n```\n"
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--contract", required=True, type=Path)
-    parser.add_argument("--report", required=True, type=Path)
-    parser.add_argument("--review", required=True, type=Path)
-    parser.add_argument("--schema-root", type=Path)
-    args = parser.parse_args()
-
-    try:
-        contract = load_strict_json(args.contract)
-        report = load_strict_json(args.report)
-        review = load_strict_json(args.review)
-        validate_with_schemas(contract, report, review, args.schema_root)
-    except ArtifactError as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 2
-    sys.stdout.write(render_review(review))
-    return 0
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
+    print(
+        "ERROR: direct rendering is disabled; use socratic/scripts/run_review.py finish "
+        "with a valid preflight manifest and guarded mutation ledger",
+        file=sys.stderr,
+    )
+    return 2
 
 
 if __name__ == "__main__":

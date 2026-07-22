@@ -20,6 +20,8 @@ They must not read or copy `.env` files, private keys, tokens, credential stores
 
 Review-only is the default. In this mode, probes, comparison tests, mutations, contracts, and reports remain outside the primary working tree in disposable storage. The primary working tree must match its preflight state when the run ends.
 
+For mutation execution, final-state equality is necessary but not sufficient. The mandatory Host Adapter issues a nonce and protected storage capability before the runner creates a repository-external sandbox. Manifest, ledger, and sandbox paths are validated outside Primary; the manifest is create-once and ledger events form an append-only hash chain. Every reported mutation requires a phase-bound test execution. A Primary write invalidates the run even when restoration returns the tree to identical bytes. Without Host integration, the standalone runner remains `blocked`.
+
 Apply tests is available only after an explicit user request. It may write only tests that represent a confirmed intent and must report every changed path. It does not authorize production-code changes or version-control operations.
 
 Run artifacts are ephemeral by default. A skill writes a local `.socratic/` artifact or another requested output only after the user explicitly chooses to preserve it.

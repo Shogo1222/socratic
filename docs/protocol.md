@@ -143,6 +143,8 @@ When unit tests cannot observe an artifact, use the narrowest deterministic repo
 
 ## Safety boundary
 
+Review-only mutation execution has one normative Host Adapter entrypoint in `skills/socratic/scripts/run_review.py`. The standalone CLI is intentionally blocked and cannot accept self-asserted attestation JSON. A trusted host issues the run ID, nonce, protected external storage, and repository-wide protection capability. Baseline and mutation-specific `execute` events join guarded mutation evidence in a nonce-bound append-only chain, and `finish` requires each reported Mutation ID to have both write/registration and execution evidence. Helper omission, Primary mutation followed by restoration, hand-written artifacts, and renderer-like prose are not valid protocol implementations.
+
 All production mutations live only in disposable workspaces marked with `.socratic-disposable`. Every mutation write passes through the bundled Isolation Gate immediately before the write; backup and restore is not isolation. The primary workspace may receive authorized test or documentation changes, never temporary production mutations. Reports record run-time primary writes separately from final hash equality, and no compile or infrastructure failure counts as a behavioral kill or catch.
 
 ## Version-control safety boundary

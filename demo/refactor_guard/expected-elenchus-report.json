@@ -1,5 +1,13 @@
 {
-  "version": 6,
+  "version": 7,
+  "run": {
+    "id": "22222222222222222222222222222222",
+    "entrypoint": "socratic/scripts/run_review.py",
+    "host_adapter": "demo-host",
+    "run_nonce": "22222222222222222222222222222222",
+    "manifest_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "ledger_head": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
   "mode": "catch",
   "write_mode": "review-only",
   "intent_contract": {
