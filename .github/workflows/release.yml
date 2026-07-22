@@ -144,7 +144,28 @@ jobs:
           TAG: ${{ steps.validate.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release verify "$TAG"
+          max_attempts=30
+          retry_delay_seconds=10
+          for attempt in $(seq 1 "$max_attempts"); do
+            if verification_output=$(gh release verify "$TAG" 2>&1); then
+              echo "$verification_output"
+              break
+            fi
+
+            echo "$verification_output"
+            if [[ "$verification_output" != *"no attestations for tag"* ]]; then
+              echo "::error::Release verification failed for a non-retryable reason"
+              exit 1
+            fi
+            if [[ "$attempt" -eq "$max_attempts" ]]; then
+              echo "::error::Release attestation was not available after $max_attempts attempts"
+              exit 1
+            fi
+
+            echo "::notice::Release attestation is not available yet; retrying in ${retry_delay_seconds}s ($attempt/$max_attempts)"
+            sleep "$retry_delay_seconds"
+          done
+
           for asset in dist/*; do
             gh release verify-asset "$TAG" "$asset"
           done
