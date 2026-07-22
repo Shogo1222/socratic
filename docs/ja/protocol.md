@@ -143,7 +143,7 @@ Unit Testで観測できないArtifactには、リポジトリが対応する最
 
 ## 安全性の境界
 
-Review-only Mutation実行の正規Entry Pointは`skills/socratic/scripts/run_review.py`だけである。`preflight`、Guarded `mutate`、`finish`を検証済みManifestとWrite Ledgerの同じRun Identityで結ぶ。検証済みHost Read-onlyまたはRepository全体のWrite Monitor Attestationがなければ`blocked`となり、Mutationを実行しない。Helper省略、Primary変更後の復元、手書きArtifact、Renderer風の手書き出力は正規Protocolではない。
+Review-only Mutation実行の正規Entry Pointは`run_review.py`のHost Adapter APIだけである。Standalone CLIは自己申告Attestation JSONを受理せず常に`blocked`となる。信頼されたHostがRun ID、Nonce、保護された外部Storage、Repository全体の保護Capabilityを発行する。BaselineとMutation ID付き`execute`をGuarded Mutation証跡とNonce付きAppend-only Chainへ結合し、各Report Mutationに両方の証跡を要求する。
 
 本番コードのMutationは`.socratic-disposable`でMarker付けした使い捨てWorkspaceだけに存在させます。すべてのMutation書き込みを直前に同梱Isolation Gateへ通し、BackupとRestoreを隔離として認めません。主要Workspaceへ反映できるのは許可されたテストまたはドキュメント変更だけです。Reportでは実行中の主要Workspace書き込みと最終Hash一致を分離し、CompileまたはInfrastructure Failureを振る舞い上のKillやCatchとして数えません。
 

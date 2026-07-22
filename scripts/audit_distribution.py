@@ -92,10 +92,12 @@ REQUIRED_SAFETY_TEXT = {
         "canonical output hash does not match renderer stdout",
     ),
     "socratic/scripts/run_review.py": (
-        "Mandatory fail-closed entrypoint",
+        "Host-gated fail-closed entrypoint",
+        "self-asserted JSON is not accepted",
         "verified primary protection is required",
         "Review-only run wrote to the primary repository, even if later restored",
-        "reported mutations do not match guarded write ledger",
+        "every reported mutation requires guarded mutation and execution evidence",
+        "append-only mutation ledger chain is invalid",
     ),
 }
 

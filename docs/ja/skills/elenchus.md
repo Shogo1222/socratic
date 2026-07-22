@@ -178,7 +178,7 @@ ParentとDiffの最小の振る舞い差をMaieutic経由で提示する。Socra
 
 Safety規則に従い、主要Workspaceの対象範囲についてFilesystem ManifestとContent Hashを記録する。正確な対象状態を含む使い捨てFilesystem Snapshotを作り、`.socratic-disposable`でMarker付けする。すべてのMutation書き込みは同梱`IsolationGate.write_bytes`または`write_text`を通し、認可後に別の無Guard書き込みを行わない。**そのSnapshot内で**Baseline Policyを適用し、Git Status、Branch切替、Git Worktreeを隔離や復元へ使わない。
 
-Socraticから呼ばれた場合は、必須`run_review.py preflight`が生成したReady Manifestだけを受け入れ、各Mutationを`mutate`経由で同じRun Ledgerへ結合する。Manifest、検証済みHost保護、またはCommandがなければMutationせず`blocked`を返す。手作業で代替したり、Primaryを変更後に復元したりしない。
+Socraticから呼ばれた場合は、信頼されたHost Adapter APIが発行したReady Manifestだけを受け入れる。各Mutationを`mutate`または`register_prebuilt`へ通し、同じMutation IDを付けた`phase=mutation`の`execute`でTestを行う。別の成功Baseline実行も必須とする。Host連携、保護Storage、検証済み保護、Phase付き実行のいずれかがなければMutationせず`blocked`を返す。
 
 Primary Rootは変更Packageではなく、それを含むGit Repository Rootへ解決する。Repository内へ解決するSandbox Symlinkはすべて拒否する。Test Cache、一時Directory、Framework出力はSandbox内へ置く。`primary_written_during_run: false`の主張には、検証済みHost Read-only保護または検証済みWrite-event Monitorが必要である。
 

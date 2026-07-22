@@ -464,7 +464,7 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a mandatory Review-only run entrypoint, a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v7, and a canonical four-block renderer; host-level read-only or write-monitor attestation remains required for mutation execution.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a mandatory Host Adapter Review-only entrypoint, a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v7, and a canonical four-block renderer. Standalone mutation execution remains blocked; a trusted host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 

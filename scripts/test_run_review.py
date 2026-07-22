@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fail-closed regression tests for the mandatory Socratic run entrypoint."""
 
-import importlib.util
 import hashlib
+import importlib.util
 import json
 import os
 import sys
@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-MODULE = ROOT / "skills" / "socratic" / "scripts" / "run_review.py"
+MODULE = ROOT / "skills/socratic/scripts/run_review.py"
 
 
 def load_runner():
@@ -32,81 +32,114 @@ class RunReviewTest(unittest.TestCase):
     def make_repository(self, root: Path) -> Path:
         repository = root / "repository"
         (repository / ".git").mkdir(parents=True)
-        (repository / "packages" / "app").mkdir(parents=True)
-        (repository / "packages" / "app" / "source.ts").write_text("original\n")
+        app = repository / "packages/app"
+        app.mkdir(parents=True)
+        (app / "source.ts").write_text("original\n")
+        for index in range(1, 4):
+            (app / f"mutant-{index}.ts").write_text(f"mutant {index}\n")
         (repository / ".env").write_text("SECRET=never-copy\n")
         (repository / "node_modules").mkdir()
         return repository
 
-    def write_attestation(self, root: Path, repository: Path) -> Path:
-        path = root / "protection.json"
-        path.write_text(json.dumps({
-            "mode": "os-read-only",
-            "verified": True,
-            "primary_root": str(repository.resolve()),
-            "details": "host fixture denied a write probe"
-        }))
-        return path
+    def host(self, storage: Path):
+        runner = self.runner
 
-    def test_preflight_without_verified_protection_is_blocked_and_creates_no_sandbox(self) -> None:
+        class FixtureHost:
+            def begin_review_run(self, primary_root: Path):
+                return runner.HostGrant(
+                    adapter_id="fixture-host-v1",
+                    run_id="a" * 32,
+                    run_nonce="host-issued-nonce-" + "b" * 32,
+                    storage_root=storage,
+                    protection_mode="os-read-only",
+                    protection_details="fixture host denied a Primary write probe",
+                )
+
+        return FixtureHost()
+
+    def ready(self, root: Path, repository: Path):
+        storage = root / "host-storage"
+        storage.mkdir()
+        return self.runner.preflight_with_host(repository, self.host(storage))
+
+    def test_standalone_preflight_is_blocked_and_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            manifest_path = root / "manifest.json"
-            manifest = self.runner.preflight(repository / "packages" / "app", manifest_path, None)
-            self.assertEqual(manifest["status"], "blocked")
-            self.assertIsNone(manifest["sandbox_root"])
-            self.assertFalse(manifest["protection"]["verified"])
+            before = set(root.iterdir())
+            result = self.runner.blocked_preflight(repository)
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn("self-asserted JSON is not accepted", result["blocked_reason"])
+            self.assertEqual(set(root.iterdir()), before)
 
-    def test_preflight_creates_external_copy_and_sandbox_environment(self) -> None:
+    def test_host_preflight_creates_every_run_path_outside_primary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            attestation = self.write_attestation(root, repository)
-            manifest = self.runner.preflight(
-                repository / "packages" / "app", root / "manifest.json", attestation
-            )
+            manifest, manifest_path = self.ready(root, repository)
+            for path in (
+                manifest_path,
+                Path(manifest["ledger_path"]),
+                Path(manifest["sandbox_root"]),
+                Path(manifest["host"]["storage_root"]),
+            ):
+                self.assertFalse(path.resolve().is_relative_to(repository.resolve()))
             sandbox = Path(manifest["sandbox_root"])
-            self.assertEqual(manifest["status"], "ready")
-            self.assertEqual(Path(manifest["primary_root"]), repository.resolve())
-            self.assertFalse(sandbox.is_relative_to(repository.resolve()))
             self.assertTrue((sandbox / ".socratic-disposable").is_file())
             self.assertFalse((sandbox / ".env").exists())
             self.assertFalse((sandbox / "node_modules").exists())
-            for value in manifest["environment"].values():
-                self.assertTrue(Path(value).is_relative_to(sandbox))
 
-    def test_guarded_mutation_is_bound_to_manifest_and_ledger(self) -> None:
+    def test_host_storage_inside_primary_is_rejected_before_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            manifest_path = root / "manifest.json"
-            manifest = self.runner.preflight(
-                repository, manifest_path, self.write_attestation(root, repository)
+            storage = repository / "host-storage"
+            storage.mkdir()
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.preflight_with_host(repository, self.host(storage))
+            self.assertEqual(list(storage.iterdir()), [])
+
+    def test_manifest_write_failure_cleans_new_sandbox_and_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            storage = root / "host-storage"
+            storage.mkdir()
+            (storage / "run-manifest.json").write_text("host-owned existing file\n")
+            with self.assertRaises(FileExistsError):
+                self.runner.preflight_with_host(repository, self.host(storage))
+            self.assertFalse((storage / "mutation-ledger.jsonl").exists())
+            self.assertEqual(
+                [path.name for path in storage.iterdir()], ["run-manifest.json"]
             )
-            evidence = self.runner.mutate(
-                manifest_path, "MUT-001", "packages/app/source.ts", b"mutant\n"
+
+    def test_execute_requires_phase_and_registered_mutation_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.execute(manifest_path, "mutation", None, [sys.executable, "-c", "pass"], 10)
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "pass"], 10)
+            self.runner.register_prebuilt(manifest_path, "MUT-001", "packages/app/mutant-1.ts")
+            self.assertEqual(
+                self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "raise SystemExit(1)"], 10),
+                1,
             )
-            ledger = json.loads(Path(manifest["ledger_path"]).read_text())
-            self.assertEqual(evidence["mutation_id"], "MUT-001")
-            self.assertEqual(ledger[0]["run_id"], manifest["run_id"])
-            self.assertEqual(repository.joinpath("packages/app/source.ts").read_text(), "original\n")
 
     def test_execute_forces_home_temp_and_caches_into_sandbox(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            manifest_path = root / "manifest.json"
-            manifest = self.runner.preflight(
-                repository, manifest_path, self.write_attestation(root, repository)
-            )
+            manifest, manifest_path = self.ready(root, repository)
             script = (
                 "import os,pathlib; "
                 "[pathlib.Path(os.environ[k]).joinpath('probe').write_text('ok') "
                 "for k in ('HOME','TMPDIR','XDG_CACHE_HOME','npm_config_cache')]"
             )
             self.assertEqual(
-                self.runner.execute(manifest_path, [sys.executable, "-c", script], 10), 0
+                self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", script], 10), 0
             )
             sandbox = Path(manifest["sandbox_root"])
             for value in manifest["environment"].values():
@@ -118,91 +151,77 @@ class RunReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            manifest_path = root / "manifest.json"
-            manifest = self.runner.preflight(
-                repository, manifest_path, self.write_attestation(root, repository)
-            )
+            manifest, manifest_path = self.ready(root, repository)
             os.symlink(repository / "packages", Path(manifest["sandbox_root"]) / "late-link")
             with self.assertRaises(Exception):
                 self.runner.mutate(manifest_path, "MUT-001", "packages/app/source.ts", b"mutant\n")
 
-    def test_finish_rejects_missing_manifest_and_primary_write_even_after_restore(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            with self.assertRaises(self.runner.RunGateError):
-                self.runner.finish(root / "missing.json", {}, {}, {})
-            manifest = {
-                "status": "ready", "run_id": "a" * 32,
-                "primary_root": "/primary", "sandbox_root": "/sandbox",
-            }
-            report = {
-                "write_mode": "review-only",
-                "postflight": {
-                    "primary_written_during_run": True,
-                    "primary_final_hash_unchanged": True,
-                },
-            }
-            with self.assertRaises(self.runner.RunGateError):
-                self.runner.finish_document(manifest, report, {}, [])
-
-    def test_abort_removes_manifest_ledger_and_sandbox(self) -> None:
+    def test_ledger_chain_detects_rewritten_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            manifest_path = root / "manifest.json"
-            manifest = self.runner.preflight(
-                repository, manifest_path, self.write_attestation(root, repository)
-            )
-            self.runner.abort(manifest_path)
-            self.assertFalse(manifest_path.exists())
-            self.assertFalse(Path(manifest["ledger_path"]).exists())
-            self.assertFalse(Path(manifest["sandbox_root"]).exists())
-
-    def test_end_to_end_finish_binds_identity_validates_and_cleans_up(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            repository = self.make_repository(root)
-            manifest_path = root / "manifest.json"
-            manifest = self.runner.preflight(
-                repository, manifest_path, self.write_attestation(root, repository)
-            )
-            for mutation_id in ("MUT-001", "MUT-002", "MUT-003"):
-                self.runner.register_prebuilt(
-                    manifest_path, mutation_id, "packages/app/source.ts"
-                )
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             ledger_path = Path(manifest["ledger_path"])
-            contract = json.loads(
-                (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
-            )
-            report = json.loads(
-                (ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text()
-            )
-            review = json.loads(
-                (ROOT / "demo/subscription_renewal/canonical-review.json").read_text()
-            )
+            raw = ledger_path.read_text().replace('"returncode":0', '"returncode":1')
+            ledger_path.write_text(raw)
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner._ledger_events(manifest)
+
+    def test_finish_rejects_registered_mutation_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
+            self.runner.register_prebuilt(manifest_path, "MUT-001", "packages/app/mutant-1.ts")
+            report = json.loads((ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text())
+            report["mutations"] = report["mutations"][:1]
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.finish_document(
+                    manifest, report, {}, self.runner._ledger_events(manifest),
+                    manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                    ledger_head=self.runner._ledger_head(manifest),
+                )
+
+    def test_end_to_end_requires_baseline_and_every_mutation_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
+            for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
+                self.runner.register_prebuilt(
+                    manifest_path, mutation_id, f"packages/app/mutant-{index}.ts"
+                )
+                self.runner.execute(
+                    manifest_path, "mutation", mutation_id,
+                    [sys.executable, "-c", "raise SystemExit(1)"], 10,
+                )
+            contract = json.loads((ROOT / "demo/subscription_renewal/intent-contract.json").read_text())
+            report = json.loads((ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text())
+            review = json.loads((ROOT / "demo/subscription_renewal/canonical-review.json").read_text())
             report["run"] = {
                 "id": manifest["run_id"],
                 "entrypoint": "socratic/scripts/run_review.py",
+                "host_adapter": manifest["host"]["adapter_id"],
+                "run_nonce": manifest["host"]["run_nonce"],
                 "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
-                "ledger_sha256": hashlib.sha256(ledger_path.read_bytes()).hexdigest(),
+                "ledger_head": self.runner._ledger_head(manifest),
             }
             report["isolation"].update({
                 "primary_root": manifest["primary_root"],
                 "sandbox_root": manifest["sandbox_root"],
                 "host_protection": {
                     "mode": "os-read-only", "verified": True,
-                    "details": "host fixture denied a write probe",
+                    "details": "fixture host denied a Primary write probe",
                 },
-                "write_monitor": {
-                    "mode": "unavailable", "verified": False, "details": "not needed",
-                },
+                "write_monitor": {"mode": "unavailable", "verified": False, "details": "not needed"},
             })
-            rendered = self.runner.finish(
-                manifest_path, contract, report, review, ROOT / "schemas"
-            )
+            rendered = self.runner.finish(manifest_path, contract, report, review, ROOT / "schemas")
             self.assertTrue(rendered.startswith("Review This:\n"))
             self.assertFalse(manifest_path.exists())
-            self.assertFalse(ledger_path.exists())
+            self.assertFalse(Path(manifest["ledger_path"]).exists())
             self.assertFalse(Path(manifest["sandbox_root"]).exists())
 
 

@@ -4,19 +4,29 @@
   "type": "object",
   "required": [
     "version", "run_id", "status", "write_mode", "socratic_version",
-    "entrypoint", "skill_root", "primary_root", "sandbox_root",
+    "entrypoint", "skill_root", "primary_root", "sandbox_root", "host",
     "protection", "environment", "ledger_path"
   ],
   "properties": {
     "version": { "const": 1 },
     "run_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
-    "status": { "enum": ["ready", "blocked"] },
+    "status": { "const": "ready" },
     "write_mode": { "const": "review-only" },
     "socratic_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
     "entrypoint": { "const": "socratic/scripts/run_review.py" },
     "skill_root": { "type": "string", "minLength": 1 },
     "primary_root": { "type": "string", "minLength": 1 },
     "sandbox_root": { "type": ["string", "null"] },
+    "host": {
+      "type": "object",
+      "required": ["adapter_id", "run_nonce", "storage_root"],
+      "properties": {
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "run_nonce": { "type": "string", "minLength": 32 },
+        "storage_root": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "protection": {
       "type": "object",
       "required": ["mode", "verified", "primary_root", "details"],
@@ -39,8 +49,7 @@
       },
       "additionalProperties": false
     },
-    "ledger_path": { "type": "string", "minLength": 1 },
-    "blocked_reason": { "type": "string", "minLength": 1 }
+    "ledger_path": { "type": "string", "minLength": 1 }
   },
   "allOf": [
     {
@@ -51,10 +60,6 @@
           "protection": { "properties": { "verified": { "const": true } } }
         }
       }
-    },
-    {
-      "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
-      "then": { "required": ["blocked_reason"] }
     }
   ],
   "additionalProperties": false
