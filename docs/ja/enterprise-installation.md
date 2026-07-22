@@ -32,7 +32,7 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.2.0
 GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
-想定する配布物は14個のText Fileであり、実行可能File、Binary、Symbolic Linkを含みません。PreviewをReleaseのManifestとChecksumと比較してください。
+想定する配布物は16個のText Fileであり、実行可能File、Binary、Symbolic Linkを含みません。PreviewをReleaseのManifestとChecksumと比較してください。
 
 ## Project ScopeでのInstall
 

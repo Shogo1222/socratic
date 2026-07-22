@@ -6,7 +6,7 @@
 
 ## 配布物
 
-Releaseの配布物は、3つのSkill Directoryにある14個のUTF-8 Text Fileだけで構成されます。CIは予期しないFile、許可されていない拡張子、実行可能File、Symbolic Link、Binary、未承認の外部Hostを拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+Releaseの配布物は、3つのSkill Directoryにある16個のUTF-8 Text Fileだけで構成されます。CIは予期しないFile、許可されていない拡張子、実行可能File、Symbolic Link、Binary、未承認の外部Hostを拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書とCI Scriptがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 

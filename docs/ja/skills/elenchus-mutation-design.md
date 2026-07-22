@@ -12,9 +12,9 @@ Candidate生成から永続化Resultまで同じFieldを使う。
 
 ```yaml
 id: MUT-001
-mode: harden | catch
+mode: assessment | harden | catch
 contract_ids: [INV-001]
-source_intent: <Hardenでは確認済みの振る舞い。Catchでは暫定Intent>
+source_intent: <Hardenでは確認済みの振る舞い。Assessment／Catchでは暫定根拠>
 changed_intent: <近接した誤解>
 represented_risk: <FailureまたはIncident>
 severity: critical | high | medium | low
@@ -27,6 +27,8 @@ detecting_tests: [<テスト名>]
 equivalence_evidence: <Equivalentの場合は必須>
 follow_up: <テスト、判断、またはなし>
 ```
+
+Assessment Modeでは、`source_intent`を確認済みIntentではなく暫定Assessment根拠としてよい。その制約を`follow_up`へ記録する。Killが証明するのは表現した振る舞いの検知であり、その振る舞いの正しさではない。変更TestのAssertion詳細を調べる前にAssessment Riskを生成し、Budgetが許せばHoldout Riskを含める。
 
 `changed_intent`をコード構文と独立して説明できないCandidateは採用しない。
 

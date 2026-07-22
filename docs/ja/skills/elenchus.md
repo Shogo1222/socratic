@@ -30,11 +30,29 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 2. リポジトリ内の`.socratic/intent-contract.json`(過去の実行でローカル保存を選んだ場合に存在)
 3. 現在の会話にある完全なContract
 
-存在しない場合は停止し、`$maieutic`、統合された`$socratic` Workflowの実行、またはContract指定を求める。実装から確認済みIntentを再構築しない。ReportはWorking Tree外の一時Artifactとして保持し、`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合、または明示的に指定された別Pathの場合だけ行う。
+存在しない場合、Test Assessment Modeでは、明示的なユーザー依頼、公開された振る舞いとRepository Document、観測可能な変更根拠から、一時的な**暫定Assessment Contract**を作成してよい。実装やテストを確認済み仕様として扱わない。各項目を暫定とし、受容可否が未確定Intentに依存する結果はMaieuticへ戻し、暫定根拠だけからTestが確認済みIntentを保護すると主張しない。Harden ModeとCatch Modeでは、後述するContract Statusを引き続き必須とする。満たさない場合は停止し、`$maieutic`、統合された`$socratic` Workflowの実行、またはContract指定を求める。
+
+ReportはWorking Tree外の一時Artifactとして保持し、`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合、または明示的に指定された別Pathの場合だけ行う。
 
 ## Modeと前提条件
 
-### Harden Mode — Default
+### Test Assessment Mode — Standalone Default
+
+ユーザーがCatch ModeまたはHarden Modeを明示しない限り、直接の`$elenchus`実行ではこのModeを使う。Mutation生成前にDiffと利用可能なTest構成を調べ、構造化質問でAssessment Scopeを選んでもらう。**今回の変更: 既存Testと変更Test**を推奨値として事前選択する。
+
+検出したFile数と予想Costを付け、次の3択だけを提示する。
+
+1. **今回の変更: 既存Testと変更Test(推奨)** — 変更本番Code周辺の既存Protectionと、追加・変更・削除されたTestの増分効果を評価する。
+2. **変更Testのみ** — 変更Testと変更前の対応Testだけを評価する。短時間だが、広い既存Suite監査ではない。
+3. **対象を広げる** — ModuleまたはRepository全体をユーザーに指定してもらう。実行時間とMutation数が増えることを示す。
+
+ユーザーが自由入力で対象を指定せずに**対象を広げる**を選択した場合は、Mutant生成前にModuleまたはPathを尋ねる短いFollow-up Questionを1つ行う。
+
+Hostの構造化質問Toolが利用可能なら使い、なければ番号付きMarkdownへFallbackする。質問はメインエージェントだけが行う。Socraticから正確なScopeが渡された場合は継承し、Scopeを再質問しない。Diffも明示Targetもない場合も同じ質問を行うが、安全に特定できる最小のRepository対応Test Targetを推奨値にする。
+
+Assessmentは既定でReview-onlyかつAssessment-onlyとする。SurvivorをGapとして報告し、ユーザーがHardeningを明示依頼しない限り不足Testを設計・証明・適用しない。Hardening依頼時は確認済みIntentを必須としてHarden Modeへ進む。Apply testsには別の明示依頼が引き続き必要である。
+
+### Harden Mode
 
 反証するOracleごとに`confirmed`または`tested`のContractを必要とする。確認済みIntentを変異させ、テストがCode Mutantを検知することを確認する。
 
@@ -42,13 +60,62 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 
 Parent Revisionと提案Diffを特定できれば、`provisional`または`needs-decision`を許可する。ParentのRisk Mutantからテストを作り、提案Diffが同じ危険な振る舞いを持つか確認する。Catch結果は新しい判断を作り得るため、Intent確定済みと仮定しない。
 
-どちらのModeでもImmutable Snapshotの正確な識別子、変更・高リスク位置、対象テストコマンド、隔離方法、Baselineを特定する。実行可能なテストがない場合はMutation実行を停止し、Test Infrastructure選択をMaieuticへ戻す。許可なくFrameworkを追加しない。
+すべてのModeでImmutable Snapshotの正確な識別子、変更・高リスク位置、対象テストコマンド、隔離方法、Baselineを特定する。実行可能なテストがない場合はMutation実行を停止し、Test Infrastructure選択をMaieuticへ戻す。許可なくFrameworkを追加しない。
 
 ## Baseline Policy
 
 Baselineは使い捨てWorkspace内だけで実行する。失敗した場合は、失敗テストを分離して1回再実行する。再現する失敗は`baseline-red`として停止する。結果が変動する場合はFlakyとする。
 
-Flaky Testを除外できるのは、安定したGreen Subsetが対象Contractを観測できる場合だけで、それ以外は`inconclusive`で停止する。Flakyまたは既存失敗をKillやSurviveの根拠にせず、縮小したScopeをReportへ記録する。
+Flaky Testを除外できるのは、安定したGreen Subsetが対象Contractを観測できる場合だけで、それ以外は`inconclusive`で停止する。Flakyまたは既存失敗をKillやSurviveの根拠にしない。Test Assessment Modeでは各Test CohortへこのPolicyを独立適用し、縮小したScopeをReportへ記録する。
+
+## Test Assessment Mode Workflow
+
+### 1. Assessment Scopeを確定する
+
+構造化質問の前に、変更本番File、関連する既存Test、追加・変更・削除されたTestを検出する。選択Option、検出File、ユーザー指定Target、除外Scope、推奨理由を記録する。ユーザーが選択するまでMutantを生成・実行しない。
+
+### 2. 比較可能なTest Cohortを作る
+
+次のCohortをDisposable Snapshot内だけで展開する。
+
+- **Existing Cohort** — 比較可能な場合、Head本番Codeと関連Testの変更前状態。Test変更がなければ現在の関連SuiteをExisting Cohortとする。
+- **Changed Cohort** — 同じHead本番Codeへ、現在のTest追加・変更・削除をすべて反映した状態。
+
+Cohort作成のために主要Working Treeを編集しない。APIまたはFixture変更により変更前TestがHeadへBuildできない場合、その範囲を`not-comparable`とし、Protectionの増減と呼ばない。禁止Git操作なしにBase Test状態を取得できない場合はCurrent Suiteだけを評価し、増分比較をBlockedとして報告する。
+
+### 3. Testから独立したRiskを生成する
+
+確認済みContractがあればそこから、なければ暫定Assessment Contractから、少数のRisk-ranked Mutationを生成する。Assertion詳細を調べる前にRiskを導出し、Budgetが許せば追加Testへ特化していないHoldout Riskを最低1件含める。クライアントから観測可能な振る舞いを維持するMutationは拒否する。暫定MutantのKillは表現した振る舞いの検知を証明するだけで、その振る舞いの正しさは証明しない。
+
+### 4. 比較Matrixを実行する
+
+同一の有効なMutantを、選択した各Cohortの新しいCopyへ実行する。
+
+| Existing Cohort | Changed Cohort | Assessment |
+| --- | --- | --- |
+| killed | killed | `existing-protection` — 既存で検知済み。このIncidentに対して変更Testは重複の可能性 |
+| survived | killed | `incremental-protection` — Test変更が検知能力を追加 |
+| killed | survived | `protection-regression` — Test変更が検知能力を低下 |
+| survived | survived | `unprotected` — どちらもIncidentを検知しない |
+| 利用不能または不安定 | 任意 | `not-comparable`または`inconclusive` |
+
+重複は自動的に欠陥としない。保守Costが不釣り合いでない限り中立として報告する。意図した振る舞いAssertionへ到達した失敗だけをKillとして帰属する。
+
+### 5. Test Qualityを評価する
+
+Mutation検知とTest設計品質を分離する。実装詳細への結合、管理下依存へのInteraction Assertion、弱い・欠落したAssertion、到達不能Setup、過大なFixture Cost、Flaky、Coverage削除を指摘する。Oracleは出力、観測可能な最終状態、管理外境界のCommunicationの順に優先する。MutantをKillするためだけの壊れやすいAssertionを推奨しない。
+
+### 6. Assessment Outcomeを報告する
+
+Standalone実行では次の順序で報告する。
+
+1. **Assessment Scope** — 選択Option、検出した本番・Test File、Mutation Budget、除外範囲。
+2. **Existing Protection** — Existing Cohortが既に検知する重要Incident。
+3. **Changed Test Contribution** — Test Diffによる増分Protection、中立な重複、Protection Regression。
+4. **Still at Risk** — Survivor、Blocked、Inconclusive、未挑戦Risk。
+5. **Test Quality Concerns** — 検知能力と分離した保守性・リファクタリング耐性の懸念。
+
+PostflightでWorking Tree不変を確認したら、**今回のReview-only実行中、Working Treeは不変**と記述する。総合ScoreやMerge推奨を出さない。Socratic経由ではこのStandalone Surfaceを出さず、同じ証拠を正準の4ブロックへ対応付ける。
 
 ## Catch Mode Workflow
 
@@ -149,9 +216,11 @@ Apply testsでは、明示許可後かつPatch Hash、全ファイルPreconditio
 
 発見を正準の4ブロックSurfaceへ、種類ではなく状態で振り分けて提供する。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未挑戦のContract ID・縮小したScope・比較不能だった範囲はStill at Riskへ。各テストに**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかを付ける。Review-onlyのPostflightがPreflightと一致した場合は**今回のReview-only実行中、Working Treeは不変**と報告する。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載する。ファイル・行番号・コメント本文・生成根拠を持つCopy-readyなコメント候補(`Behavior difference`または`Test gap`)を最大1〜3件出し、決して投稿しない。マージ可否、信頼度、スコアを報告しない。
 
+直接のTest Assessment Modeでは、そのWorkflowに定義したStandalone Assessment Surfaceを使う。Socraticから呼び出された場合は、StandaloneのScope質問とSurfaceを抑止し、Socraticの正確なScopeを継承して、Assessment証拠を正準4ブロックへ渡す。
+
 ## Reportの成果物
 
-同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、テスト引き渡しまたは`null`、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
+同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test AssessmentのScope選択・ExistingとChanged Cohort・比較分類・除外Scope(Catch・Harden Modeでは`null`)、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、テスト引き渡しまたは`null`、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
 
 Mutation Scoreは補助情報であり成功基準ではない。予算切れをContract全体のHardening完了とみなさない。
 
