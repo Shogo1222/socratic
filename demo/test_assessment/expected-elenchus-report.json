@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "mode": "assessment",
   "write_mode": "review-only",
   "intent_contract": {
@@ -135,9 +135,24 @@
   ],
   "test_handoff": null,
   "authorized_workspace_changes": [],
+  "isolation": {
+    "execution_strategy": "prebuilt-mutant",
+    "primary_root": "demo/test_assessment",
+    "sandbox_root": "separate cohort and mutant modules",
+    "host_protection": {
+      "mode": "unavailable",
+      "verified": false,
+      "details": "The demo represents cohorts and mutants as separate modules"
+    },
+    "mutation_targets": [],
+    "write_events": []
+  },
   "postflight": {
-    "primary_workspace_matches_preflight": true,
+    "primary_written_during_run": false,
+    "primary_final_hash_unchanged": true,
+    "working_tree_final_status": "clean demo fixture",
     "production_mutation_free": true,
+    "sandbox_destroyed": true,
     "notes": "Cohorts and mutants are separate modules; pricing.py is never edited. Baseline and mutation results record the changed cohort; existing-cohort outcomes live in assessment.comparisons"
   }
 }

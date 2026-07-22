@@ -460,11 +460,11 @@ Socratic connects these ideas. The explicit human-confirmed Intent Contract, Mai
 
 For organizational adoption, review the [security model](docs/security-model.md) and follow the [enterprise installation guide](docs/enterprise-installation.md). Report suspected vulnerabilities privately according to the [security policy](SECURITY.md).
 
-The skills define reviewable boundaries for Git operations, workspace writes, credentials, repository-supplied instructions, disposable mutations, and cleanup. These natural-language controls do not replace an operating-system sandbox, network policy, provider contract, or normal human review.
+The skills define reviewable boundaries for Git operations, workspace writes, credentials, repository-supplied instructions, disposable mutations, and cleanup. Mutation writes routed through the bundled Isolation Gate receive mechanical path enforcement, while host-level read-only mounts, network policy, provider contracts, and normal human review remain independent protections.
 
 ## Status
 
-v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, run artifacts are schema-validated, and the CI and release pipeline is operational. Deterministic language adapters and a dedicated isolated mutation runner remain future work.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v5, and a canonical four-block renderer; deterministic language adapters and host-level read-only adapters remain future work.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 

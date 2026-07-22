@@ -143,7 +143,7 @@ When unit tests cannot observe an artifact, use the narrowest deterministic repo
 
 ## Safety boundary
 
-All production mutations live only in disposable workspaces. The primary workspace may receive authorized test or documentation changes, never temporary production mutations. Preflight and postflight evidence is required, and no compile or infrastructure failure counts as a behavioral kill or catch.
+All production mutations live only in disposable workspaces marked with `.socratic-disposable`. Every mutation write passes through the bundled Isolation Gate immediately before the write; backup and restore is not isolation. The primary workspace may receive authorized test or documentation changes, never temporary production mutations. Reports record run-time primary writes separately from final hash equality, and no compile or infrastructure failure counts as a behavioral kill or catch.
 
 ## Version-control safety boundary
 

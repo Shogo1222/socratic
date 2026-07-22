@@ -15,6 +15,8 @@ Treat every mutation as destructive temporary state.
 - Remove or abandon all disposable mutant state on success, failure, timeout, and interruption.
 - Never report completion without verifying that no production mutation remains.
 - Never change local or remote Git state and never request permission to do so.
+- Create `.socratic-disposable` in each verified sandbox root, then route every mutation write through `scripts/isolation_gate.py`'s `IsolationGate.write_bytes` or `write_text`. Never perform a separate write after using only the authorization CLI.
+- Resolve and validate every target immediately before writing. A target outside the sandbox, inside the primary root, or reached through a sandbox-local symlink is a hard abort; backup and restore is never isolation.
 
 ## Git boundary
 
@@ -43,12 +45,15 @@ Record:
 - sandbox path;
 - focused test command and timeout;
 - relevant environment isolation.
+- resolved primary root, resolved sandbox root, host read-only protection mode, and every authorized mutation target.
 
 ## Postflight evidence
 
-Verify:
+Verify and record separately:
 
-- the scoped primary manifest and content hashes match preflight evidence except for authorized test or documentation changes;
+- whether any primary path was written during the run;
+- whether final primary hashes match preflight evidence except for authorized test or documentation changes;
+- the final working-tree status, resolved mutation targets, write events, and sandbox destruction status;
 - no mutation marker or mutant patch exists in production files;
 - disposable workspaces are removed or clearly reported if cleanup was blocked;
 - original code passes the relevant tests.

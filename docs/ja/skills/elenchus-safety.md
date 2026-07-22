@@ -19,6 +19,8 @@
 - 成功、失敗、Timeout、中断のすべてで使い捨てMutation状態を削除または破棄する。
 - 本番コードにMutationが残っていないことを確認せず完了と報告しない。
 - ローカルまたはRemoteのGit状態を決して変更せず、その許可も求めない。
+- 検証済みSandbox Rootへ`.socratic-disposable`を作成し、すべてのMutation書き込みを`IsolationGate.write_bytes`または`write_text`へ通す。認可CLIだけを実行した後に別の書き込みを行わない。
+- Targetを各書き込み直前にResolve・検証する。Sandbox外、主要Root内、Sandbox内Symlink経由のTargetはHard Abortし、BackupとRestoreを隔離として認めない。
 
 ## Git境界
 
@@ -47,12 +49,15 @@ BranchやWorktreeを作成・切替しない。Stash、Reset、Checkoutによる
 - Sandbox Path
 - 対象テストコマンドとTimeout
 - 関連する環境の隔離状態
+- Resolve済みの主要Root・Sandbox Root、HostのRead-only保護Mode、認可された全Mutation Target
 
 ## 実行後の証跡
 
-次を確認する。
+次を分離して確認・記録する。
 
-- 許可されたTest・Doc変更を除き、対象範囲の主要ManifestとContent Hashが実行前証跡と一致する
+- 実行中に主要Pathへ書き込んだか
+- 許可されたTest・Doc変更を除き、最終Hashが実行前証跡と一致するか
+- 最終Working Tree Status、Resolve済みMutation Target、Write Event、Sandbox破棄Status
 - Mutation MarkerまたはMutant Patchが本番ファイルに存在しない
 - 使い捨てWorkspaceが削除されている。Cleanupが阻害された場合は明示的に報告する
 - 元コードが関連テストに成功する

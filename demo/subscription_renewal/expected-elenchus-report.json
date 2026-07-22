@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "mode": "harden",
   "write_mode": "apply-tests",
   "intent_contract": {
@@ -94,9 +94,24 @@
   "authorized_workspace_changes": [
     "demo/subscription_renewal/test_hardened.py"
   ],
+  "isolation": {
+    "execution_strategy": "prebuilt-mutant",
+    "primary_root": "demo/subscription_renewal",
+    "sandbox_root": "separate mutant modules",
+    "host_protection": {
+      "mode": "unavailable",
+      "verified": false,
+      "details": "The demo represents mutants as separate modules and does not edit subscription.py"
+    },
+    "mutation_targets": [],
+    "write_events": []
+  },
   "postflight": {
-    "primary_workspace_matches_preflight": true,
+    "primary_written_during_run": false,
+    "primary_final_hash_unchanged": true,
+    "working_tree_final_status": "Only the explicitly authorized demo test file differs from the weak-test fixture",
     "production_mutation_free": true,
+    "sandbox_destroyed": true,
     "notes": "Demo mutants are separate modules; subscription.py is never edited"
   }
 }

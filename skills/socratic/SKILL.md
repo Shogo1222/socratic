@@ -154,9 +154,9 @@ The terminal summary is exactly four blocks, in this order, and nothing else:
 - **Still at Risk** — what was not verified: unchallenged behavior, execution-environment constraints, nondeterministic processing, and ranges that could not be compared.
 - **Copy-ready Comments** — comment candidates with target file, target line, comment body, and the internal generation evidence.
 
-Every reviewer-facing test statement must say whether the test was **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. If Review-only postflight evidence matches preflight, state **Working tree unchanged during this Review-only run**. Do not imply that Socratic created pre-existing changes.
+Every reviewer-facing test statement must say whether the test was **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. State **Working tree unchanged during this Review-only run** only when Elenchus records `primary_written_during_run: false` and final primary hashes match preflight. Final hash equality alone cannot prove an unchanged run. Do not imply that Socratic created pre-existing changes.
 
-The canonical surface remains four blocks. Present proven-test disposition afterward through the host's structured question UI, not as a fifth review block; use the three-option Markdown fallback only when structured questions are unavailable.
+The canonical surface remains four blocks. Before completion, validate the Intent Contract, Mutation Report, and canonical review object with the bundled schemas and cross-artifact checks, then render only through `scripts/validate_and_render.py`. Parse failure, schema failure, unknown Contract references, an unsafe Review-only postflight, or prose outside the renderer output blocks completion. Present proven-test disposition afterward through the host's structured question UI, not as a fifth review block; use the three-option Markdown fallback only when structured questions are unavailable.
 
 Route findings by state, not by type:
 
