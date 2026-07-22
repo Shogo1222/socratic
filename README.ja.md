@@ -436,9 +436,11 @@ Socraticはこれらの考え方を接続します。明示的なHuman-confirmed
 
 GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills Metadata、配布監査Test、`skills/`配下の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、一時Directoryへ実際に14 FileをInstallします。File ManifestとFile単位のHashはCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
 
-Maintainerは`main`上で **Actions → Release → Run workflow** を開き、Releaseを作成します。`0.2.0`のようなSemantic Versionを入力します。先頭の`v`も受け付けます。WorkflowはRepository、配布物、Install結果、Versionを検証し、既存Tagとの重複を拒否したうえで、Annotated Tag `v0.2.0`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。DraftとPrereleaseにも対応します。
+Rootの[`VERSION`](VERSION) Fileで次に公開するRelease Versionを宣言します。Pull Requestで次のSemantic Versionへ更新してください。そのPull Requestが`main`へMergeされ、CIが成功すると、Release Workflowは検証済みの正確なCommitをCheckoutし、新Versionを自動公開します。対応するTagが既に存在する場合は、重複Releaseを作らず正常終了します。障害復旧用のManual Workflow Dispatchも`main`で利用でき、同じ`VERSION` Fileを読み取ります。
 
-Release WorkflowはSource Fileを変更しません。Git TagをRelease Versionの正本とします。公開ReleaseではRepositoryのImmutable Releasesを必須とし、Workflow完了前にReleaseと全添付Assetを検証します。最初のReleaseでは、Actionsへ秘密署名鍵を保持させず、Immutable Release Attestationを信頼の基点にします。
+`0.2.1`のような新Versionに対して、WorkflowはRepository、配布物、Install結果、Versionを検証し、Annotated Tag `v0.2.1`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。
+
+Release WorkflowはSource Fileを変更しません。Git Tagを公開済みReleaseのImmutableな識別子とします。公開ReleaseではRepositoryのImmutable Releasesを必須とし、Workflow完了前にReleaseと全添付Assetを検証します。最初のReleaseでは、Actionsへ秘密署名鍵を保持させず、Immutable Release Attestationを信頼の基点にします。
 
 公開済みReleaseとDownloadしたAssetはGitHub CLIで検証できます。
 
