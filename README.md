@@ -33,11 +33,44 @@ Socratic lets a reviewer grasp four things quickly:
 3. which incidents are plausible;
 4. whether the tests would actually detect them.
 
+## Installation
+
+Install the three skills with the GitHub CLI:
+
+```bash
+# choose skills interactively
+gh skill install Shogo1222/socratic
+
+# install everything without prompts
+gh skill install Shogo1222/socratic --all
+
+# pin to a published release
+gh skill install Shogo1222/socratic --all --pin v0.2.3
+```
+
+Or with the open Agent Skills CLI:
+
+```bash
+npx skills add Shogo1222/socratic --skill '*'
+```
+
+Then invoke `$socratic` on a code change. Invoke `$maieutic` or `$elenchus` directly when only that stage is needed.
+
+For organizational rollout — release verification, preview, and project scope — follow the [enterprise installation guide](docs/enterprise-installation.md).
+
 ## Who it is for
 
-The first audience is senior engineers and tech leads reviewing AI-generated PRs. Socratic does not replace review; it prepares the material that lets the reviewer focus on important decisions. It never posts to GitHub: it generates inline comment candidates the reviewer can copy onto the exact lines, and the reviewer decides what to post, edit, or discard.
+- senior engineers and tech leads reviewing AI-generated PRs;
+- reviewers who want to know quickly which decisions a large diff actually needs;
+- teams that want to check whether AI-added tests really protect anything.
 
-The answerer of a specification question is not necessarily the code author. The specification owner answers — the PR author, reviewer, product owner, domain expert, tech lead, or the owner of the API or data. When AI generated the code, the AI is neither specification evidence nor an answerer. When the reviewer lacks the authority to decide, the comment candidates are their tool for confirming with the owner.
+How Socratic positions itself:
+
+- it does not replace review; it prepares the material that lets the reviewer focus on important decisions;
+- it never posts to GitHub — it generates copy-ready inline comment candidates, and the reviewer decides what to post, edit, or discard;
+- specification questions are answered by the specification owner: the PR author, reviewer, product owner, domain expert, tech lead, or the owner of the API or data;
+- when AI generated the code, the AI is neither specification evidence nor an answerer;
+- when the reviewer lacks the authority to decide, the comment candidates are their tool for confirming with the owner.
 
 ## Use cases
 
@@ -393,36 +426,6 @@ schemas/
 ```
 
 Each directory under `skills/` is an Agent Skill compatible with Codex and Claude Code. Install all three to use the integrated `$socratic` workflow. `$maieutic` and `$elenchus` can also be invoked independently when only one stage is needed.
-
-## Installation
-
-Install all three skills from [Shogo1222/socratic](https://github.com/Shogo1222/socratic).
-
-For company-managed devices, preview the pinned release before installing it at project scope:
-
-```bash
-GH_TELEMETRY=false gh skill preview \
-  Shogo1222/socratic socratic@v0.2.3
-
-GH_TELEMETRY=false gh skill install \
-  Shogo1222/socratic \
-  --all \
-  --agent codex \
-  --scope project \
-  --pin v0.2.3
-```
-
-Replace `v0.2.3` with the [latest release](https://github.com/Shogo1222/socratic/releases) approved by your organization.
-
-The GitHub CLI Agent Skills commands are currently in preview. Confirm that your organization permits the CLI and selected AI host. Project scope limits installation to the current repository; it does not control what repository data the host sends to its AI provider.
-
-For compatibility, the open Agent Skills CLI remains available for personal evaluation, but the unpinned command is not the recommended enterprise installation path:
-
-```bash
-npx skills add Shogo1222/socratic --skill '*'
-```
-
-Then invoke `$socratic` on a code change. Invoke `$maieutic` or `$elenchus` directly when only that stage is needed.
 
 ## MVP scope
 
