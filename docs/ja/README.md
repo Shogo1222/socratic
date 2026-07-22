@@ -7,6 +7,9 @@
 ## 共通設計
 
 - [Intent Testing Protocol](protocol.md)
+- [セキュリティモデル](security-model.md)
+- [企業向け導入ガイド](enterprise-installation.md)
+- [セキュリティポリシー](../../SECURITY.ja.md)
 
 ## Socratic
 

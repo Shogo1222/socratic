@@ -448,6 +448,12 @@ gh release verify-asset v0.2.0 ./socratic-v0.2.0.zip \
   --repo Shogo1222/socratic
 ```
 
+## セキュリティ
+
+組織で導入する場合は[セキュリティモデル](docs/ja/security-model.md)をReviewし、[企業向け導入ガイド](docs/ja/enterprise-installation.md)に従ってください。疑わしい脆弱性は[セキュリティポリシー](SECURITY.ja.md)に沿って非公開で報告してください。
+
+Skillは、Git操作、Workspaceへの書き込み、Credential、Repository由来の指示、Disposable Mutation、Cleanupについて検証可能な境界を定義します。これらの自然言語Controlは、OS Sandbox、Network Policy、Provider契約、通常のHuman Reviewに代わるものではありません。
+
 ## 現在の状態
 
 現在はv0.2のスキル設計段階です。プロトコルとエージェントワークフローは利用できますが、決定的な言語別アダプターと、隔離されたBase/Head比較・Mutation Runnerは今後の実装対象です。

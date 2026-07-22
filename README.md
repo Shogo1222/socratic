@@ -448,6 +448,12 @@ gh release verify-asset v0.2.0 ./socratic-v0.2.0.zip \
   --repo Shogo1222/socratic
 ```
 
+## Security
+
+For organizational adoption, review the [security model](docs/security-model.md) and follow the [enterprise installation guide](docs/enterprise-installation.md). Report suspected vulnerabilities privately according to the [security policy](SECURITY.md).
+
+The skills define reviewable boundaries for Git operations, workspace writes, credentials, repository-supplied instructions, disposable mutations, and cleanup. These natural-language controls do not replace an operating-system sandbox, network policy, provider contract, or normal human review.
+
 ## Status
 
 The project is at the v0.2 skill-design stage. The protocol and agent workflows are usable, while deterministic language adapters and an isolated base/head comparison and mutation runner remain future work.
