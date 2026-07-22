@@ -427,21 +427,6 @@ schemas/
 
 Each directory under `skills/` is an Agent Skill compatible with Codex and Claude Code. Install all three to use the integrated `$socratic` workflow. `$maieutic` and `$elenchus` can also be invoked independently when only one stage is needed.
 
-## MVP scope
-
-v0.2 narrows its target to changes where:
-
-- an existing test environment is available;
-- base and head can be run locally;
-- return values, exceptions, state, and side effects are deterministically observable;
-- Feature Review, Refactor Guard, or Test Assessment can be identified as the purpose;
-- important behavior probes are limited to three to five;
-- the same tests run on both base and head;
-- only important mutations are selected;
-- nothing is auto-posted to GitHub;
-- comment candidates carry file names and line numbers;
-- unverified scope and test-strategy trade-offs are always reported.
-
 ## Non-goals
 
 v0.2 does not promise:
@@ -466,24 +451,6 @@ This project is inspired by two complementary research directions, represented b
 The test design principles follow Vladimir Khorikov's *Unit Testing Principles, Practices, and Patterns*.
 
 Socratic connects these ideas. The explicit human-confirmed Intent Contract, Maieutic intent elicitation, Contract-ID links between tests and mutations, the canonical four-block output, and copy-ready comment candidates are Socratic's own design, not claims of the papers or the book. Socratic is an independent open implementation, not an implementation published or endorsed by the authors of these works or their institutions.
-
-## CI and releases
-
-GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 16-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
-
-The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
-
-For a new version such as `0.2.1`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.2.1` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes.
-
-The release workflow does not modify source files. The Git tag is the immutable identity of a published release. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
-
-Verify a published release and a downloaded asset with GitHub CLI:
-
-```bash
-gh release verify v0.2.3 --repo Shogo1222/socratic
-gh release verify-asset v0.2.3 ./socratic-v0.2.3.zip \
-  --repo Shogo1222/socratic
-```
 
 ## Security
 

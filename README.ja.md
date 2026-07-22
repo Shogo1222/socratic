@@ -427,21 +427,6 @@ schemas/
 
 `skills/`配下の各ディレクトリは、CodexとClaude Codeで利用できるAgent Skillです。統合された`$socratic` Workflowには3つすべてをインストールします。一方のStageだけが必要な場合は`$maieutic`または`$elenchus`を独立して実行できます。
 
-## MVPの範囲
-
-v0.2では、次の条件へ対象を絞ります。
-
-- 既存のテスト環境がある
-- BaseとHeadをローカルで実行できる
-- 戻り値、例外、状態、副作用を決定的に観測できる
-- Feature Review、Refactor Guard、Test Assessmentのいずれかを目的として判断できる
-- 重要なBehavior Probeを最大3〜5件に限定する
-- BaseとHeadへ同一テストを実行する
-- 重要なMutationだけを選択する
-- GitHubへ自動投稿しない
-- ファイル名と行番号付きのコメント候補を生成する
-- 未検証範囲とテスト戦略上のトレードオフを報告する
-
 ## 非ゴール
 
 v0.2では次を約束しません。
@@ -466,24 +451,6 @@ v0.2では次を約束しません。
 テスト設計の原則は、『単体テストの考え方/使い方』(Vladimir Khorikov著、Unit Testing Principles, Practices, and Patternsの邦訳)に基づきます。
 
 Socraticはこれらの考え方を接続します。明示的なHuman-confirmed Intent Contract、Maieuticによる意図確定、Contract IDによるテストとMutationの対応付け、正準の4ブロック出力、Copy-readyなコメント候補は、論文や書籍の主張ではなくSocratic独自の設計です。本プロジェクトは独立したオープン実装であり、論文や書籍の著者または所属機関による実装や推奨ではありません。
-
-## CIとRelease
-
-GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills Metadata、配布監査Test、`skills/`配下の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、一時Directoryへ実際に16 FileをInstallします。File ManifestとFile単位のHashはCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
-
-Rootの[`VERSION`](VERSION) Fileで次に公開するRelease Versionを宣言します。Pull Requestで次のSemantic Versionへ更新してください。そのPull Requestが`main`へMergeされ、CIが成功すると、Release Workflowは検証済みの正確なCommitをCheckoutし、新Versionを自動公開します。対応するTagが既に存在する場合は、重複Releaseを作らず正常終了します。障害復旧用のManual Workflow Dispatchも`main`で利用でき、同じ`VERSION` Fileを読み取ります。
-
-`0.2.1`のような新Versionに対して、WorkflowはRepository、配布物、Install結果、Versionを検証し、Annotated Tag `v0.2.1`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。
-
-Release WorkflowはSource Fileを変更しません。Git Tagを公開済みReleaseのImmutableな識別子とします。公開ReleaseではRepositoryのImmutable Releasesを必須とし、Workflow完了前にReleaseと全添付Assetを検証します。最初のReleaseでは、Actionsへ秘密署名鍵を保持させず、Immutable Release Attestationを信頼の基点にします。
-
-公開済みReleaseとDownloadしたAssetはGitHub CLIで検証できます。
-
-```bash
-gh release verify v0.2.3 --repo Shogo1222/socratic
-gh release verify-asset v0.2.3 ./socratic-v0.2.3.zip \
-  --repo Shogo1222/socratic
-```
 
 ## セキュリティ
 
