@@ -108,6 +108,8 @@ The terminal output is fixed to four blocks:
 
 Test provenance is always relative to the start of the Socratic run, not to the broader conversation or Git history. Reviewer-facing output identifies each test as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. A Review-only run whose postflight matches preflight also says **Working tree unchanged during this Review-only run**.
 
+When Review-only proves a proposed test, Socratic preserves an exact test-only patch and its hash-validated handoff outside the working tree until you choose **Apply tests**, **Output patch**, or **Discard**. This operational choice appears after the four review blocks. A stale or missing handoff is regenerated and re-proved instead of being forced or described as reused.
+
 Findings route by state, not type:
 
 ```text
@@ -160,7 +162,7 @@ Copy-ready Comments:
   1 comment for src/subscription.ts:52
 ```
 
-Merge readiness, confidence levels, and overall scores are never displayed. Socratic reports three things — the verified scope, the findings or decisions, and the unverified scope — and the merge decision stays with the reviewer. The detailed Intent Contract, mutation results, test strategy, and executed commands are kept in temporary run artifacts; after the run you choose whether to discard them (the default), save them locally, or output them as Markdown.
+Merge readiness, confidence levels, and overall scores are never displayed. Socratic reports three things — the verified scope, the findings or decisions, and the unverified scope — and the merge decision stays with the reviewer. The detailed Intent Contract, mutation results, proven-test handoff status, test strategy, and executed commands are kept in temporary run artifacts; after resolving any test handoff, you choose whether to discard the run artifacts (the default), save them locally, or output them as Markdown.
 
 ## Copy-ready comments
 
@@ -299,10 +301,11 @@ The default mode is **Review-only**: nothing is written to the PR, GitHub, or th
 - no automatic posting to GitHub;
 - no changes to head production code;
 - comparison tests and mutations run in isolated workspaces;
+- proven proposed tests remain available as a temporary test-only patch until you apply, output, or discard them;
 - run artifacts are temporary by default — at the end you choose to discard, save locally, or output as Markdown;
 - only comment candidates are presented.
 
-Only when the user explicitly asks for test additions does Socratic switch to **Apply tests** and add tests, based on confirmed intent, to the working tree. Version-control operations stay with the user in both modes.
+Only when the user explicitly asks for test additions — including selecting **Apply tests** for a proven handoff — does Socratic switch to **Apply tests** and add tests, based on confirmed intent, to the working tree. It verifies handoff preconditions before application and repeats the focused original-code and mutation proof afterward. Version-control operations stay with the user in both modes.
 
 Socratic may use allowlisted, read-only local Git commands to inspect the change and export Base and Head snapshots. It never stages, commits, pushes, fetches, switches branches, creates worktrees, contacts a remote, invokes `gh`, creates a pull request, or posts a comment. It never asks for permission to do so; all version-control actions remain with the user.
 
@@ -357,6 +360,7 @@ schemas/
   intent-contract.schema.json
   mutation-result.schema.json
   mutation-report.schema.json
+  test-handoff.schema.json
 .github/workflows/
   ci.yml         Repository validation
   release.yml    Tag and GitHub Release creation

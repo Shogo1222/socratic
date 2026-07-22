@@ -10,6 +10,8 @@
 
 判断を記録する前に[Intent Contract](maieutic-intent-contract.md)を読み、Contract Artifactを同梱Schemaで検証する。テスト選択時は[QA技法の選択](maieutic-qa-techniques.md)を読む。
 
+証明済みテストの引き渡しを受け取る、または準備する場合は、[証明済みテストの引き渡し](elenchus-test-handoff.md)も読む。Mutation証跡とPatch ArtifactはElenchusが所有し、対応する期待値が確認済みで現在も有効かどうかはMaieuticが所有する。
+
 ## 運用原則
 
 - 複数の合理的な回答が観測可能な期待値または重要な副作用を変える場合だけ質問する。
@@ -166,11 +168,13 @@ Unit Testで観測不能なArtifactには、Schema Validation、Parser Check、M
 
 出所はSocraticまたは単独Maieuticの実行開始時点で分類する。Preflight時点で存在するテストは、同じ会話の先の依頼で追加された場合でも**実行開始時点で既存**とする。Disposable環境だけのテストは**Disposable環境で提案・証明済み**、明示許可されたApply tests実行中に主要Workspaceへ書き込んだテストは**明示依頼後に今回の実行が適用**と報告する。レビュワー向け出力で単に「追加した」と記述しない。
 
+Elenchusが証明した提案テストは、リポジトリ相対Pathと対応するContract IDを返し、Elenchusがテスト専用引き渡しを作成できるようにする。引き渡し適用前に、対応するすべてのOracleが解決済みで、Patchが現在のContractを引き続き表していることを確認する。ファイルHashが一致していても、Oracleが変更または未解決なら引き渡しはStaleであり、適用しない。
+
 テスト対象自体をMockしない。出力値ベースのOracleを優先し、次に観測可能な最終状態を使い、MockまたはSpyはStep 3の分類に従って管理外のプロセス外依存だけをアプリケーション境界で対象にする。
 
 ### 8. 検証して報告する
 
-対象テストから実行し、実用的なら広いSuiteも実行する。実行ArtifactのContract CoverageとStatusを更新する。正準のSurfaceから報告する——未解決の判断はReview This、保護済みの振る舞いはWe Verified、未ReviewのPartitionと残存リスクはStill at Riskへ。続けて、変更、意図、判断、Contract Path・Status、保護したID、実行基準のDispositionと明示的な出所表現(実行開始時点で既存・Disposable環境で提案・証明済み・明示依頼後に今回の実行が適用)付きのTest Change、未解決事項、コマンドと結果を報告する。
+対象テストから実行し、実用的なら広いSuiteも実行する。実行ArtifactのContract CoverageとStatusを更新する。正準のSurfaceから報告する——未解決の判断はReview This、保護済みの振る舞いはWe Verified、未ReviewのPartitionと残存リスクはStill at Riskへ。続けて、変更、意図、判断、Contract Path・Status、保護したID、実行基準のDispositionと明示的な出所表現(実行開始時点で既存・Disposable環境で提案・証明済み・明示依頼後に今回の実行が適用)付きのTest Change、証明済みテスト引き渡しのStatus、未解決事項、コマンドと結果を報告する。
 
 実行不能なら正確なBlockerと未検証事項を示し、静的確認だけで完了としない。
 
@@ -178,4 +182,4 @@ Unit Testで観測不能なArtifactには、Schema Validation、Parser Check、M
 
 ## SocraticまたはElenchusへの引き継ぎ
 
-Harden Modeには`confirmed`または`tested`のContract Path、変更ファイル、対象テストコマンド、Risk Rankingを渡す。Catch Modeには、ParentとDiffを特定できれば`provisional`または`needs-decision`でよい。`$socratic`内で実行している場合はこれらの成果物をOrchestratorへ返し、それ以外はElenchusへ直接渡す。Elenchusは引き継がれたContract Artifactを読み、確認済みIntentを再解釈しない。
+Harden Modeには`confirmed`または`tested`のContract Path、変更ファイル、対象テストコマンド、Risk Ranking、提案テストPathとContract IDの対応を渡す。Catch Modeには、ParentとDiffを特定できれば`provisional`または`needs-decision`でよいが、Oracle確認前に提案テストを適用してはならない。`$socratic`内で実行している場合はこれらの成果物をOrchestratorへ返し、それ以外はElenchusへ直接渡す。Elenchusは引き継がれたContract Artifactを読み、確認済みIntentを再解釈しない。

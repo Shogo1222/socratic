@@ -33,6 +33,6 @@ python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
 
-Distribution Auditでは、配布するSkill Fileを14個のUTF-8 Text Fileへ意図的に固定しています。Skill Resource、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
+Distribution Auditでは、配布するSkill Fileを16個のUTF-8 Text Fileへ意図的に固定しています。Skill Resource、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
 
 コントリビューションはリポジトリの[MIT License](LICENSE)で受け入れ、[行動規範](CODE_OF_CONDUCT.ja.md)を適用します。

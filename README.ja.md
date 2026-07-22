@@ -108,6 +108,8 @@ Refactor Guardが信頼できるためには、比較テストが内部構造で
 
 テストの出所は、会話全体やGit HistoryではなくSocratic実行開始時点を基準にします。レビュワー向け出力では、各テストを**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかとして明記します。Review-onlyのPostflightがPreflightと一致した場合は、**今回のReview-only実行中、Working Treeは不変**と報告します。
 
+Review-onlyで提案テストを証明した場合、Socraticは正確なテスト専用PatchとHash検証済みの引き渡しをWorking Tree外へ保持し、**テストを適用**、**Patchを出力**、**破棄**のいずれかを選べるようにします。この運用上の選択は4つのReviewブロック後に提示します。Staleまたは欠落した引き渡しは、強制適用や再利用と表現せず、再生成・再証明します。
+
 発見は種類ではなく状態で振り分けます。
 
 ```text
@@ -160,7 +162,7 @@ Copy-ready Comments:
   1 comment for src/subscription.ts:52
 ```
 
-マージ可否、信頼度、総合スコアは表示しません。Socraticが報告するのは、検証した範囲、発見した問題または判断事項、検証できなかった範囲の3点であり、マージ判断はレビュアーに残します。詳細なIntent Contract、Mutation結果、Test Strategy、実行コマンドは一時的な実行Artifactとして保持し、実行後に保存しない(デフォルト)・ローカル保存・Markdown出力から選べます。
+マージ可否、信頼度、総合スコアは表示しません。Socraticが報告するのは、検証した範囲、発見した問題または判断事項、検証できなかった範囲の3点であり、マージ判断はレビュアーに残します。詳細なIntent Contract、Mutation結果、証明済みテスト引き渡しのStatus、Test Strategy、実行コマンドは一時的な実行Artifactとして保持し、テスト引き渡しを処理した後に、保存しない(デフォルト)・ローカル保存・Markdown出力から選べます。
 
 ## Copy-ready Comments
 
@@ -299,10 +301,11 @@ Mutant    → Fail
 - GitHubへ自動投稿しない
 - Headの本番コードを変更しない
 - 比較テストとMutationは隔離環境で実行する
+- 証明済み提案テストは、適用・Patch出力・破棄まで一時的なテスト専用Patchとして保持する
 - 実行時の成果物は既定で一時的——実行後に保存しない・ローカル保存・Markdown出力から選択する
 - コメント候補だけを提示する
 
-ユーザーがテスト追加を明示的に依頼した場合のみ**Apply tests**へ切り替え、確認済みIntentに基づくテストをWorking Treeへ追加します。Version Control操作はどちらのModeでもユーザーに残ります。
+ユーザーがテスト追加を明示的に依頼した場合——証明済み引き渡しで**テストを適用**を選んだ場合を含む——のみ**Apply tests**へ切り替え、確認済みIntentに基づくテストをWorking Treeへ追加します。適用前に引き渡しPreconditionを確認し、適用後に元コードの対象テストとMutation証明を繰り返します。Version Control操作はどちらのModeでもユーザーに残ります。
 
 Socraticは、変更確認とBase・Head Snapshot出力のために、Allowlist化した読み取り専用のローカルGitコマンドだけを使えます。Stage、Commit、Push、Fetch、Branch切替、Worktree作成、Remote接続、`gh`呼び出し、Pull Request作成、コメント投稿は行いません。その許可も求めず、Version Control操作はすべてユーザーへ残します。
 
@@ -357,6 +360,7 @@ schemas/
   intent-contract.schema.json
   mutation-result.schema.json
   mutation-report.schema.json
+  test-handoff.schema.json
 .github/workflows/
   ci.yml         リポジトリ検証
   release.yml    TagとGitHub Releaseの作成

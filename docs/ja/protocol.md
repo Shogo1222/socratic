@@ -10,7 +10,9 @@
 
 実行時の成果物はChat-firstかつ既定でEphemeralです。実行中、Intent ContractとCatchまたはHarden Reportは、リポジトリのWorking Tree外の一時Artifactとして、インストールされたスキルへ同梱されたSchemaで検証され、Path経由でStage間を受け渡されます。会話内だけのContractはFallbackであり、通常の受け渡し方法ではありません。
 
-最終Surfaceの描画後、構造化質問でユーザーが保存方法を選びます。保存しない(デフォルト)、ローカルに保存、Markdownとして出力の3択です。ローカル保存を選んだ場合の正準Pathは次のとおりです。
+Review-onlyで不足テストを証明した場合、ElenchusはWorking Tree外へ一時的な証明済みテスト引き渡しも作成します。これは、テスト専用Patchと検証済みManifestからなり、ユーザーが「テストを適用」「Patchを出力」「破棄」のいずれかを選ぶまでだけ保持します。永続的なテストの代わりにはなりません。
+
+最終Surfaceの描画後、まず構造化質問で証明済みテストを「適用・Patch出力・破棄」のいずれかに処理します。別の実行Artifact質問では、保存しない(デフォルト)、ローカルに保存、Markdownとして出力の3択を提示します。ローカル保存を選んだ場合の正準Pathは次のとおりです。
 
 - `.socratic/intent-contract.json`: Maieuticが作成する現在のIntent Contract
 - `.socratic/elenchus-report.json`: Elenchusが作成する最新のCatchまたはHarden Report
@@ -67,9 +69,9 @@ Decision Provenanceは次の2値だけです。
 
 未確認の推論は`intent.evidence`、未解決のオラクル選択は`unresolved`へ記録します。
 
-### Mutation ResultとReport
+### Mutation Result、Report、Test Handoff
 
-[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをCatch分類を含めて表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、未挑戦Contract ID、未解決判断、Disposition(existing・proposed・applied)付きのTest Change、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。
+[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをCatch分類を含めて表現します。[test-handoff.schema.json](../../schemas/test-handoff.schema.json)は、証明済みテストの正確なPatch、ファイルHashのPreconditionとPostimage、Contract対応、双方向証跡を表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、未挑戦Contract ID、未解決判断、Test Changeと引き渡しStatus、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。
 
 ## 人間が判断する境界
 
@@ -88,11 +90,17 @@ Decision Provenanceは次の2値だけです。
 
 レビュアー向けのSurfaceは、Review This、We Verified、Still at Risk、Copy-ready Commentsの4ブロックだけです。発見は種類ではなく状態で振り分けます。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未検証のすべてはStill at Riskです。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載します。
 
+証明済みテストをどう処理するかという運用上の選択は、この4ブロックの後にHostの構造化質問UIで提示し、5つ目のReviewブロックにはしません。
+
 コメント候補は最大1〜3件で、`Intent decision`、`Behavior difference`、`Test gap`のTagとファイル・行番号を持ちます。`Intent decision`の回答者は仕様オーナーであり、AIがコードを生成した場合、AIは仕様の根拠にも回答者にもなりません。スキルはCode Hostへ投稿せず、マージ可否、信頼度、総合スコアを報告しません。マージ判断はレビュアーに残します。Contract、Mutation結果、Test Strategy、実行コマンドなどの詳細は実行時の成果物に保持します。
 
 ## Write Modeの境界
 
 既定はReview-onlyです。Probe、比較テスト、MutationはDisposable環境だけに存在し、Working Treeへ触れず、証明済みの不足テストは提案として報告します。Apply testsはユーザーの明示的な依頼を必要とし、確認済みIntentを表すテストだけを追加します。Version Control操作はどちらのModeでも禁止のままです。
+
+証明済み提案テストを含むSandboxを破棄する前に、テスト専用Patchを出力し、引き渡しManifestを検証します。Apply testsではPatch Hash、本番・テストPrecondition Hash、確認済みContract対応、テストファイルPostimageを検証します。不一致なら引き渡しをStaleとし、強制適用せず再生成して「元コード成功・Mutant失敗」の証明を繰り返します。欠落または破棄済みの引き渡しは、再利用と表現せず再生成します。
+
+適用成功後はContractとReportをApplied状態へ更新し、正準の4ブロックSurfaceを再描画します。先のReview-only Surfaceは処理方法を選ぶためのContextであり、Apply testsの最終結果ではありません。
 
 テストのDispositionは、周辺の会話やGit HistoryではなくSocratic実行開始時のPreflightを基準にします。Preflight時点で存在するテストは、同じ会話の先の依頼で作成された場合でも`existing`、Disposable環境だけのテストは`proposed`、明示許可された今回の実行が主要Workspaceへ書き込んだテストだけが`applied`です。レビュワー向けの文章では、**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**と明記します。Review-onlyのPostflightが一致した場合は、**今回のReview-only実行中、Working Treeは不変**と報告します。
 

@@ -26,3 +26,4 @@
 - [スキル本体](skills/elenchus.md)
 - [Intent駆動Mutation設計](skills/elenchus-mutation-design.md)
 - [Mutation安全Contract](skills/elenchus-safety.md)
+- [証明済みテストの引き渡し](skills/elenchus-test-handoff.md)

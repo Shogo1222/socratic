@@ -9,7 +9,7 @@ Challenge a test suite with plausible misunderstandings of programming intent. O
 
 ## Required references
 
-Read [references/mutation-design.md](references/mutation-design.md) before generating mutants and [references/safety.md](references/safety.md) before changing or executing code. Validate inputs and outputs with the bundled [intent-contract.schema.json](references/intent-contract.schema.json), [mutation-result.schema.json](references/mutation-result.schema.json), and [mutation-report.schema.json](references/mutation-report.schema.json).
+Read [references/mutation-design.md](references/mutation-design.md) before generating mutants and [references/safety.md](references/safety.md) before changing or executing code. When a proposed test is proved or applied, read [references/test-handoff.md](references/test-handoff.md). Validate inputs and outputs with the bundled [intent-contract.schema.json](references/intent-contract.schema.json), [mutation-result.schema.json](references/mutation-result.schema.json), [mutation-report.schema.json](references/mutation-report.schema.json), and [test-handoff.schema.json](references/test-handoff.schema.json).
 
 ## Git safety boundary
 
@@ -163,11 +163,15 @@ Verify both directions:
 
 Then run the broader relevant unit-test suite. Do not weaken assertions, couple tests to implementation details, or alter production behavior merely to kill a mutant.
 
+In Review-only, export every proved test batch as the validated test-only patch and manifest defined in `references/test-handoff.md` before discarding its test sandbox. Record production and test precondition hashes from the primary workspace, expected test-file postimage hashes from the proved sandbox, exact commands, detecting Mutation IDs, and broader-suite status. Keep the handoff temporary and set its initial status to `available`.
+
+In Apply tests, use an available handoff only after explicit authorization and only when its patch hash, all file preconditions, and mapped confirmed intent still match. Apply no production or documentation changes. Verify postimage hashes, repeat both directions of proof in fresh disposable mutation workspaces, run the broader relevant suite when practical, and then set status to `applied`. Mark a mismatched handoff `stale` and regenerate it instead of forcing application.
+
 Report each resolved survivor as a `Test gap` finding: the incident the mutant represents, the assertion added, and both directions of proof — for example, "deleting the event emission left existing tests green; a boundary-contract assertion was added and now fails on that mutation".
 
 ### 7. Restore and audit
 
-Discard all mutation sandboxes. Compare the scoped primary-workspace manifest and content hashes with preflight evidence. Confirm no production mutation remains and preserve only authorized test or documentation changes. Never use Git restoration and never stage, commit, or push preserved changes.
+Discard all mutation sandboxes. Keep only an unresolved `available` test handoff while waiting for its explicit disposition; delete it after application, output, discard, staleness, failure, timeout, or interruption. Compare the scoped primary-workspace manifest and content hashes with preflight evidence. Confirm no production mutation remains and preserve only authorized test or documentation changes. Never use Git restoration and never stage, commit, or push preserved changes.
 
 ## Reviewer-facing summary
 
@@ -180,11 +184,11 @@ Produce the report against the bundled report schema as a temporary run artifact
 - mode, contract path, and stable baseline evidence;
 - each mutation record and classification;
 - catching outcomes and human verdicts when applicable;
-- the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), authorized workspace changes, and bidirectional proof;
+- the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), test handoff or `null`, authorized workspace changes, and bidirectional proof;
 - every `not_challenged` Contract ID and reason;
 - unresolved decisions and reduced test scope;
 - postflight proof that primary production code is mutation-free.
 
 Mutation score may be secondary context, never the success criterion. Never equate budget exhaustion with a fully hardened contract.
 
-Delete the temporary report on every exit path — success, failure, timeout, or interruption — unless the user chose to keep it, and report the exact path if a deletion fails.
+Delete the temporary report on every exit path — success, failure, timeout, or interruption — unless the user chose to keep it. Apply the separate cleanup lifecycle in `references/test-handoff.md` to any patch and manifest. Report exact remaining paths if deletion fails.

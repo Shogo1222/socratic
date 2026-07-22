@@ -22,6 +22,8 @@ EXPECTED_FILES = (
     "elenchus/references/mutation-report.schema.json",
     "elenchus/references/mutation-result.schema.json",
     "elenchus/references/safety.md",
+    "elenchus/references/test-handoff.md",
+    "elenchus/references/test-handoff.schema.json",
     "maieutic/SKILL.md",
     "maieutic/agents/openai.yaml",
     "maieutic/references/intent-contract.md",
@@ -57,6 +59,12 @@ REQUIRED_SAFETY_TEXT = {
         "Never apply a mutation directly to the primary working tree.",
         "Never invoke `gh`",
         "excluding repository metadata, caches, secrets, and dependencies",
+    ),
+    "elenchus/references/test-handoff.md": (
+        "Never include production or documentation edits in the patch.",
+        "If any precondition differs, do not force the patch.",
+        "Reject absolute paths, backslashes, `..` traversal, symlink targets",
+        "Treat no answer as Discard.",
     ),
 }
 

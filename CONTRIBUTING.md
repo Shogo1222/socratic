@@ -33,6 +33,6 @@ python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
 
-The distribution audit intentionally fixes the shipped Skill file set at 14 UTF-8 text files. Any added Skill resource, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
+The distribution audit intentionally fixes the shipped Skill file set at 16 UTF-8 text files. Any added Skill resource, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
 
 Contributions are accepted under the repository's [MIT License](LICENSE) and are governed by the [Code of Conduct](CODE_OF_CONDUCT.md).

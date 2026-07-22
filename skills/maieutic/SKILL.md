@@ -11,6 +11,8 @@ Turn a code diff into a small set of human decisions and a validated, executable
 
 Read [references/intent-contract.md](references/intent-contract.md) before recording decisions. Validate contract artifacts with [references/intent-contract.schema.json](references/intent-contract.schema.json). Read [references/qa-techniques.md](references/qa-techniques.md) when selecting test cases.
 
+When receiving or preparing a proven-test handoff, also read [Proven Test Handoff](../elenchus/references/test-handoff.md). Elenchus owns its mutation evidence and patch artifact; Maieutic owns whether its mapped expectations are confirmed and still current.
+
 ## Operating rules
 
 - Ask only when different reasonable answers change an observable expectation or important side effect.
@@ -193,6 +195,8 @@ In Review-only mode, the default, implement and prove these tests only in a disp
 
 Classify provenance at the Socratic or standalone Maieutic run boundary. A test already present at preflight is **existing at run start**, even if it was added earlier in the same conversation. A disposable-only test is **proposed and proven in disposable workspace**. A test written to the primary workspace during an explicitly authorized Apply tests run is **applied by this run after explicit request**. Use these phrases in reviewer-facing output; never say only that a test was added.
 
+For a proposed test that Elenchus proves, return its repository-relative path and mapped Contract IDs so Elenchus can create the test-only handoff. Before applying a handoff, confirm that every mapped oracle remains resolved and that the patch still expresses the current Contract. A changed or unresolved oracle makes the handoff stale even when file hashes still match; do not apply it.
+
 Do not mock the unit under test. Prefer output-based oracles, then observable final state; mock or spy only unmanaged out-of-process dependencies at the application boundary, following the classification from step 3.
 
 ### 8. Verify and report
@@ -204,6 +208,7 @@ Run the narrowest relevant tests first, then the broader unit-test suite when pr
 - Intent Contract path and status;
 - Contract IDs covered by tests;
 - test changes with their run-relative disposition and explicit reviewer-facing attribution (existing at run start, proposed and proven in disposable workspace, or applied by this run after explicit request);
+- proven-test handoff status when one exists;
 - unreviewed partitions, remaining risks, and unresolved items;
 - commands run and results.
 
@@ -213,4 +218,4 @@ Never stage, commit, or push added tests or artifacts. Report any working-tree p
 
 ## Handoff to Socratic or Elenchus
 
-For Harden Mode, hand off a `confirmed` or `tested` contract path, changed files, focused test command, and risk ranking. For Catch Mode, a `provisional` or `needs-decision` contract is sufficient when the parent revision and proposed diff are identified. When running inside `$socratic`, return these artifacts to the orchestrator; otherwise hand them directly to Elenchus. Elenchus must load the handed-off contract artifact and must not reinterpret confirmed intent.
+For Harden Mode, hand off a `confirmed` or `tested` contract path, changed files, focused test command, risk ranking, and proposed test path-to-Contract mappings. For Catch Mode, a `provisional` or `needs-decision` contract is sufficient when the parent revision and proposed diff are identified, but no proposed test may be applied until its oracle is confirmed. When running inside `$socratic`, return these artifacts to the orchestrator; otherwise hand them directly to Elenchus. Elenchus must load the handed-off contract artifact and must not reinterpret confirmed intent.
