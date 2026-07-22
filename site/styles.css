@@ -341,7 +341,9 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 
 .origin { color: #f6f0e5; background: var(--ink); }
 .origin-intro, .research-intro { display: grid; grid-template-columns: .8fr 1.2fr; gap: 90px; align-items: end; }
-.origin-intro h2 { font-size: clamp(42px, 5.1vw, 66px); }
+.origin-intro h2 { font-size: clamp(36px, 3.8vw, 50px); }
+.origin-heading { overflow-wrap: normal; word-break: keep-all; }
+.origin-heading span { display: block; white-space: nowrap; }
 .origin-intro > p, .research-intro > p { margin: 0 0 6px; color: #aeb8c5; font-size: 15px; line-height: 2; }
 .name-flow { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 68px; border-top: 1px solid rgba(255,255,255,.17); border-left: 1px solid rgba(255,255,255,.17); }
 .name-flow article { min-height: 300px; padding: 32px; border-right: 1px solid rgba(255,255,255,.17); border-bottom: 1px solid rgba(255,255,255,.17); }
@@ -403,6 +405,7 @@ footer { padding: 58px 0; }
   .hero-lead { font-size: 15px; }
   .balanced-heading { font-size: clamp(32px, 10vw, 44px); }
   .problem-heading { font-size: clamp(31px, 9vw, 42px); }
+  .origin-intro h2 { font-size: clamp(32px, 9vw, 40px); }
   .hero-actions { align-items: stretch; flex-direction: column; }
   .button { width: 100%; }
   .review-card { transform: none; }
