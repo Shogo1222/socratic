@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.2.6"
+SOCRATIC_VERSION = "0.2.7"
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -214,7 +214,7 @@ def _ready_manifest(manifest_path: Path) -> dict[str, Any]:
     if manifest.get("status") != "ready" or manifest.get("entrypoint") != ENTRYPOINT:
         raise RunGateError("run manifest is blocked or was not created by the mandatory entrypoint")
     if manifest.get("protection", {}).get("verified") is not True:
-        raise RunGateError("verified primary protection is required")
+        raise RunGateError("a trusted Host protection attestation is required")
     return manifest
 
 
@@ -326,7 +326,11 @@ def execute(
     }
     if phase == "mutation" and mutation_id not in registered:
         raise RunGateError(f"mutation execution has no guarded mutation evidence: {mutation_id}")
-    environment = os.environ.copy()
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "LANG"} or key.startswith("LC_")
+    }
     environment.update(manifest["environment"])
     try:
         completed = subprocess.run(
@@ -348,7 +352,7 @@ def finish_document(
     ledger: list[dict[str, Any]], *, manifest_sha256: str, ledger_head: str,
 ) -> None:
     if manifest.get("status") != "ready" or manifest.get("protection", {}).get("verified") is not True:
-        raise RunGateError("run did not pass trusted host preflight")
+        raise RunGateError("run did not pass trusted Host-attested preflight")
     if report.get("write_mode") == "review-only" and report.get("postflight", {}).get("primary_written_during_run") is not False:
         raise RunGateError("Review-only run wrote to the primary repository, even if later restored")
     run = report.get("run", {})
@@ -386,7 +390,7 @@ def finish_document(
     protection = manifest["protection"]
     evidence = isolation.get("host_protection", {}) if protection["mode"] in {"os-read-only", "permission-read-only"} else isolation.get("write_monitor", {})
     if evidence.get("mode") != protection["mode"] or evidence.get("verified") is not True:
-        raise RunGateError("report protection evidence differs from trusted host preflight")
+        raise RunGateError("report protection evidence differs from the trusted Host attestation")
     targets = {(item.get("mutation_id"), item.get("resolved_path")) for item in isolation.get("mutation_targets", [])}
     guarded = {
         (item.get("mutation_id"), item.get("resolved_path"))

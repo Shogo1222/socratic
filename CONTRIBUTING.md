@@ -39,7 +39,7 @@ gh skill publish --dry-run
 
 Fixture validation needs `jsonschema` and `referencing` (`python3 -m pip install jsonschema referencing`); everything else uses the standard library.
 
-The distribution audit intentionally fixes the shipped Skill file set at 16 UTF-8 text files. Any added Skill resource, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
+The distribution audit intentionally fixes the shipped Skill file set at 21 UTF-8 text files. Any added Skill resource, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
 
 ## v0.2 scope
 
@@ -58,7 +58,7 @@ v0.2 narrows its target to changes where:
 
 ## CI and releases
 
-GitHub Actions runs the same repository consistency check documented above for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 16-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
+GitHub Actions runs the same repository consistency check documented above for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 21-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
 
 The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
 

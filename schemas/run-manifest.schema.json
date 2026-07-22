@@ -32,7 +32,7 @@
       "required": ["mode", "verified", "primary_root", "details"],
       "properties": {
         "mode": { "enum": ["os-read-only", "permission-read-only", "host-events", "os-audit", "unavailable"] },
-        "verified": { "type": "boolean" },
+        "verified": { "type": "boolean", "description": "Schema v7 compatibility field: true means the Runner accepted a trusted Host attestation; it does not assert independent OS verification by the Runner." },
         "primary_root": { "type": "string", "minLength": 1 },
         "details": { "type": "string" }
       },

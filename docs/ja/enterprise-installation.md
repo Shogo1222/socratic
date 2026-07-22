@@ -15,6 +15,14 @@
 - Test Commandを本番Accessや課金を伴う副作用なしにDisposable環境で実行できる
 - [セキュリティモデル](security-model.md)と[セキュリティポリシー](../../SECURITY.ja.md)をReview済みである
 
+RunnerのRuntime Dependencyは、Global環境ではなく、Host管理のVirtual EnvironmentまたはManaged Python Runtimeへ導入してください。
+
+```bash
+python3 -m pip install jsonschema referencing
+```
+
+どちらかの依存Packageが利用できない場合、必須RunnerはFail-closedとなりReviewは`blocked`のままです。
+
 ## Releaseの検証
 
 Immutableな公開Releaseを使い、Installする正確なTagを固定してください。以下の`v0.2.0`は、承認済みReleaseへ置き換えます。
@@ -32,7 +40,8 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.2.0
 GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
-想定する配布物は16個のText Fileであり、実行可能File、Binary、Symbolic Linkを含みません。PreviewをReleaseのManifestとChecksumと比較してください。
+<!-- socratic-distribution-file-count: 21 -->
+想定する配布物は21個のUTF-8 Text Fileで、そのうち3個はPython Source Helperです。HelperにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。配布Auditの「実行可能」拒否は、具体的にはPOSIXの`0o111` Execute-bit Maskを検査します。配布物にBinaryやSymbolic Linkは含まれません。PreviewをReleaseのManifestとChecksumと比較してください。
 
 ## Project ScopeでのInstall
 

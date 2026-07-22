@@ -39,7 +39,7 @@ gh skill publish --dry-run
 
 Fixture検証には`jsonschema`と`referencing`が必要です(`python3 -m pip install jsonschema referencing`)。それ以外は標準ライブラリだけで動作します。
 
-Distribution Auditでは、配布するSkill Fileを16個のUTF-8 Text Fileへ意図的に固定しています。Skill Resource、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
+Distribution Auditでは、配布するSkill Fileを21個のUTF-8 Text Fileへ意図的に固定しています。Skill Resource、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
 
 ## v0.2の範囲
 
@@ -58,7 +58,7 @@ v0.2では、次の条件へ対象を絞ります。
 
 ## CIとRelease
 
-GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、本書に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills Metadata、配布監査Test、`skills/`配下の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、一時Directoryへ実際に16 FileをInstallします。File ManifestとFile単位のHashはCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
+GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、本書に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills Metadata、配布監査Test、`skills/`配下の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、一時Directoryへ実際に21 FileをInstallします。File ManifestとFile単位のHashはCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
 
 Rootの[`VERSION`](VERSION) Fileで次に公開するRelease Versionを宣言します。Pull Requestで次のSemantic Versionへ更新してください。そのPull Requestが`main`へMergeされ、CIが成功すると、Release Workflowは検証済みの正確なCommitをCheckoutし、新Versionを自動公開します。対応するTagが既に存在する場合は、重複Releaseを作らず正常終了します。障害復旧用のManual Workflow Dispatchも`main`で利用でき、同じ`VERSION` Fileを読み取ります。
 

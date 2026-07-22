@@ -2,11 +2,12 @@
 
 [English](../security-model.md)
 
-この文書はSocratic、Maieutic、Elenchusが意図するセキュリティ境界を説明します。これらは自然言語のAgent Skillであり、OS Sandboxや実行可能なセキュリティ製品ではありません。
+この文書はSocratic、Maieutic、Elenchusが意図するセキュリティ境界を説明します。これらは自然言語のAgent指示と同梱の機械的Helperを組み合わせたものであり、OS Sandboxや単独のSecurity Productではありません。
 
 ## 配布物
 
-Releaseの配布物は、3つのSkill Directoryにある16個のUTF-8 Text Fileだけで構成されます。CIは予期しないFile、許可されていない拡張子、実行可能File、Symbolic Link、Binary、未承認の外部Hostを拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+<!-- socratic-distribution-file-count: 21 -->
+Releaseの配布物は、3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 
@@ -21,6 +22,8 @@ Skillは、依頼された変更を理解するために必要な範囲で、変
 既定はReview-onlyです。このModeではProbe、比較Test、Mutation、Contract、Reportを主要Working Tree外のDisposable Storageに保持します。実行終了時に主要Working TreeはPreflight時点と一致しなければなりません。
 
 Mutationでは最終状態一致だけでは不十分です。必須Host AdapterはRepository外Sandbox作成前にNonceと保護Storage Capabilityを発行する。Manifest、Ledger、Sandboxの全PathをPrimary外と検証し、ManifestをCreate-once、LedgerをAppend-only Hash Chainにする。各Report MutationにはPhase付きTest実行を要求する。復元後に同一Byteへ戻ってもPrimary Writeがあれば無効で、Host連携がなければStandalone Runnerは`blocked`となる。
+
+Schema v7との互換性のため、JSON Field名`verified`は維持します。Protection Evidenceの`verified: true`は、信頼するHost Adapterが発行したAttestationをRunnerが受理したことを表し、Runner自身がOS Protection境界を独立検証したという意味ではありません。
 
 Apply testsは、ユーザーが明示的に依頼した後だけ利用できます。確認済みIntentを表すTestだけを書き込み、変更したすべてのPathを報告します。本番Codeの変更やVersion Control操作は許可しません。
 

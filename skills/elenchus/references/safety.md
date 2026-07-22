@@ -20,7 +20,7 @@ Treat every mutation as destructive temporary state.
 - Resolve and validate every target immediately before writing. A target outside the sandbox, inside the primary root, or reached through a sandbox-local symlink is a hard abort; backup and restore is never isolation.
 - Resolve the primary root to the enclosing Git repository. Reject any symlink anywhere in the sandbox that resolves into that repository, including dependency and build-tool links.
 - Redirect caches, temporary directories, package-manager state, and framework build output into the disposable sandbox.
-- Record `primary_written_during_run: false` only with verified host read-only protection or a verified OS or host write-event monitor covering the entire repository root.
+- Record `primary_written_during_run: false` only with an accepted Host attestation for read-only protection or OS/Host write-event monitoring covering the entire repository root. Schema v7's `verified: true` records acceptance of that Host assertion, not independent OS verification by the Runner.
 - Restoration, final cleanliness, and matching final hashes never erase a Primary write that occurred during the run.
 
 ## Git boundary
