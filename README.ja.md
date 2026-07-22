@@ -49,7 +49,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # 公開Releaseへピン留め
-gh skill install Shogo1222/socratic --all --pin v0.2.7
+gh skill install Shogo1222/socratic --all --pin v0.2.8
 ```
 
 または、Open Agent Skills CLIを使います。

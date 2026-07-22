@@ -89,6 +89,16 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 
 すべてのReview-only Mutation Runは、信頼されたHost Adapterによる`preflight_with_host`、各`mutate`または`register_prebuilt`、BaselineとMutation ID付き`execute`、`finish`を必ず使用する。Standalone CLIはReady Runを作れず、自己申告Attestation JSONを受理しない。Host Adapter、Schema、またはHostがAttestしたRead-only/Write-monitor CapabilityがなければMutation前に`blocked`で停止する。Schema v7の`verified: true`は、Runnerが信頼するHostのAttestationを受理したことを意味し、Runner自身がOS境界を独立検証したという意味ではない。手作業の近似、Primary変更後の復元、`execute`外のCommand、手書きArtifactや4ブロックを正規Runとして提示しない。
 
+Standalone Preflightが`status=blocked`を返した場合は、次の固定終了手順だけを実行し、代替Workflowへ進まない。
+
+1. 現在のSocratic Runを直ちに終了する。
+2. Repository定義のCommandまたはTestを実行しない。
+3. MaieuticまたはElenchusを呼び出さない。
+4. 会話または以前のRunのFindingを再利用しない。
+5. `Review This`、`We Verified`、`Still at Risk`、`Copy-ready Comments`をRenderしない。
+6. Stryker、Apply tests、別のMutation Pathを提示しない。
+7. Blocked Reasonと不足しているHost Capabilityだけを出力する。
+
 Host AdapterはRun ID、Nonce、保護された外部Storage、Repository全体の保護証跡を発行する。`preflight_with_host`は全Run PathがPrimary外であることを確認し、Manifestを一度だけ作成してNonce付きAppend-only Ledgerを開始する。`execute`はBaselineまたはMutation PhaseとMutation IDを記録し、各Report結果へ対応付ける。`finish`はHost Adapter、Nonce、Manifest Hash、Ledger Chain HeadをMutation Report v7へ結合する。
 
 ### 1. Scopeを確定する

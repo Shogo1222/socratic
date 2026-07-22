@@ -163,5 +163,33 @@ class PersistentSideEffectGateTest(unittest.TestCase):
         self.assertIn("authorization", effects["properties"])
 
 
+class TerminalBlockedPreflightTest(unittest.TestCase):
+    def test_english_and_japanese_skills_fix_the_terminal_blocked_sequence(self) -> None:
+        english = (ROOT / "skills/socratic/SKILL.md").read_text(encoding="utf-8")
+        japanese = (ROOT / "docs/ja/skills/socratic.md").read_text(encoding="utf-8")
+        english_rules = (
+            "The current Socratic run terminates immediately.",
+            "Do not run repository-defined commands or tests.",
+            "Do not invoke Maieutic or Elenchus.",
+            "Do not reuse findings from the conversation or previous runs.",
+            "Do not render `Review This`, `We Verified`, `Still at Risk`, or `Copy-ready Comments`.",
+            "Do not offer Stryker, Apply tests, or another mutation path.",
+            "Output only the blocked reason and the missing Host capability.",
+        )
+        japanese_rules = (
+            "現在のSocratic Runを直ちに終了する。",
+            "Repository定義のCommandまたはTestを実行しない。",
+            "MaieuticまたはElenchusを呼び出さない。",
+            "会話または以前のRunのFindingを再利用しない。",
+            "`Review This`、`We Verified`、`Still at Risk`、`Copy-ready Comments`をRenderしない。",
+            "Stryker、Apply tests、別のMutation Pathを提示しない。",
+            "Blocked Reasonと不足しているHost Capabilityだけを出力する。",
+        )
+        for rule in english_rules:
+            self.assertIn(rule, english)
+        for rule in japanese_rules:
+            self.assertIn(rule, japanese)
+
+
 if __name__ == "__main__":
     unittest.main()
