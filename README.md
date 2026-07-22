@@ -49,7 +49,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin to a published release
-gh skill install Shogo1222/socratic --all --pin v0.2.7
+gh skill install Shogo1222/socratic --all --pin v0.2.8
 ```
 
 Or with the open Agent Skills CLI:

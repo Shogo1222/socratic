@@ -90,6 +90,16 @@ Before executing a repository-defined command, inspect the command and the scrip
 
 Every Review-only mutation run must use the trusted Host Adapter integration for `preflight_with_host`, each guarded `mutate` or `register_prebuilt`, a baseline `execute`, every mutation-specific `execute`, and `finish`. The standalone CLI cannot create a ready run and always returns `blocked`; self-asserted attestation JSON is never accepted. If the Host Adapter, schema, or Host-attested read-only/write-monitor capability is unavailable, stop before running any mutation. In schema v7, `verified: true` means that the Runner accepted the trusted Host's attestation, not that the Runner independently verified the OS boundary. Manual approximation, direct Primary mutation followed by restoration, repository commands outside `execute`, hand-written artifacts, and hand-written four-block output are non-compliant and must never be presented as a Socratic run.
 
+If standalone preflight returns `status=blocked`, execute exactly this terminal sequence and no alternative workflow:
+
+1. The current Socratic run terminates immediately.
+2. Do not run repository-defined commands or tests.
+3. Do not invoke Maieutic or Elenchus.
+4. Do not reuse findings from the conversation or previous runs.
+5. Do not render `Review This`, `We Verified`, `Still at Risk`, or `Copy-ready Comments`.
+6. Do not offer Stryker, Apply tests, or another mutation path.
+7. Output only the blocked reason and the missing Host capability.
+
 The Host Adapter issues the run ID, nonce, protected storage root, and repository-wide protection evidence. `preflight_with_host` validates every run path outside Primary, creates the disposable copy and isolated cache/temp/home directories, writes the manifest once, and starts a nonce-bound append-only ledger. `execute` requires `baseline` or `mutation` phase metadata, and each mutation result must map to a mutation-specific command event. `finish` binds the Host Adapter identity, nonce, manifest hash, and ledger-chain head to Mutation Report v7, validates all schemas and cross-artifact gates, and returns renderer stdout as the complete terminal review.
 
 ### 1. Establish scope

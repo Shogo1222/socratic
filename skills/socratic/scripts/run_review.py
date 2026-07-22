@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.2.7"
+SOCRATIC_VERSION = "0.2.8"
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -115,8 +115,11 @@ def blocked_preflight(primary_path: Path) -> dict[str, Any]:
     primary_root = _repository_root(primary_path)
     return {
         "status": "blocked",
+        "terminal": True,
+        "next_action": "stop",
         "primary_root": str(primary_root),
         "blocked_reason": "a trusted HostAdapter capability is required; self-asserted JSON is not accepted",
+        "missing_host_capability": "trusted HostAdapter capability",
     }
 
 

@@ -69,7 +69,20 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             before = set(root.iterdir())
             result = self.runner.blocked_preflight(repository)
-            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(
+                result,
+                {
+                    "status": "blocked",
+                    "terminal": True,
+                    "next_action": "stop",
+                    "primary_root": str(repository.resolve()),
+                    "blocked_reason": (
+                        "a trusted HostAdapter capability is required; "
+                        "self-asserted JSON is not accepted"
+                    ),
+                    "missing_host_capability": "trusted HostAdapter capability",
+                },
+            )
             self.assertIn("self-asserted JSON is not accepted", result["blocked_reason"])
             self.assertEqual(set(root.iterdir()), before)
 
