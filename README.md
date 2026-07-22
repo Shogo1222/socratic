@@ -436,9 +436,11 @@ Socratic connects these ideas. The explicit human-confirmed Intent Contract, Mai
 
 GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 14-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
 
-Maintainers create a release from **Actions → Release → Run workflow** on `main`. Enter a semantic version such as `0.2.0`; a leading `v` is accepted. The workflow validates the repository, distribution, installation result, and version; rejects an existing tag; creates an annotated `v0.2.0` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes. Draft and prerelease releases are supported.
+The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
 
-The release workflow does not modify source files. The Git tag is the release version of record. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
+For a new version such as `0.2.1`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.2.1` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes.
+
+The release workflow does not modify source files. The Git tag is the immutable identity of a published release. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
 
 Verify a published release and a downloaded asset with GitHub CLI:
 

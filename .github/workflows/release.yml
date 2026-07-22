@@ -1,22 +1,14 @@
 name: Release
 
 on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (semver, e.g. 0.2.0 — leading "v" is stripped)'
-        required: true
-        type: string
-      draft:
-        description: 'Create as draft release'
-        required: false
-        type: boolean
-        default: false
-      prerelease:
-        description: 'Mark as prerelease'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -28,6 +20,7 @@ concurrency:
 jobs:
   release:
     name: Create tag and GitHub Release
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -39,13 +32,58 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Read release version
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$SOURCE_BRANCH" != "main" ]]; then
+            echo "::error::Releases must be cut from main (received: $SOURCE_BRANCH)"
+            exit 1
+          fi
+
+          version=$(tr -d '[:space:]' < VERSION)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid semver in VERSION: $version"
+            exit 1
+          fi
+
+          tag="v$version"
+          release_sha=$(git rev-parse HEAD)
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "::notice::Release $tag already exists; no release is needed"
+              echo "release_needed=false" >> "$GITHUB_OUTPUT"
+              echo "tag_needed=false" >> "$GITHUB_OUTPUT"
+            else
+              tag_sha=$(git rev-list -n 1 "$tag")
+              if [[ "$tag_sha" != "$release_sha" ]]; then
+                echo "::error::$tag exists at $tag_sha but the current commit is $release_sha"
+                exit 1
+              fi
+              echo "::notice::$tag exists without a GitHub Release; resuming publication"
+              echo "release_needed=true" >> "$GITHUB_OUTPUT"
+              echo "tag_needed=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "release_needed=true" >> "$GITHUB_OUTPUT"
+            echo "tag_needed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python
+        if: steps.release.outputs.release_needed == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
       - name: Validate repository
+        if: steps.release.outputs.release_needed == 'true'
         run: |
           python3 scripts/check_repository.py
           python3 -m compileall -q scripts
@@ -53,6 +91,7 @@ jobs:
           gh skill publish --dry-run
 
       - name: Verify installed distribution
+        if: steps.release.outputs.release_needed == 'true'
         run: |
           gh skill install "$GITHUB_WORKSPACE" \
             --from-local \
@@ -61,32 +100,10 @@ jobs:
           python3 scripts/audit_distribution.py \
             --installed-dir "$RUNNER_TEMP/installed-skills"
 
-      - name: Validate inputs and branch
-        id: validate
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          version="${INPUT_VERSION#v}"
-          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Invalid semver: $version"
-            exit 1
-          fi
-          tag="v$version"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "::error::Tag $tag already exists"
-            exit 1
-          fi
-          if [[ "$REF_NAME" != "main" ]]; then
-            echo "::error::Releases must be cut from main (dispatched from: $REF_NAME)"
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-
       - name: Build release assets
+        if: steps.release.outputs.release_needed == 'true'
         env:
-          TAG: ${{ steps.validate.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -111,8 +128,9 @@ jobs:
           )
 
       - name: Create and push annotated tag
+        if: steps.release.outputs.release_needed == 'true' && steps.release.outputs.tag_needed == 'true'
         env:
-          TAG: ${{ steps.validate.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -121,16 +139,14 @@ jobs:
           git push origin "$TAG"
 
       - name: Create GitHub Release
+        if: steps.release.outputs.release_needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.validate.outputs.tag }}
-          DRAFT: ${{ inputs.draft }}
-          PRERELEASE: ${{ inputs.prerelease }}
+          TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
         run: |
           set -euo pipefail
-          args=("$TAG" --verify-tag --title "$TAG" --generate-notes --target "$GITHUB_SHA" --fail-on-no-commits)
-          [[ "$DRAFT" == "true" ]] && args+=(--draft)
-          [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+          args=("$TAG" --verify-tag --title "$TAG" --generate-notes --target "$RELEASE_SHA" --fail-on-no-commits)
           gh release create "${args[@]}" \
             dist/*.zip \
             dist/SHA256SUMS \
@@ -138,10 +154,10 @@ jobs:
             dist/distribution-manifest.json
 
       - name: Verify immutable release and assets
-        if: ${{ !inputs.draft }}
+        if: steps.release.outputs.release_needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.validate.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
           max_attempts=30
@@ -171,13 +187,15 @@ jobs:
           done
 
       - name: Summarize release
+        if: steps.release.outputs.release_needed == 'true'
         env:
-          TAG: ${{ steps.validate.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
         run: |
           {
             echo "## Released $TAG"
             echo
-            echo "Commit: \`$GITHUB_SHA\`"
+            echo "Commit: \`$RELEASE_SHA\`"
             echo
             echo "Assets:"
             find dist -maxdepth 1 -type f -print | sort | sed 's#^#- #'
