@@ -28,6 +28,11 @@ Socraticは、現在初期設計段階です。コントリビューションで
 
 ```bash
 python3 scripts/check_repository.py
+python3 -m unittest discover -s scripts -p 'test_*.py'
+python3 scripts/audit_distribution.py
+gh skill publish --dry-run
 ```
+
+Distribution Auditでは、配布するSkill Fileを14個のUTF-8 Text Fileへ意図的に固定しています。Skill Resource、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
 
 コントリビューションはリポジトリの[MIT License](LICENSE)で受け入れ、[行動規範](CODE_OF_CONDUCT.ja.md)を適用します。

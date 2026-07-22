@@ -6,6 +6,9 @@
 
 # Socratic
 
+[![CI](https://github.com/Shogo1222/socratic/actions/workflows/ci.yml/badge.svg)](https://github.com/Shogo1222/socratic/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/Shogo1222/socratic)](https://github.com/Shogo1222/socratic/releases)
+
 > Don't review every line. Review the decisions that matter.
 
 Socraticは、Pull Requestのコードをすべて説明するツールではありません。変更前後の振る舞いを比較し、人間が判断すべき仕様、意図しない可能性のある変更、既存テストが検知できない重要なリスクだけを抽出します。
@@ -354,6 +357,9 @@ schemas/
   intent-contract.schema.json
   mutation-result.schema.json
   mutation-report.schema.json
+.github/workflows/
+  ci.yml         リポジトリ検証
+  release.yml    TagとGitHub Releaseの作成
 ```
 
 `skills/`配下の各ディレクトリは、CodexとClaude Codeで利用できるAgent Skillです。統合された`$socratic` Workflowには3つすべてをインストールします。一方のStageだけが必要な場合は`$maieutic`または`$elenchus`を独立して実行できます。
@@ -362,13 +368,23 @@ schemas/
 
 [Shogo1222/socratic](https://github.com/Shogo1222/socratic)から3スキルすべてをインストールします。
 
-GitHub CLIのAgent Skills機能を使う場合は次のとおりです。
+会社管理端末では、固定したReleaseをPreviewしてからProject ScopeへInstallします。
 
 ```bash
-gh skill install Shogo1222/socratic --all
+GH_TELEMETRY=false gh skill preview \
+  Shogo1222/socratic socratic@v0.2.0
+
+GH_TELEMETRY=false gh skill install \
+  Shogo1222/socratic \
+  --all \
+  --agent codex \
+  --scope project \
+  --pin v0.2.0
 ```
 
-または、オープンなAgent Skills CLIを使います。
+GitHub CLIのAgent Skills Commandは現在Previewです。会社でCLIと対象AI Hostが許可されていることを確認してください。Project ScopeはInstall先を現在のRepositoryへ限定しますが、HostがRepository DataをAI Providerへ送信するかどうかは制御しません。
+
+互換手段としてOpen Agent Skills CLIも残しますが、次の固定されていないCommandは個人評価用であり、企業向けの推奨Install経路ではありません。
 
 ```bash
 npx skills add Shogo1222/socratic --skill '*'
@@ -415,6 +431,22 @@ v0.2では次を約束しません。
 テスト設計の原則は、『単体テストの考え方/使い方』(Vladimir Khorikov著、Unit Testing Principles, Practices, and Patternsの邦訳)に基づきます。
 
 Socraticはこれらの考え方を接続します。明示的なHuman-confirmed Intent Contract、Maieuticによる意図確定、Contract IDによるテストとMutationの対応付け、正準の4ブロック出力、Copy-readyなコメント候補は、論文や書籍の主張ではなくSocratic独自の設計です。本プロジェクトは独立したオープン実装であり、論文や書籍の著者または所属機関による実装や推奨ではありません。
+
+## CIとRelease
+
+GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills Metadata、配布監査Test、`skills/`配下の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、一時Directoryへ実際に14 FileをInstallします。File ManifestとFile単位のHashはCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
+
+Maintainerは`main`上で **Actions → Release → Run workflow** を開き、Releaseを作成します。`0.2.0`のようなSemantic Versionを入力します。先頭の`v`も受け付けます。WorkflowはRepository、配布物、Install結果、Versionを検証し、既存Tagとの重複を拒否したうえで、Annotated Tag `v0.2.0`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。DraftとPrereleaseにも対応します。
+
+Release WorkflowはSource Fileを変更しません。Git TagをRelease Versionの正本とします。公開ReleaseではRepositoryのImmutable Releasesを必須とし、Workflow完了前にReleaseと全添付Assetを検証します。最初のReleaseでは、Actionsへ秘密署名鍵を保持させず、Immutable Release Attestationを信頼の基点にします。
+
+公開済みReleaseとDownloadしたAssetはGitHub CLIで検証できます。
+
+```bash
+gh release verify v0.2.0 --repo Shogo1222/socratic
+gh release verify-asset v0.2.0 ./socratic-v0.2.0.zip \
+  --repo Shogo1222/socratic
+```
 
 ## 現在の状態
 
