@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4efe5">
+    <meta
+      name="description"
+      content="Socraticは、AI生成PRから人間が判断すべき仕様・振る舞い差・テスト不足を絞り込む3つのAgent Skillsです。"
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Socratic — Review the decisions that matter.">
+    <meta
+      property="og:description"
+      content="大きなDiffを、少数の『決めるべきこと』へ。AI生成PRのための、人間中心のレビュー・ワークフロー。"
+    >
+    <meta property="og:image" content="https://shogo1222.github.io/socratic/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Socratic — 大きなDiffを、少数の決めるべきことへ。">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
+    <link rel="canonical" href="https://shogo1222.github.io/socratic/">
+    <link rel="alternate" hreflang="ja" href="https://shogo1222.github.io/socratic/">
+    <link rel="alternate" hreflang="en" href="https://shogo1222.github.io/socratic/en/">
+    <link rel="icon" href="assets/socratic-logo.png" type="image/png">
+    <link rel="stylesheet" href="styles.css?v=20260722-1625">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">本文へ移動</a>
+
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#top" aria-label="Socratic ホーム">
+          <img src="assets/socratic-logo.png" alt="Socratic" width="210" height="70">
+        </a>
+        <nav aria-label="メインナビゲーション">
+          <a href="#how">How It Works</a>
+          <a href="#output">Output</a>
+          <a href="#use-cases">Use Cases</a>
+          <a class="nav-lang" href="en/" hreflang="en" lang="en">EN</a>
+          <a class="nav-cta" href="#install">Get Started</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="shell hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Open source Agent Skills for AI code review</p>
+            <h1 class="product-headline">
+              <span>Feature Review</span>
+              <span>Refactor Guard</span>
+              <span>Test Assessment</span>
+              <strong>ALL IN ONE.</strong>
+            </h1>
+            <p class="hero-lead">
+              機能の意図を問い、リファクタリングを守り、テストの検出力を評価する。<br>
+              <strong>3つのレビューを、ひとつのワークフローで。</strong>
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#how">See How It Works <span aria-hidden="true">↓</span></a>
+              <a class="button button-ghost" href="https://github.com/Shogo1222/socratic">View on GitHub <span aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem band" id="problem">
+        <div class="shell problem-grid">
+          <div>
+            <p class="section-kicker">THE PROBLEM</p>
+            <h2 class="balanced-heading problem-heading"><span>テストは<em class="green-word">Green</em></span><span>でも安心できない</span></h2>
+          </div>
+          <div class="problem-copy">
+            <p>
+              テストがGreenでも、それだけでは変更意図や期待する振る舞いは証明できません。
+              AIが大量にコードを書くほどDiffは大きくなり、全行を追っても「なぜ変えたか」はコードだけでは確定できません。
+            </p>
+            <p class="problem-answer">
+              Socraticは変更前後を観測可能な振る舞いで比較し、確定できない変更意図だけを人間へ質問。
+              回答から期待値とテストのOracleを明確にします。
+            </p>
+          </div>
+        </div>
+        <div class="shell intent-flow" role="img" aria-label="大きなDiffから変更前後の振る舞いを観測し、変更意図を人間へ質問して、期待する振る舞いとテストのOracleを明確にする流れ">
+          <div class="diff-input">
+            <span>INPUT</span>
+            <strong>Large Diff</strong>
+            <div class="diff-stats" aria-hidden="true"><i>127 files</i><i>+2,418</i><i>−1,036</i></div>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><b>→</b></div>
+          <div class="flow-node behavior-node">
+            <span>01 / OBSERVE BEHAVIOR</span>
+            <strong>変更前と変更後</strong>
+            <div class="behavior-pair" aria-hidden="true"><i>更新できる</i><i>拒否される</i></div>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><b>→</b></div>
+          <div class="flow-node intent-question-node">
+            <span>02 / ASK INTENT</span>
+            <strong>この変化は<br>意図どおり？</strong>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><b>→</b></div>
+          <div class="flow-node expectation-node">
+            <span>03 / CLARIFY EXPECTATION</span>
+            <strong>期待値を明確に</strong>
+            <small>Intent Contract + Test Oracle</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="method section" id="how">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">HOW IT WORKS</p>
+              <h2>Ask. Clarify. Verify.</h2>
+            </div>
+            <p>
+              変更を比較し、意図を明確にし、テストで確かめる。
+              3つのSkillが、曖昧な不安を判断可能な材料へ変えます。
+            </p>
+          </div>
+
+          <div class="steps">
+            <article class="step step-socratic">
+              <div class="step-head"><span>01</span><small>ORCHESTRATE</small></div>
+              <div class="step-featured-grid">
+                <div class="step-copy">
+                  <h3>Socratic</h3>
+                  <p class="step-ja">比較して、論点を絞る</p>
+                  <p><strong>BaseとHeadの変更前後を比較</strong>し、仕様判断・振る舞い差・テスト不足を抽出。レビュー全体を組み立てます。</p>
+                </div>
+                <div class="comparison-map" role="img" aria-label="BaseとHeadを比較し、仕様判断、振る舞い差、テスト不足を抽出してReview Planを作る流れ">
+                  <div class="compare-pair">
+                    <span><small>BEFORE</small>Base</span>
+                    <b aria-hidden="true">↔</b>
+                    <span><small>AFTER</small>Head</span>
+                  </div>
+                  <div class="flow-connector"><span>COMPARE</span></div>
+                  <div class="review-signals">
+                    <span>仕様判断</span>
+                    <span>振る舞い差</span>
+                    <span>テスト不足</span>
+                  </div>
+                  <div class="flow-connector"><span>ORCHESTRATE</span></div>
+                  <div class="review-plan-node"><small>REVIEW PLAN</small><strong>人間が決めるべき論点</strong></div>
+                </div>
+              </div>
+              <div class="step-outcome"><span>OUTCOME</span> 大きなDiffが、少数の判断事項になる</div>
+            </article>
+            <article class="step step-maieutic">
+              <div class="step-head"><span>02</span><small>ELICIT</small></div>
+              <h3>Maieutic</h3>
+              <p class="step-ja">意図を引き出す</p>
+              <p>実装だけでは確定できない期待を、仕様オーナーが答えられる具体的な質問へ変換します。</p>
+              <div class="compact-diagram" role="img" aria-label="未確定の仕様を具体的な質問にし、人間の回答をIntent Contractへ記録する流れ">
+                <span>未確定の仕様</span><b aria-hidden="true">→</b><span>人間への質問</span><b aria-hidden="true">→</b><span>Intent Contract</span>
+              </div>
+              <div class="step-outcome"><span>OUTCOME</span> 曖昧な不安が、答えられる仕様質問になる</div>
+            </article>
+            <article class="step step-elenchus">
+              <div class="step-head"><span>03</span><small>REFUTE</small></div>
+              <h3>Elenchus</h3>
+              <p class="step-ja">反証して確かめる</p>
+              <p>BaseとHeadへ同じテストを実行し、さらにバグを注入してテストの検知能力を証明します。</p>
+              <div class="compact-diagram" role="img" aria-label="BaseとHeadで同じテストを実行し、Mutationを使って検知能力の証拠を得る流れ">
+                <span>Base / Head</span><b aria-hidden="true">→</b><span>Mutation</span><b aria-hidden="true">→</b><span>検知の証拠</span>
+              </div>
+              <div class="step-outcome"><span>OUTCOME</span> 「Green」が、バグを検知できる証拠になる</div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="output section" id="output">
+        <div class="shell output-grid">
+          <div class="output-intro">
+            <p class="section-kicker light">THE REVIEW SURFACE</p>
+            <h2 class="balanced-heading"><span>整理された</span><span>レビュー結果</span></h2>
+            <p>
+              スコアも「Mergeしてよい」という結論も出しません。
+              確認できた範囲と、決めるべきことと、まだ残るリスクを分けて示します。
+            </p>
+          </div>
+
+          <div class="review-card-wrap output-review-card" aria-label="整理されたSocraticレビュー結果の例">
+            <article class="review-card">
+              <div class="review-topbar">
+                <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+                <span>Socratic Review</span>
+                <span class="status">complete</span>
+              </div>
+              <div class="review-body">
+                <div class="review-line review-this">
+                  <span class="review-icon">!</span>
+                  <div><strong>Review This</strong><small>人間が決めること</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line verified">
+                  <span class="review-icon">✓</span>
+                  <div><strong>We Verified</strong><small>証拠を持って確認したこと</small></div>
+                  <b>5</b>
+                </div>
+                <div class="review-line risk">
+                  <span class="review-icon">△</span>
+                  <div><strong>Still at Risk</strong><small>まだ検証できていないこと</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line comments">
+                  <span class="review-icon">↗</span>
+                  <div><strong>Copy-ready Comments</strong><small>そのまま使えるコメント候補</small></div>
+                  <b>2</b>
+                </div>
+              </div>
+              <div class="review-footer">
+                <span>127 files changed</span>
+                <span class="arrow" aria-hidden="true">→</span>
+                <strong>2 decisions</strong>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="use-cases section" id="use-cases">
+        <div class="shell">
+          <div class="section-heading compact">
+            <div>
+              <p class="section-kicker">USE CASES</p>
+              <h2>Choose your review mode.</h2>
+            </div>
+          </div>
+          <div class="case-grid">
+            <article>
+              <span class="case-label">01 / SPECIFICATION</span>
+              <h3>Feature Review</h3>
+              <p class="case-ja">新しい振る舞いの「正しさ」を決める</p>
+              <p>境界条件や例外時の期待を質問にし、仕様オーナーの回答をIntent Contractとテストへ結びます。</p>
+              <div class="case-visual terminal-question" role="img" aria-label="ターミナル上で、境界条件の仕様が合っているかを選択式で確認する例">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · intent check</span></div>
+                <div class="terminal-question-body">
+                  <code><span>›</span> Use <strong>$socratic</strong> to review this change<span class="terminal-cursor" aria-hidden="true"></span></code>
+                  <p><b>?</b> 契約終了日と更新日が同日の場合、更新を許可する仕様で合っていますか？</p>
+                  <ul aria-hidden="true">
+                    <li class="selected"><b>❯</b><span><strong>はい</strong><small>同日も更新できます</small></span></li>
+                    <li><b> </b><span><strong>いいえ</strong><small>同日は更新できません</small></span></li>
+                    <li><b> </b><span><strong>別の仕様を入力する…</strong></span></li>
+                  </ul>
+                  <div class="terminal-key-hint" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> 移動</span><span><kbd>enter</kbd> 決定</span></div>
+                </div>
+              </div>
+            </article>
+            <article>
+              <span class="case-label">02 / REGRESSION</span>
+              <h3>Refactor Guard</h3>
+              <p class="case-ja">リファクタリングの振る舞い差を見つける</p>
+              <p>BaseとHeadへ同じBehavior Testを実行。差があれば、意図した変更か回帰かを人間へ確認します。</p>
+              <div class="case-visual test-compare-diagram" role="img" aria-label="BaseとHeadへ同じBehavior Testを実行し、観測結果を比較する流れ">
+                <div class="test-path"><span>BASE</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>観測結果 A</strong></div>
+                <div class="test-path"><span>HEAD</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>観測結果 B</strong></div>
+                <div class="diagram-verdict"><small>COMPARE OUTPUTS</small><strong>Behavior Diff?</strong></div>
+              </div>
+            </article>
+            <article>
+              <span class="case-label">03 / TEST QUALITY</span>
+              <h3>Test Assessment</h3>
+              <p class="case-ja">AIが追加したテストの「検知力」を測る</p>
+              <p>同じリスクMutationを既存・変更後のテストへ当て、増えた保護と、まだ守られていないリスクを分離します。</p>
+              <div class="case-visual mutation-diagram" role="img" aria-label="リスクMutationをBaseとHeadのテストへ入れ、テストが失敗してリスクを検知できるか確かめる流れ">
+                <div class="mutation-path"><span>BASE TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
+                <div class="mutation-path"><span>HEAD TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
+                <div class="diagram-verdict"><small>MUTANT KILLED</small><strong>Risk detected</strong></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="principles section">
+        <div class="shell principles-grid">
+          <div class="principles-intro">
+            <p class="section-kicker">SAFE BY DEFAULT</p>
+            <h2 class="balanced-heading"><span>安全に調べる。</span><span>勝手に変えない。</span></h2>
+            <p class="safety-summary"><strong>DEFAULT: REVIEW-ONLY</strong><span>PR / GitHub / Working Treeへの書き込みなし</span></p>
+          </div>
+          <div class="principle-list">
+            <article><span>01</span><div><h3>Review-onlyが既定</h3><p>PR、GitHub、RepositoryのWorking Treeへ書き込みません。</p></div></article>
+            <article><span>02</span><div><h3>隔離環境で検証する</h3><p>比較テストとMutationはDisposableな環境で実行し、Headの本番コードを変更しません。</p></div></article>
+            <article><span>03</span><div><h3>Git操作を自動化しない</h3><p>Stage、Commit、Push、Branch切替、PR作成、コメント投稿を行いません。</p></div></article>
+            <article><span>04</span><div><h3>書き込みは明示選択時だけ</h3><p>証明済みテストも、ユーザーが「Apply tests」を選ぶまではWorking Treeへ追加しません。</p></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="install section" id="install">
+        <div class="shell install-card">
+          <div class="install-copy">
+            <p class="section-kicker light">GET STARTED</p>
+            <h2>Start your first review.<br>Right now.</h2>
+            <p>GitHub CLIまたはOpen Agent Skills CLIで、3つのSkillをまとめて導入できます。</p>
+            <a href="https://github.com/Shogo1222/socratic#installation">詳しい使い方をREADMEで見る <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="install-terminal">
+            <div class="terminal-bar"><span>GitHub CLI</span><i>● ● ●</i></div>
+            <div class="command-row">
+              <code><span>$</span> gh skill install Shogo1222/socratic --all</code>
+              <button class="copy-button" type="button" data-copy="gh skill install Shogo1222/socratic --all" aria-label="GitHub CLIのコマンドをコピー">COPY</button>
+            </div>
+            <div class="terminal-divider"><span>or</span></div>
+            <div class="command-row">
+              <code><span>$</span> npx skills add Shogo1222/socratic --skill '*'</code>
+              <button class="copy-button" type="button" data-copy="npx skills add Shogo1222/socratic --skill '*'" aria-label="Open Agent Skills CLIのコマンドをコピー">COPY</button>
+            </div>
+            <p class="terminal-hint">インストール後、コード変更に対して <code>$socratic</code> を実行</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="origin section" id="origin">
+        <div class="shell">
+          <div class="origin-intro">
+            <div>
+              <p class="section-kicker light">WHY SOCRATIC?</p>
+              <h2 class="origin-heading"><span>問い、引き出し、</span><span>反証する。</span></h2>
+            </div>
+            <p>
+              名前はソクラテスの問答法に由来します。分かっていないことを自覚して問いを立て、
+              対話によって相手の中から考えを引き出し、反駁によって主張を吟味する。
+              その進め方を、コードレビューの手順にしています。
+            </p>
+          </div>
+
+          <div class="name-flow" aria-label="Socratic、Maieutic、Elenchusという名称とレビュー工程の関係">
+            <article>
+              <span>01 / INQUIRE</span>
+              <h3>Socratic</h3>
+              <strong>問いを立てる</strong>
+              <p>コードだけでは分からないことを認め、人間が判断すべき変更意図を見つけます。</p>
+            </article>
+            <article>
+              <span>02 / ELICIT</span>
+              <h3>Maieutic</h3>
+              <strong>考えを引き出す</strong>
+              <p>産婆術のように対話を通じて期待する振る舞いを言葉にし、Intent Contractへ記録します。</p>
+            </article>
+            <article>
+              <span>03 / REFUTE</span>
+              <h3>Elenchus</h3>
+              <strong>反証して確かめる</strong>
+              <p>意図と異なる振る舞いをあえて作り、テストが実際に検知できるかを確かめます。</p>
+            </article>
+          </div>
+
+          <div class="research-intro">
+            <div>
+              <p class="section-kicker light">RESEARCH ROOTS</p>
+              <h3>Research behind<br>the workflow.</h3>
+            </div>
+            <p>
+              Socraticは、変更時にバグを捕まえるテストと、自然言語の意図から振る舞いの変種を作る
+              Mutation Testingという、相互補完的な研究を接続しています。
+            </p>
+          </div>
+
+          <div class="paper-grid">
+            <article>
+              <span>2025 / JIT TESTING</span>
+              <h4>Harden and Catch for Just-in-Time Assured LLM-Based Software Testing</h4>
+              <p>将来の回帰を防ぐHardening Testと、変更で生じた欠陥を着地前に捕まえるCatching Testを定義し、Just-in-Timeなテスト生成の研究課題を整理した基礎論文です。</p>
+              <a href="https://arxiv.org/abs/2504.16472" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <article>
+              <span>2026 / INDUSTRIAL SCALE</span>
+              <h4>Just-in-Time Catching Test Generation at Meta</h4>
+              <p>Metaの大規模バックエンドで22,126件の生成テストを分析。変更を理解する生成と判定器により、人間の確認負荷を抑えながら本番前に重大な欠陥を捕捉できることを報告しています。</p>
+              <a href="https://arxiv.org/abs/2601.22832" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <article>
+              <span>2026 / INTENT MUTATION</span>
+              <h4>Intent-Based Mutation Testing: From Naturally Written Programming Intents to Mutants</h4>
+              <p>自然言語で書かれた意図を少し変え、その意図を実装するMutantを生成する手法です。29プログラムの評価で、構文ベースMutationとは異なる欠陥クラスを補完できる可能性を示しています。</p>
+              <a href="https://arxiv.org/abs/2607.05149" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+          </div>
+
+          <p class="research-note">
+            SocraticのHuman-confirmed Intent Contract、4ブロックのレビュー結果、Copy-ready Commentsは独自設計です。
+            本プロジェクトは、各論文の著者・所属機関による実装または推奨ではありません。
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell footer-inner">
+        <img src="assets/socratic-logo.png" alt="Socratic" width="170" height="57">
+        <p>Review the decisions that matter.</p>
+        <div>
+          <a href="https://github.com/Shogo1222/socratic">GitHub</a>
+          <a href="#origin">Research</a>
+          <a href="en/" hreflang="en" lang="en">English</a>
+          <a href="https://github.com/Shogo1222/socratic/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

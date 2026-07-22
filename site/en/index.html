@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4efe5">
+    <meta
+      name="description"
+      content="Socratic turns AI-generated pull requests into a small set of human decisions, verified behavior, and evidence-backed tests."
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Socratic — Review the decisions that matter.">
+    <meta
+      property="og:description"
+      content="Turn large diffs into the few decisions that matter. A human-centered review workflow for AI-generated pull requests."
+    >
+    <meta property="og:image" content="https://shogo1222.github.io/socratic/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Socratic — Turn large diffs into the few decisions that matter.">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>Socratic — Focus AI code review on the decisions that matter</title>
+    <link rel="canonical" href="https://shogo1222.github.io/socratic/en/">
+    <link rel="alternate" hreflang="en" href="https://shogo1222.github.io/socratic/en/">
+    <link rel="alternate" hreflang="ja" href="https://shogo1222.github.io/socratic/">
+    <link rel="icon" href="../assets/socratic-logo.png" type="image/png">
+    <link rel="stylesheet" href="../styles.css?v=20260722-1625">
+    <script src="../script.js" defer></script>
+  </head>
+  <body class="lang-en">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#top" aria-label="Socratic home">
+          <img src="../assets/socratic-logo.png" alt="Socratic" width="210" height="70">
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#how">How It Works</a>
+          <a href="#output">Output</a>
+          <a href="#use-cases">Use Cases</a>
+          <a class="nav-lang" href="../" hreflang="ja" lang="ja">日本語</a>
+          <a class="nav-cta" href="#install">Get Started</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="shell hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Open source Agent Skills for AI code review</p>
+            <h1 class="product-headline">
+              <span>Feature Review</span>
+              <span>Refactor Guard</span>
+              <span>Test Assessment</span>
+              <strong>ALL IN ONE.</strong>
+            </h1>
+            <p class="hero-lead">
+              Clarify feature intent, guard refactors against behavior drift, and assess whether tests can detect real risks.<br>
+              <strong>Three review modes. One workflow.</strong>
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#how">See How It Works <span aria-hidden="true">↓</span></a>
+              <a class="button button-ghost" href="https://github.com/Shogo1222/socratic">View on GitHub <span aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem band" id="problem">
+        <div class="shell problem-grid">
+          <div>
+            <p class="section-kicker">THE PROBLEM</p>
+            <h2 class="balanced-heading problem-heading"><span>Tests are <em class="green-word">Green</em>.</span><span>That is not proof.</span></h2>
+          </div>
+          <div class="problem-copy">
+            <p>
+              A green suite does not prove the intended change or expected behavior. As AI writes more code, diffs grow—and reading every line still cannot establish why the change was made.
+            </p>
+            <p class="problem-answer">
+              Socratic compares Base and Head through observable behavior, asks humans only about intent the repository cannot establish, and turns the answer into an explicit expectation and test oracle.
+            </p>
+          </div>
+        </div>
+        <div class="shell intent-flow" role="img" aria-label="A large diff becomes an observable behavior difference, a human intent question, and an explicit expected behavior with a test oracle">
+          <div class="diff-input">
+            <span>INPUT</span>
+            <strong>Large Diff</strong>
+            <div class="diff-stats" aria-hidden="true"><i>127 files</i><i>+2,418</i><i>−1,036</i></div>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><b>→</b></div>
+          <div class="flow-node behavior-node">
+            <span>01 / OBSERVE BEHAVIOR</span>
+            <strong>Before and after</strong>
+            <div class="behavior-pair" aria-hidden="true"><i>renewal succeeds</i><i>renewal rejected</i></div>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><b>→</b></div>
+          <div class="flow-node intent-question-node">
+            <span>02 / ASK INTENT</span>
+            <strong>Is this change<br>intentional?</strong>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><b>→</b></div>
+          <div class="flow-node expectation-node">
+            <span>03 / CLARIFY EXPECTATION</span>
+            <strong>Expectation made explicit</strong>
+            <small>Intent Contract + Test Oracle</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="method section" id="how">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">HOW IT WORKS</p>
+              <h2>Ask. Clarify. Verify.</h2>
+            </div>
+            <p>
+              Compare the change, clarify intent, and challenge it with tests. Three skills turn vague unease into decisions a reviewer can act on.
+            </p>
+          </div>
+
+          <div class="steps">
+            <article class="step step-socratic">
+              <div class="step-head"><span>01</span><small>ORCHESTRATE</small></div>
+              <div class="step-featured-grid">
+                <div class="step-copy">
+                  <h3>Socratic</h3>
+                  <p class="step-ja">Compare and focus</p>
+                  <p><strong>Compare Base and Head</strong> to surface specification decisions, behavior differences, and test gaps—then assemble the review.</p>
+                </div>
+                <div class="comparison-map" role="img" aria-label="Compare Base and Head, extract specification decisions, behavior differences, and test gaps, then assemble a review plan">
+                  <div class="compare-pair">
+                    <span><small>BEFORE</small>Base</span>
+                    <b aria-hidden="true">↔</b>
+                    <span><small>AFTER</small>Head</span>
+                  </div>
+                  <div class="flow-connector"><span>COMPARE</span></div>
+                  <div class="review-signals">
+                    <span>Spec decision</span>
+                    <span>Behavior diff</span>
+                    <span>Test gap</span>
+                  </div>
+                  <div class="flow-connector"><span>ORCHESTRATE</span></div>
+                  <div class="review-plan-node"><small>REVIEW PLAN</small><strong>Decisions for human review</strong></div>
+                </div>
+              </div>
+              <div class="step-outcome"><span>OUTCOME</span> A large diff becomes a small set of decisions.</div>
+            </article>
+            <article class="step step-maieutic">
+              <div class="step-head"><span>02</span><small>ELICIT</small></div>
+              <h3>Maieutic</h3>
+              <p class="step-ja">Elicit intent</p>
+              <p>Turn expectations the implementation alone cannot establish into concrete questions a specification owner can answer.</p>
+              <div class="compact-diagram" role="img" aria-label="Turn an unresolved expectation into a human question and record the answer in the Intent Contract">
+                <span>Unresolved expectation</span><b aria-hidden="true">→</b><span>Human question</span><b aria-hidden="true">→</b><span>Intent Contract</span>
+              </div>
+              <div class="step-outcome"><span>OUTCOME</span> Vague uncertainty becomes an answerable specification question.</div>
+            </article>
+            <article class="step step-elenchus">
+              <div class="step-head"><span>03</span><small>REFUTE</small></div>
+              <h3>Elenchus</h3>
+              <p class="step-ja">Refute and verify</p>
+              <p>Run the same tests against Base and Head, then inject plausible bugs to prove that the tests can detect them.</p>
+              <div class="compact-diagram" role="img" aria-label="Run the same tests against Base and Head, add mutations, and collect evidence that tests detect the risk">
+                <span>Base / Head</span><b aria-hidden="true">→</b><span>Mutation</span><b aria-hidden="true">→</b><span>Detection evidence</span>
+              </div>
+              <div class="step-outcome"><span>OUTCOME</span> “Green” becomes evidence that a specific bug is detectable.</div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="output section" id="output">
+        <div class="shell output-grid">
+          <div class="output-intro">
+            <p class="section-kicker light">THE REVIEW SURFACE</p>
+            <h2 class="balanced-heading"><span>Structured</span><span>review results</span></h2>
+            <p>
+              No score. No “safe to merge” verdict. Socratic separates what needs a decision, what was verified, and what remains at risk.
+            </p>
+          </div>
+
+          <div class="review-card-wrap output-review-card" aria-label="Example of a structured Socratic review result">
+            <article class="review-card">
+              <div class="review-topbar">
+                <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+                <span>Socratic Review</span>
+                <span class="status">complete</span>
+              </div>
+              <div class="review-body">
+                <div class="review-line review-this">
+                  <span class="review-icon">!</span>
+                  <div><strong>Review This</strong><small>Decisions for humans</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line verified">
+                  <span class="review-icon">✓</span>
+                  <div><strong>We Verified</strong><small>Confirmed with evidence</small></div>
+                  <b>5</b>
+                </div>
+                <div class="review-line risk">
+                  <span class="review-icon">△</span>
+                  <div><strong>Still at Risk</strong><small>Not yet verified</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line comments">
+                  <span class="review-icon">↗</span>
+                  <div><strong>Copy-ready Comments</strong><small>Ready for reviewer use</small></div>
+                  <b>2</b>
+                </div>
+              </div>
+              <div class="review-footer">
+                <span>127 files changed</span>
+                <span class="arrow" aria-hidden="true">→</span>
+                <strong>2 decisions</strong>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="use-cases section" id="use-cases">
+        <div class="shell">
+          <div class="section-heading compact">
+            <div>
+              <p class="section-kicker">USE CASES</p>
+              <h2>Choose your review mode.</h2>
+            </div>
+          </div>
+          <div class="case-grid">
+            <article>
+              <span class="case-label">01 / SPECIFICATION</span>
+              <h3>Feature Review</h3>
+              <p class="case-ja">Decide what new behavior should mean</p>
+              <p>Turn boundary conditions and failure expectations into questions, then connect the owner’s answer to an Intent Contract and tests.</p>
+              <div class="case-visual terminal-question" role="img" aria-label="A terminal asks the specification owner to confirm expected behavior at a contract boundary">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · intent check</span></div>
+                <div class="terminal-question-body">
+                  <code><span>›</span> Use <strong>$socratic</strong> to review this change<span class="terminal-cursor" aria-hidden="true"></span></code>
+                  <p><b>?</b> Should renewal be allowed when the renewal date is the same as the contract end date?</p>
+                  <ul aria-hidden="true">
+                    <li class="selected"><b>❯</b><span><strong>Yes</strong><small>Renewal succeeds on the end date</small></span></li>
+                    <li><b> </b><span><strong>No</strong><small>Renewal is rejected on the end date</small></span></li>
+                    <li><b> </b><span><strong>Enter another expectation…</strong></span></li>
+                  </ul>
+                  <div class="terminal-key-hint" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>enter</kbd> select</span></div>
+                </div>
+              </div>
+            </article>
+            <article>
+              <span class="case-label">02 / REGRESSION</span>
+              <h3>Refactor Guard</h3>
+              <p class="case-ja">Find behavior drift in a refactor</p>
+              <p>Run the same behavior test against Base and Head. If results differ, ask whether the change was intended or is a regression.</p>
+              <div class="case-visual test-compare-diagram" role="img" aria-label="Run the same behavior test against Base and Head and compare the observed outputs">
+                <div class="test-path"><span>BASE</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>Observed A</strong></div>
+                <div class="test-path"><span>HEAD</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>Observed B</strong></div>
+                <div class="diagram-verdict"><small>COMPARE OUTPUTS</small><strong>Behavior Diff?</strong></div>
+              </div>
+            </article>
+            <article>
+              <span class="case-label">03 / TEST QUALITY</span>
+              <h3>Test Assessment</h3>
+              <p class="case-ja">Measure whether AI-written tests can detect risk</p>
+              <p>Apply the same risk mutations to existing and changed tests to separate added protection from risks that remain unprotected.</p>
+              <div class="case-visual mutation-diagram" role="img" aria-label="Apply the same risk mutation to Base and Head tests and confirm that each suite detects it">
+                <div class="mutation-path"><span>BASE TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
+                <div class="mutation-path"><span>HEAD TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
+                <div class="diagram-verdict"><small>MUTANT KILLED</small><strong>Risk detected</strong></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="principles section">
+        <div class="shell principles-grid">
+          <div class="principles-intro">
+            <p class="section-kicker">SAFE BY DEFAULT</p>
+            <h2 class="balanced-heading"><span>Inspect safely.</span><span>Change nothing.</span></h2>
+            <p class="safety-summary"><strong>DEFAULT: REVIEW-ONLY</strong><span>No writes to the PR, GitHub, or working tree</span></p>
+          </div>
+          <div class="principle-list">
+            <article><span>01</span><div><h3>Review-only by default</h3><p>Socratic does not write to the pull request, GitHub, or the repository working tree.</p></div></article>
+            <article><span>02</span><div><h3>Verify in isolation</h3><p>Comparison tests and mutations run in disposable environments without changing production code in Head.</p></div></article>
+            <article><span>03</span><div><h3>No automated Git operations</h3><p>No staging, commits, pushes, branch switching, pull requests, or posted review comments.</p></div></article>
+            <article><span>04</span><div><h3>Write only after explicit choice</h3><p>Even proven tests stay outside the working tree until the user explicitly chooses “Apply tests.”</p></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="install section" id="install">
+        <div class="shell install-card">
+          <div class="install-copy">
+            <p class="section-kicker light">GET STARTED</p>
+            <h2>Start your first review.<br>Right now.</h2>
+            <p>Install all three skills together with GitHub CLI or the Open Agent Skills CLI.</p>
+            <a href="https://github.com/Shogo1222/socratic#installation">Read the installation guide <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="install-terminal">
+            <div class="terminal-bar"><span>GitHub CLI</span><i>● ● ●</i></div>
+            <div class="command-row">
+              <code><span>$</span> gh skill install Shogo1222/socratic --all</code>
+              <button class="copy-button" type="button" data-copy="gh skill install Shogo1222/socratic --all" aria-label="Copy the GitHub CLI command">COPY</button>
+            </div>
+            <div class="terminal-divider"><span>or</span></div>
+            <div class="command-row">
+              <code><span>$</span> npx skills add Shogo1222/socratic --skill '*'</code>
+              <button class="copy-button" type="button" data-copy="npx skills add Shogo1222/socratic --skill '*'" aria-label="Copy the Open Agent Skills CLI command">COPY</button>
+            </div>
+            <p class="terminal-hint">After installation, invoke <code>$socratic</code> on a code change.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="origin section" id="origin">
+        <div class="shell">
+          <div class="origin-intro">
+            <div>
+              <p class="section-kicker light">WHY SOCRATIC?</p>
+              <h2 class="origin-heading"><span>Question, elicit,</span><span>and refute.</span></h2>
+            </div>
+            <p>
+              The names come from the Socratic method: recognize what is not yet known and inquire, draw ideas out through dialogue, and examine claims by refutation. The review follows that same sequence.
+            </p>
+          </div>
+
+          <div class="name-flow" aria-label="How the names Socratic, Maieutic, and Elenchus map to the review workflow">
+            <article>
+              <span>01 / INQUIRE</span>
+              <h3>Socratic</h3>
+              <strong>Form the question</strong>
+              <p>Recognize what code alone cannot establish and find the change intent that requires a human decision.</p>
+            </article>
+            <article>
+              <span>02 / ELICIT</span>
+              <h3>Maieutic</h3>
+              <strong>Draw intent out</strong>
+              <p>Like the art of midwifery, use dialogue to articulate expected behavior and record it in the Intent Contract.</p>
+            </article>
+            <article>
+              <span>03 / REFUTE</span>
+              <h3>Elenchus</h3>
+              <strong>Challenge the claim</strong>
+              <p>Create behavior that contradicts the confirmed intent and check whether the tests actually detect it.</p>
+            </article>
+          </div>
+
+          <div class="research-intro">
+            <div>
+              <p class="section-kicker light">RESEARCH ROOTS</p>
+              <h3>Research behind<br>the workflow.</h3>
+            </div>
+            <p>
+              Socratic connects two complementary research directions: tests that catch bugs at change time, and mutation testing that derives behavior variants from natural-language intent.
+            </p>
+          </div>
+
+          <div class="paper-grid">
+            <article>
+              <span>2025 / JIT TESTING</span>
+              <h4>Harden and Catch for Just-in-Time Assured LLM-Based Software Testing</h4>
+              <p>This foundational paper defines hardening tests for future regressions and catching tests for faults introduced by a change, then frames the open challenge of generating them just in time.</p>
+              <a href="https://arxiv.org/abs/2504.16472" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <article>
+              <span>2026 / INDUSTRIAL SCALE</span>
+              <h4>Just-in-Time Catching Test Generation at Meta</h4>
+              <p>An industrial study of 22,126 generated tests at Meta reports that change-aware generation and assessors can reduce human review burden while catching serious faults before production.</p>
+              <a href="https://arxiv.org/abs/2601.22832" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <article>
+              <span>2026 / INTENT MUTATION</span>
+              <h4>Intent-Based Mutation Testing: From Naturally Written Programming Intents to Mutants</h4>
+              <p>This work changes natural-language programming intent and generates mutants that implement those variants. Its 29-program evaluation suggests it complements fault classes reached by syntax-based mutation.</p>
+              <a href="https://arxiv.org/abs/2607.05149" target="_blank" rel="noreferrer">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+          </div>
+
+          <p class="research-note">
+            The human-confirmed Intent Contract, canonical four-block review surface, and copy-ready comment candidates are Socratic’s own design. This project is independent and is not an implementation or endorsement by the papers’ authors or institutions.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell footer-inner">
+        <img src="../assets/socratic-logo.png" alt="Socratic" width="170" height="57">
+        <p>Review the decisions that matter.</p>
+        <div>
+          <a href="https://github.com/Shogo1222/socratic">GitHub</a>
+          <a href="#origin">Research</a>
+          <a href="../" hreflang="ja" lang="ja">日本語</a>
+          <a href="https://github.com/Shogo1222/socratic/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
