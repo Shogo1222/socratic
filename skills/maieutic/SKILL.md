@@ -179,11 +179,13 @@ Report ambiguity before writing a test. Avoid tests that only increase coverage 
 
 If the changed artifact cannot be meaningfully observed with a unit test, use the narrowest deterministic alternative already supported by the repository, such as schema validation, parser checks, migration dry runs, snapshots, or focused integration tests. Report that the item is not unit-tested; do not force it into a unit-test claim.
 
-### 7. Add focused tests
+### 7. Design and prove focused tests
 
 When required expectations are confirmed, design the smallest maintainable unit tests that close material gaps. Follow existing conventions. Prefer one behavioral reason for failure per test and names tied to the contract rather than implementation details.
 
 In Review-only mode, the default, implement and prove these tests only in a disposable environment and report them as proposed tests. Apply them to the repository working tree only in Apply tests mode, when the user has explicitly requested test additions.
+
+Classify provenance at the Socratic or standalone Maieutic run boundary. A test already present at preflight is **existing at run start**, even if it was added earlier in the same conversation. A disposable-only test is **proposed and proven in disposable workspace**. A test written to the primary workspace during an explicitly authorized Apply tests run is **applied by this run after explicit request**. Use these phrases in reviewer-facing output; never say only that a test was added.
 
 Do not mock the unit under test. Prefer output-based oracles, then observable final state; mock or spy only unmanaged out-of-process dependencies at the application boundary, following the classification from step 3.
 
@@ -195,7 +197,7 @@ Run the narrowest relevant tests first, then the broader unit-test suite when pr
 - decisions requested and answers received;
 - Intent Contract path and status;
 - Contract IDs covered by tests;
-- test changes with their disposition (existing, proposed, or applied);
+- test changes with their run-relative disposition and explicit reviewer-facing attribution (existing at run start, proposed and proven in disposable workspace, or applied by this run after explicit request);
 - unreviewed partitions, remaining risks, and unresolved items;
 - commands run and results.
 

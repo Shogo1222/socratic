@@ -146,9 +146,9 @@ Determine whether each survivor is caused by a missing scenario, weak assertion,
 
 Return unresolved intent to Maieutic rather than generating an oracle. Persist `needs-decision` and continue only independent confirmed items.
 
-### 6. Add and prove tests
+### 6. Design and prove tests
 
-When the contract is resolved, add the smallest behavioral test that fails on the mutant and passes on original code. In Review-only mode, the default, keep the proven test in the disposable workspace and report it as a proposed test; apply test changes to the primary workspace only in Apply tests mode, when the user has explicitly requested test additions. A proposed test proves detectability within the run only: it does not advance the contract to `tested` or `hardened`, and the report must note as residual risk that the protection is not yet persistent.
+When the contract is resolved, design the smallest behavioral test that fails on the mutant and passes on original code. In Review-only mode, the default, implement and prove it only in the disposable workspace and report it as **proposed and proven in disposable workspace**. In Apply tests mode, and only after the user explicitly requests test additions, apply it to the primary workspace and report it as **applied by this run after explicit request**. A test already present at preflight is **existing at run start**, even if it was created earlier in the same conversation. Never say only that a test was added. A proposed test proves detectability within the run only: it does not advance the contract to `tested` or `hardened`, and the report must note as residual risk that the protection is not yet persistent.
 
 Verify both directions:
 
@@ -165,7 +165,7 @@ Discard all mutation sandboxes. Compare the scoped primary-workspace manifest an
 
 ## Reviewer-facing summary
 
-Contribute findings to the canonical four-block surface, routed by state, not type: unconfirmed behavior differences and unresolved decisions to Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection to We Verified; unchallenged Contract IDs, reduced scope, and non-comparable ranges to Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. Emit at most one to three copy-ready comment candidates (`Behavior difference` or `Test gap`) with file, line, comment body, and generation evidence; never post them. Never report merge readiness, a confidence level, or a score.
+Contribute findings to the canonical four-block surface, routed by state, not type: unconfirmed behavior differences and unresolved decisions to Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection to We Verified; unchallenged Contract IDs, reduced scope, and non-comparable ranges to Still at Risk. Attribute every test as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. If Review-only postflight evidence matches preflight, state **Working tree unchanged during this Review-only run**. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. Emit at most one to three copy-ready comment candidates (`Behavior difference` or `Test gap`) with file, line, comment body, and generation evidence; never post them. Never report merge readiness, a confidence level, or a score.
 
 ## Report artifact
 
@@ -174,7 +174,7 @@ Produce the report against the bundled report schema as a temporary run artifact
 - mode, contract path, and stable baseline evidence;
 - each mutation record and classification;
 - catching outcomes and human verdicts when applicable;
-- the write mode, every test change with its disposition (existing, proposed, or applied), authorized workspace changes, and bidirectional proof;
+- the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), authorized workspace changes, and bidirectional proof;
 - every `not_challenged` Contract ID and reason;
 - unresolved decisions and reduced test scope;
 - postflight proof that primary production code is mutation-free.

@@ -94,6 +94,8 @@ Comment candidates are at most one to three, tagged `Intent decision`, `Behavior
 
 Review-only is the default: probes, comparison tests, and mutations exist only in disposable environments, the working tree is untouched, and proven missing tests are reported as proposals. Apply tests requires an explicit user request and adds only tests that encode confirmed intent. Version-control operations remain prohibited in both modes.
 
+Test disposition is relative to preflight at the start of the Socratic run, not to the surrounding conversation or Git history. A test present at preflight is `existing` even if an earlier request in the same conversation created it; a disposable-only test is `proposed`; only a test written to the primary workspace by this explicitly authorized run is `applied`. Reviewer-facing text must verbalize those states as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. A matching Review-only postflight is reported as **Working tree unchanged during this Review-only run**.
+
 ## Oracle selection boundary
 
 Classify dependencies before choosing oracles: in-process dependencies are verified through the client-observable final result; managed out-of-process state through its actual final state; unmanaged out-of-process dependencies through message content and count at the application boundary. Prefer output values, then observable final state, then boundary communication.

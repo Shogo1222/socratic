@@ -52,6 +52,14 @@ Default to **Review-only**: probes, comparison tests, and mutations exist only i
 
 Switch to **Apply tests** only when the user explicitly requests test additions: add only tests that encode confirmed intent, report the changed working-tree paths, and still perform no version-control operation.
 
+Treat test provenance as relative to the start of the Socratic run, not to the broader conversation or Git history. Snapshot the scoped test files at preflight and use exactly one reviewer-facing attribution for every test claim:
+
+- **existing at run start** — present in the primary workspace when Socratic began, even if it was created earlier in the same conversation;
+- **proposed and proven in disposable workspace** — created only in an isolated environment during this Review-only run;
+- **applied by this run after explicit request** — written to the primary workspace during this Apply tests run.
+
+Never describe a test as merely "added", "changed", or "new" without this run-relative attribution.
+
 ## Git safety boundary
 
 Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. Prefer a host-provided diff or already-materialized Base and Head snapshots when available.
@@ -91,7 +99,7 @@ Require isolated execution, a stable baseline, one attributable mutant at a time
 
 Route findings by type:
 
-- missing or weak test with confirmed oracle: let Elenchus add and prove the focused test;
+- missing or weak test with confirmed oracle: in Review-only, let Elenchus design and prove the focused test in a disposable workspace and report it as proposed; in Apply tests, apply and prove it only after the user's explicit request;
 - missing invariant or ambiguous oracle: return it to Maieutic as a concrete behavior question;
 - intended Catch Mode behavior change: record `false-positive` and update the contract when useful;
 - unintended Catch Mode behavior change: record `strong-catch` and report it without changing production code unless separately authorized;
@@ -124,6 +132,8 @@ The terminal summary is exactly four blocks, in this order, and nothing else:
 - **We Verified** — what is confirmed: preserved behavior, changes the specification owner confirmed as intended, tests applied to the working tree and proven, tests proposed and proven in a disposable workspace, resolved test gaps, and detection ability proven by mutation. Describe each mutation as the incident it represents, never as an operator name.
 - **Still at Risk** — what was not verified: unchallenged behavior, execution-environment constraints, nondeterministic processing, and ranges that could not be compared.
 - **Copy-ready Comments** — comment candidates with target file, target line, comment body, and the internal generation evidence.
+
+Every reviewer-facing test statement must say whether the test was **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. If Review-only postflight evidence matches preflight, state **Working tree unchanged during this Review-only run**. Do not imply that Socratic created pre-existing changes.
 
 Route findings by state, not by type:
 
@@ -163,7 +173,9 @@ We Verified:
   ✓ duplicate renewal is rejected
   ✓ the renewed expiry date is observable after saving
   ✓ external event payload and emission count
-  ✓ the missing-event mutation is detected by a proposed test
+  ✓ 4 boundary tests existing at run start were evaluated
+  ✓ the missing-event mutation is detected by a test proposed and proven in disposable workspace
+  ✓ Working tree unchanged during this Review-only run
 
 Still at Risk:
   △ timezone boundary
@@ -199,4 +211,4 @@ Record issues that cannot anchor to a line as `Residual risk` under Still at Ris
 
 ### Artifacts
 
-Keep what the terminal omits — the Intent Contract and its status, the Elenchus report, mutation results, test strategy, and executed commands — in the temporary run artifacts, and report every test change with its disposition (existing, proposed, or applied), original-code results, and postflight proof that no production mutation remains. Then apply the artifact policy: ask how to keep the artifacts and discard them unless the user chooses otherwise. Never stage, commit, or push an artifact; the user alone decides whether and how to preserve or track anything.
+Keep what the terminal omits — the Intent Contract and its status, the Elenchus report, mutation results, test strategy, and executed commands — in the temporary run artifacts, and report every test change with its run-relative disposition (existing, proposed, or applied), original-code results, and postflight proof that no production mutation remains. `existing` means existing at Socratic preflight, even if another request created it earlier in the same conversation. Then apply the artifact policy: ask how to keep the artifacts and discard them unless the user chooses otherwise. Never stage, commit, or push an artifact; the user alone decides whether and how to preserve or track anything.

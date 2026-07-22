@@ -99,6 +99,8 @@ The terminal output is fixed to four blocks:
 - **Still at Risk** — what was not verified: unchallenged behavior, execution-environment constraints, nondeterministic processing, and ranges that could not be compared.
 - **Copy-ready Comments** — candidates the reviewer can use, with target file, target line, comment body, and internal generation evidence.
 
+Test provenance is always relative to the start of the Socratic run, not to the broader conversation or Git history. Reviewer-facing output identifies each test as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. A Review-only run whose postflight matches preflight also says **Working tree unchanged during this Review-only run**.
+
 Findings route by state, not type:
 
 ```text
@@ -137,7 +139,9 @@ We Verified:
   ✓ duplicate renewal is rejected
   ✓ the renewed expiry date is observable after saving
   ✓ external event payload and emission count
-  ✓ the missing-event mutation is detected by a proposed test
+  ✓ 4 boundary tests existing at run start were evaluated
+  ✓ the missing-event mutation is detected by a test proposed and proven in disposable workspace
+  ✓ Working tree unchanged during this Review-only run
 
 Still at Risk:
   △ timezone boundary

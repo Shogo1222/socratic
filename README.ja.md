@@ -99,6 +99,8 @@ Refactor Guardが信頼できるためには、比較テストが内部構造で
 - **Still at Risk** — 検証できていないもの。未挑戦の振る舞い、実行環境上の制約、非決定的な処理、比較不能だった範囲
 - **Copy-ready Comments** — レビュアーが利用できるコメント候補。対象ファイル、対象行、コメント本文、内部向けの生成根拠
 
+テストの出所は、会話全体やGit HistoryではなくSocratic実行開始時点を基準にします。レビュワー向け出力では、各テストを**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかとして明記します。Review-onlyのPostflightがPreflightと一致した場合は、**今回のReview-only実行中、Working Treeは不変**と報告します。
+
 発見は種類ではなく状態で振り分けます。
 
 ```text
@@ -137,7 +139,9 @@ We Verified:
   ✓ 二重更新を拒否する
   ✓ 更新後の契約期限を参照できる
   ✓ 外部Eventの内容と送信回数
-  ✓ Event送信欠落のMutationを提案テストが検知
+  ✓ 実行開始時点で既存の境界テスト4件を評価
+  ✓ Event送信欠落のMutationをDisposable環境で提案・証明済みのテストが検知
+  ✓ 今回のReview-only実行中、Working Treeは不変
 
 Still at Risk:
   △ タイムゾーン境界
