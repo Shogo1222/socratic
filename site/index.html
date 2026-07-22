@@ -21,7 +21,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
     <link rel="icon" href="assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=20260722-1535">
+    <link rel="stylesheet" href="styles.css?v=20260722-1540">
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -69,36 +69,42 @@
         <div class="shell problem-grid">
           <div>
             <p class="section-kicker">THE PROBLEM</p>
-            <h2>テストがGreenでも、<br>安心できない。</h2>
+            <h2 class="balanced-heading problem-heading"><span>テストはGreenでも、</span><span>安心できない。</span></h2>
           </div>
           <div class="problem-copy">
             <p>
-              AIが大量にコードを書くほど、Diffは大きくなります。実装意図はコードだけでは確定できず、
-              既存テストが重要なバグを本当に検知するかも分かりません。
+              AIが大量にコードを書くほどDiffは大きくなり、全行を追っても「なぜ変えたか」
+              「どの振る舞いが正しいか」はコードだけでは確定できません。
             </p>
             <p class="problem-answer">
-              だからSocraticは、全行の説明ではなく、レビューで答えるべき4つの問いに絞ります。
+              Socraticは変更前後を観測可能な振る舞いで比較し、確定できない変更意図だけを人間へ質問。
+              回答から期待値とテストのOracleを明確にします。
             </p>
           </div>
         </div>
-        <div class="shell decision-map" role="img" aria-label="大きなDiffをSocraticで絞り込み、レビューで答えるべき4つの質問へ変える流れ">
+        <div class="shell intent-flow" role="img" aria-label="大きなDiffから変更前後の振る舞いを観測し、変更意図を人間へ質問して、期待する振る舞いとテストのOracleを明確にする流れ">
           <div class="diff-input">
             <span>INPUT</span>
             <strong>Large Diff</strong>
             <div class="diff-stats" aria-hidden="true"><i>127 files</i><i>+2,418</i><i>−1,036</i></div>
           </div>
-          <div class="map-arrow" aria-hidden="true"><small>REDUCE</small><b>→</b></div>
-          <div class="filter-node">
-            <span>SOCRATIC</span>
-            <strong>全行ではなく<br>判断を抽出</strong>
+          <div class="map-arrow" aria-hidden="true"><small>OBSERVE</small><b>→</b></div>
+          <div class="flow-node behavior-node">
+            <span>BEHAVIOR DIFF</span>
+            <strong>変更前と変更後</strong>
+            <div class="behavior-pair" aria-hidden="true"><i>更新できる</i><i>拒否される</i></div>
           </div>
-          <div class="map-arrow" aria-hidden="true"><small>FOCUS</small><b>→</b></div>
-          <ol class="decision-questions">
-            <li><span>01</span><p>ユーザーから見て<strong>何が変わる？</strong></p></li>
-            <li><span>02</span><p>人間の仕様判断が<strong>必要なのはどこ？</strong></p></li>
-            <li><span>03</span><p>どんな事故が<strong>起こり得る？</strong></p></li>
-            <li><span>04</span><p>テストはその事故を<strong>本当に検知する？</strong></p></li>
-          </ol>
+          <div class="map-arrow" aria-hidden="true"><small>ASK INTENT</small><b>→</b></div>
+          <div class="flow-node intent-question-node">
+            <span>HUMAN QUESTION</span>
+            <strong>この変化は<br>意図どおり？</strong>
+          </div>
+          <div class="map-arrow" aria-hidden="true"><small>CLARIFY</small><b>→</b></div>
+          <div class="flow-node expectation-node">
+            <span>EXPECTED BEHAVIOR</span>
+            <strong>期待値を明確に</strong>
+            <small>Intent Contract + Test Oracle</small>
+          </div>
         </div>
       </section>
 
@@ -170,7 +176,7 @@
         <div class="shell output-grid">
           <div class="output-intro">
             <p class="section-kicker light">THE REVIEW SURFACE</p>
-            <h2>整理されたレビュー結果</h2>
+            <h2 class="balanced-heading"><span>整理された</span><span>レビュー結果</span></h2>
             <p>
               スコアも「Mergeしてよい」という結論も出しません。
               確認できた範囲と、決めるべきことと、まだ残るリスクを分けて示します。
@@ -274,7 +280,7 @@
         <div class="shell principles-grid">
           <div class="principles-intro">
             <p class="section-kicker">SAFE BY DEFAULT</p>
-            <h2>安全に調べる。<br>勝手に変えない。</h2>
+            <h2 class="balanced-heading"><span>安全に調べる。</span><span>勝手に変えない。</span></h2>
             <p class="safety-summary"><strong>DEFAULT: REVIEW-ONLY</strong><span>PR / GitHub / Working Treeへの書き込みなし</span></p>
           </div>
           <div class="principle-list">
