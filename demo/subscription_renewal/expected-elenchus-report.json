@@ -1,0 +1,102 @@
+{
+  "version": 4,
+  "mode": "harden",
+  "write_mode": "apply-tests",
+  "intent_contract": {
+    "path": "demo/subscription_renewal/intent-contract.json",
+    "status": "tested"
+  },
+  "baseline": {
+    "command": "python3 -m unittest -q demo.subscription_renewal.test_hardened",
+    "status": "green",
+    "attempts": 1,
+    "stable_tests": [
+      "test_rejects_an_account_at_the_exact_expiry_boundary_without_charging",
+      "test_eligible_renewal_charges_exactly_once_and_updates_state",
+      "test_repeated_renewal_is_idempotent"
+    ],
+    "excluded_tests": []
+  },
+  "assessment": null,
+  "mutations": [
+    {
+      "id": "MUT-001",
+      "mode": "harden",
+      "contract_ids": ["DEC-001", "INV-001"],
+      "source_intent": "An account is expired at the exact expiry instant",
+      "changed_intent": "An account remains eligible at the exact expiry instant",
+      "represented_risk": "Renewal after expiry",
+      "severity": "critical",
+      "likelihood": "medium",
+      "code_change": "Replace expires_at <= now with expires_at < now",
+      "code_location": "demo/subscription_renewal/subscription.py:renew",
+      "expected_detection": "Reject equality without charging or changing state",
+      "result": "killed",
+      "detecting_tests": [
+        "test_rejects_an_account_at_the_exact_expiry_boundary_without_charging"
+      ],
+      "follow_up": "none"
+    },
+    {
+      "id": "MUT-002",
+      "mode": "harden",
+      "contract_ids": ["DEC-002", "FX-001"],
+      "source_intent": "An eligible renewal charges exactly once",
+      "changed_intent": "Renewal may report success without charging",
+      "represented_risk": "Service is granted without payment",
+      "severity": "critical",
+      "likelihood": "medium",
+      "code_change": "Remove the charge call",
+      "code_location": "demo/subscription_renewal/subscription.py:renew",
+      "expected_detection": "Observe exactly one charge for an eligible renewal",
+      "result": "killed",
+      "detecting_tests": [
+        "test_eligible_renewal_charges_exactly_once_and_updates_state"
+      ],
+      "follow_up": "none"
+    },
+    {
+      "id": "MUT-003",
+      "mode": "harden",
+      "contract_ids": ["INV-002", "FX-002"],
+      "source_intent": "Retrying a completed renewal does not charge again",
+      "changed_intent": "Every retry performs another charge",
+      "represented_risk": "Duplicate payment",
+      "severity": "critical",
+      "likelihood": "high",
+      "code_change": "Remove the already-renewed early return",
+      "code_location": "demo/subscription_renewal/subscription.py:renew",
+      "expected_detection": "Call renewal twice and observe one total charge",
+      "result": "killed",
+      "detecting_tests": [
+        "test_repeated_renewal_is_idempotent"
+      ],
+      "follow_up": "none"
+    }
+  ],
+  "not_challenged": [],
+  "unresolved": [],
+  "test_changes": [
+    {
+      "name": "test_rejects_an_account_at_the_exact_expiry_boundary_without_charging",
+      "disposition": "applied"
+    },
+    {
+      "name": "test_eligible_renewal_charges_exactly_once_and_updates_state",
+      "disposition": "applied"
+    },
+    {
+      "name": "test_repeated_renewal_is_idempotent",
+      "disposition": "applied"
+    }
+  ],
+  "test_handoff": null,
+  "authorized_workspace_changes": [
+    "demo/subscription_renewal/test_hardened.py"
+  ],
+  "postflight": {
+    "primary_workspace_matches_preflight": true,
+    "production_mutation_free": true,
+    "notes": "Demo mutants are separate modules; subscription.py is never edited"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "status": "tested",
+  "change": {
+    "base": "demo-parent",
+    "head": "demo-confirmed-change",
+    "summary": "Renew only unexpired accounts and perform an eligible renewal once"
+  },
+  "intent": {
+    "statement": "Reject accounts at or after expiry; charge an eligible renewal exactly once",
+    "confidence": "high",
+    "evidence": [
+      {
+        "source": "demo/subscription_renewal/maieutic-session.md",
+        "supports": "The human confirmed the expiry boundary and exactly-once side effect"
+      }
+    ]
+  },
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "question": "Is an account eligible at the exact expiry instant?",
+      "expected": "No; equality is expired",
+      "provenance": "user-confirmed"
+    },
+    {
+      "id": "DEC-002",
+      "question": "Should an eligible renewal charge the account?",
+      "expected": "Yes; charge exactly once",
+      "provenance": "user-confirmed"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "INV-001",
+      "statement": "Expired accounts are never charged or marked renewed",
+      "severity": "critical"
+    },
+    {
+      "id": "INV-002",
+      "statement": "Retrying a completed renewal does not charge again",
+      "severity": "critical"
+    }
+  ],
+  "side_effects": {
+    "required": [
+      {
+        "id": "FX-001",
+        "statement": "The first eligible renewal charges the account once"
+      }
+    ],
+    "prohibited": [
+      {
+        "id": "FX-002",
+        "statement": "Expired or already-renewed accounts must not be charged"
+      }
+    ]
+  },
+  "unresolved": [],
+  "coverage": [
+    {
+      "contract_id": "DEC-001",
+      "tests": [
+        "test_rejects_an_account_at_the_exact_expiry_boundary_without_charging"
+      ]
+    },
+    {
+      "contract_id": "DEC-002",
+      "tests": [
+        "test_eligible_renewal_charges_exactly_once_and_updates_state"
+      ]
+    },
+    {
+      "contract_id": "INV-002",
+      "tests": [
+        "test_repeated_renewal_is_idempotent"
+      ]
+    }
+  ]
+}

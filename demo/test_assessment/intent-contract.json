@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "status": "provisional",
+  "change": {
+    "base": "demo-tests-before-ai-edit",
+    "head": "demo-tests-after-ai-edit",
+    "summary": "An AI cleaned up the pricing tests: added a bulk-tier test, weakened the volume-boundary assertion, deleted the negative-quantity test"
+  },
+  "intent": {
+    "statement": "Pricing applies a 10% discount from 10 items and 20% from 100 items, and rejects negative quantities",
+    "confidence": "medium",
+    "evidence": [
+      {
+        "source": "demo/test_assessment/pricing.py",
+        "supports": "Observable tier behavior of the unchanged production code, treated as provisional evidence only"
+      }
+    ]
+  },
+  "decisions": [],
+  "invariants": [
+    {
+      "id": "INV-001",
+      "statement": "Ten or more items receive the 10% volume discount",
+      "severity": "high"
+    },
+    {
+      "id": "INV-002",
+      "statement": "One hundred or more items receive the 20% bulk discount",
+      "severity": "high"
+    },
+    {
+      "id": "INV-003",
+      "statement": "A negative quantity is rejected",
+      "severity": "medium"
+    }
+  ],
+  "side_effects": {
+    "required": [],
+    "prohibited": []
+  },
+  "unresolved": [
+    {
+      "id": "UNR-001",
+      "statement": "Whether rejecting negative quantities is a required contract or incidental behavior",
+      "test_impact": "Decides whether the unprotected validation gap should be hardened with a new test"
+    }
+  ],
+  "coverage": []
+}

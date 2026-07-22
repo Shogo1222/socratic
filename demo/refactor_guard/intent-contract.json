@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "status": "provisional",
+  "change": {
+    "base": "demo-refactor-base",
+    "head": "demo-refactor-head",
+    "summary": "Extract an _is_active helper from renew, presented as a pure readability refactoring"
+  },
+  "intent": {
+    "statement": "The refactoring claims to preserve renewal behavior exactly",
+    "confidence": "medium",
+    "evidence": [
+      {
+        "source": "demo/refactor_guard/head.py",
+        "supports": "The change description says readability only, with no intended behavior change"
+      }
+    ]
+  },
+  "decisions": [],
+  "invariants": [
+    {
+      "id": "INV-001",
+      "statement": "A membership that has not passed its end date can renew",
+      "severity": "high"
+    }
+  ],
+  "side_effects": {
+    "required": [],
+    "prohibited": []
+  },
+  "unresolved": [
+    {
+      "id": "UNR-001",
+      "statement": "Whether renewal on the exact end date is inside the term",
+      "test_impact": "Decides the oracle of the end-date probe and whether the observed diff is a regression"
+    }
+  ],
+  "coverage": []
+}

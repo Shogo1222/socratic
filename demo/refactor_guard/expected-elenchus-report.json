@@ -1,0 +1,68 @@
+{
+  "version": 4,
+  "mode": "catch",
+  "write_mode": "review-only",
+  "intent_contract": {
+    "path": "demo/refactor_guard/intent-contract.json",
+    "status": "provisional"
+  },
+  "baseline": {
+    "command": "DEMO_IMPL=demo.refactor_guard.base python3 -m unittest -q demo.refactor_guard.probes",
+    "status": "green",
+    "attempts": 1,
+    "stable_tests": [
+      "test_renews_well_before_the_end_date",
+      "test_rejects_well_after_the_end_date",
+      "test_renews_on_the_exact_end_date"
+    ],
+    "excluded_tests": []
+  },
+  "assessment": null,
+  "mutations": [
+    {
+      "id": "MUT-001",
+      "mode": "catch",
+      "contract_ids": ["INV-001"],
+      "source_intent": "The end date itself is inside the membership term",
+      "changed_intent": "The membership is already expired on the end date",
+      "represented_risk": "A boundary flip hidden inside a readability refactoring",
+      "severity": "high",
+      "likelihood": "medium",
+      "code_change": "Replace today <= expires_at with today < expires_at inside the extracted helper",
+      "code_location": "demo/refactor_guard/head.py:_is_active",
+      "expected_detection": "The end-date probe renews on base and raises on the mutant",
+      "result": "strong-catch",
+      "detecting_tests": ["test_renews_on_the_exact_end_date"],
+      "catch": {
+        "parent_outcome": "pass",
+        "mutant_outcome": "fail",
+        "change_outcome": "fail",
+        "human_verdict": "unintended"
+      },
+      "follow_up": "none"
+    }
+  ],
+  "not_challenged": [],
+  "unresolved": ["UNR-001"],
+  "test_changes": [
+    {
+      "name": "test_renews_well_before_the_end_date",
+      "disposition": "proposed"
+    },
+    {
+      "name": "test_rejects_well_after_the_end_date",
+      "disposition": "proposed"
+    },
+    {
+      "name": "test_renews_on_the_exact_end_date",
+      "disposition": "proposed"
+    }
+  ],
+  "test_handoff": null,
+  "authorized_workspace_changes": [],
+  "postflight": {
+    "primary_workspace_matches_preflight": true,
+    "production_mutation_free": true,
+    "notes": "Demo probes live as a separate module; base.py and head.py are never edited"
+  }
+}

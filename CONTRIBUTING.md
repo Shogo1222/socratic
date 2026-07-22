@@ -29,9 +29,15 @@ Run repository consistency checks before submitting:
 ```bash
 python3 scripts/check_repository.py
 python3 -m unittest discover -s scripts -p 'test_*.py'
+python3 -m demo.subscription_renewal.run_demo
+python3 -m demo.refactor_guard.run_demo
+python3 -m demo.test_assessment.run_demo
+python3 scripts/validate_fixtures.py
 python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
+
+Fixture validation needs `jsonschema` and `referencing` (`python3 -m pip install jsonschema referencing`); everything else uses the standard library.
 
 The distribution audit intentionally fixes the shipped Skill file set at 16 UTF-8 text files. Any added Skill resource, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
 
