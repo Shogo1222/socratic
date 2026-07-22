@@ -27,7 +27,7 @@
     <link rel="alternate" hreflang="en" href="https://shogo1222.github.io/socratic/en/">
     <link rel="alternate" hreflang="ja" href="https://shogo1222.github.io/socratic/">
     <link rel="icon" href="../assets/socratic-logo.png" type="image/png">
-    <link rel="stylesheet" href="../styles.css?v=20260722-1625">
+    <link rel="stylesheet" href="../styles.css?v=20260722-1720">
     <script src="../script.js" defer></script>
   </head>
   <body class="lang-en">
@@ -258,10 +258,15 @@
               <h3>Refactor Guard</h3>
               <p class="case-ja">Find behavior drift in a refactor</p>
               <p>Run the same behavior test against Base and Head. If results differ, ask whether the change was intended or is a regression.</p>
-              <div class="case-visual test-compare-diagram" role="img" aria-label="Run the same behavior test against Base and Head and compare the observed outputs">
-                <div class="test-path"><span>BASE</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>Observed A</strong></div>
-                <div class="test-path"><span>HEAD</span><b aria-hidden="true">→</b><em>Behavior Test</em><b aria-hidden="true">→</b><strong>Observed B</strong></div>
-                <div class="diagram-verdict"><small>COMPARE OUTPUTS</small><strong>Behavior Diff?</strong></div>
+              <div class="case-visual animated-terminal compare-terminal" role="img" aria-label="A terminal runs the same behavior test against Base and Head in sequence and detects a difference in the test results">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · refactor guard</span></div>
+                <div class="animated-terminal-body" aria-hidden="true">
+                  <code><span>›</span> Run the <strong>same behavior test</strong><span class="terminal-cursor"></span></code>
+                  <div class="test-target terminal-stage stage-one"><small>TEST</small><strong>contract renewal · expiry boundary</strong></div>
+                  <div class="terminal-run test-execution terminal-stage stage-two"><span>BASE</span><b><i></i> Running test…</b><em>PASS</em></div>
+                  <div class="terminal-run test-execution terminal-stage stage-three"><span>HEAD</span><b><i></i> Running same test…</b><em>FAIL</em></div>
+                  <div class="terminal-verdict terminal-stage stage-four"><span>Δ</span><div><small>TEST RESULT DIFF</small><strong>Behavior changed</strong></div></div>
+                </div>
               </div>
             </article>
             <article>
@@ -269,10 +274,15 @@
               <h3>Test Assessment</h3>
               <p class="case-ja">Measure whether AI-written tests can detect risk</p>
               <p>Apply the same risk mutations to existing and changed tests to separate added protection from risks that remain unprotected.</p>
-              <div class="case-visual mutation-diagram" role="img" aria-label="Apply the same risk mutation to Base and Head tests and confirm that each suite detects it">
-                <div class="mutation-path"><span>BASE TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
-                <div class="mutation-path"><span>HEAD TESTS</span><b>＋ MUTANT</b><i aria-hidden="true">→</i><strong>FAIL ✓</strong></div>
-                <div class="diagram-verdict"><small>MUTANT KILLED</small><strong>Risk detected</strong></div>
+              <div class="case-visual animated-terminal mutation-terminal" role="img" aria-label="A terminal shows the same mutation surviving Base Tests and being caught by Head Tests, demonstrating the detection power added by the new test">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>elenchus · test assessment</span></div>
+                <div class="animated-terminal-body" aria-hidden="true">
+                  <code><span>›</span> Check whether tests <strong>catch the bug</strong><span class="terminal-cursor"></span></code>
+                  <div class="mutation-inject terminal-stage stage-one"><span>MUTATION</span><strong>remove event emission</strong><i>injected</i></div>
+                  <div class="terminal-run mutation-run terminal-stage stage-two"><span>BASE TESTS</span><b>mutant ran</b><em>SURVIVED ×</em></div>
+                  <div class="terminal-run mutation-run terminal-stage stage-three"><span>HEAD TESTS</span><b>mutant ran</b><em>KILLED ✓</em></div>
+                  <div class="terminal-verdict terminal-stage stage-four"><span>✓</span><div><small>MUTATION CAUGHT</small><strong>New test detects the risk</strong></div></div>
+                </div>
               </div>
             </article>
           </div>
