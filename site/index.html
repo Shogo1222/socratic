@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4efe5">
+    <meta
+      name="description"
+      content="Socraticは、AI生成PRから人間が判断すべき仕様・振る舞い差・テスト不足を絞り込む3つのAgent Skillsです。"
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Socratic — Review the decisions that matter.">
+    <meta
+      property="og:description"
+      content="大きなDiffを、少数の『決めるべきこと』へ。AI生成PRのための、人間中心のレビュー・ワークフロー。"
+    >
+    <meta property="og:image" content="https://shogo1222.github.io/socratic/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Socratic — 大きなDiffを、少数の決めるべきことへ。">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
+    <link rel="icon" href="assets/socratic-logo.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">本文へ移動</a>
+
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#top" aria-label="Socratic ホーム">
+          <img src="assets/socratic-logo.png" alt="Socratic" width="210" height="70">
+        </a>
+        <nav aria-label="メインナビゲーション">
+          <a href="#how">仕組み</a>
+          <a href="#output">出力</a>
+          <a href="#use-cases">使いどころ</a>
+          <a class="nav-cta" href="#install">導入する</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="shell hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Open source Agent Skills for AI code review</p>
+            <h1>大きなDiffを、<br>少数の<span>「決めるべきこと」</span>へ。</h1>
+            <p class="hero-lead">
+              Socraticは、AI生成PRから<strong>人間が判断すべき仕様</strong>、
+              <strong>意図しない可能性のある変更</strong>、
+              <strong>テストが見逃す重要なリスク</strong>だけを抽出します。
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#how">仕組みを3分で見る <span aria-hidden="true">↓</span></a>
+              <a class="button button-ghost" href="https://github.com/Shogo1222/socratic">GitHubで見る <span aria-hidden="true">↗</span></a>
+            </div>
+            <ul class="trust-list" aria-label="Socraticの基本方針">
+              <li>レビューを代替しない</li>
+              <li>GitHubへ自動投稿しない</li>
+              <li>Merge可否を決めない</li>
+            </ul>
+          </div>
+
+          <div class="review-card-wrap" aria-label="Socraticの出力例">
+            <div class="review-orbit orbit-one" aria-hidden="true"></div>
+            <div class="review-orbit orbit-two" aria-hidden="true"></div>
+            <article class="review-card">
+              <div class="review-topbar">
+                <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+                <span>Socratic Review</span>
+                <span class="status">complete</span>
+              </div>
+              <div class="review-body">
+                <div class="review-line review-this">
+                  <span class="review-icon">!</span>
+                  <div><strong>Review This</strong><small>人間が決めること</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line verified">
+                  <span class="review-icon">✓</span>
+                  <div><strong>We Verified</strong><small>証拠を持って確認したこと</small></div>
+                  <b>5</b>
+                </div>
+                <div class="review-line risk">
+                  <span class="review-icon">△</span>
+                  <div><strong>Still at Risk</strong><small>まだ検証できていないこと</small></div>
+                  <b>2</b>
+                </div>
+                <div class="review-line comments">
+                  <span class="review-icon">↗</span>
+                  <div><strong>Copy-ready Comments</strong><small>そのまま使えるコメント候補</small></div>
+                  <b>2</b>
+                </div>
+              </div>
+              <div class="review-footer">
+                <span>127 files changed</span>
+                <span class="arrow" aria-hidden="true">→</span>
+                <strong>2 decisions</strong>
+              </div>
+            </article>
+            <p class="hand-note note-one" aria-hidden="true">読む量ではなく、<br>決める量を減らす</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem band">
+        <div class="shell problem-grid">
+          <div>
+            <p class="section-kicker">THE PROBLEM</p>
+            <h2>テストがGreenでも、<br>安心できない。</h2>
+          </div>
+          <div class="problem-copy">
+            <p>
+              AIが大量にコードを書くほど、Diffは大きくなります。実装意図はコードだけでは確定できず、
+              既存テストが重要なバグを本当に検知するかも分かりません。
+            </p>
+            <p class="problem-answer">
+              だからSocraticは、全行の説明ではなく、レビューで答えるべき4つの問いに絞ります。
+            </p>
+          </div>
+        </div>
+        <div class="shell question-row">
+          <article><span>01</span><p>ユーザーから見て<br><strong>何が変わる？</strong></p></article>
+          <article><span>02</span><p>人間の仕様判断が<br><strong>必要なのはどこ？</strong></p></article>
+          <article><span>03</span><p>どんな事故が<br><strong>起こり得る？</strong></p></article>
+          <article><span>04</span><p>テストはその事故を<br><strong>本当に検知する？</strong></p></article>
+        </div>
+      </section>
+
+      <section class="method section" id="how">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">HOW IT WORKS</p>
+              <h2>問い、引き出し、反証する。</h2>
+            </div>
+            <p>
+              ソクラテスの問答法を、AI時代のコードレビューへ。
+              3つのSkillが順番に働き、曖昧な不安を判断可能な材料へ変えます。
+            </p>
+          </div>
+
+          <div class="steps">
+            <article class="step step-socratic">
+              <div class="step-head"><span>01</span><small>ORCHESTRATE</small></div>
+              <h3>Socratic</h3>
+              <p class="step-ja">問いを立てる</p>
+              <p>変更前後を比べ、仕様判断・振る舞い差・テスト不足を絞り込み、レビュー全体を組み立てます。</p>
+              <div class="step-outcome"><span>OUTCOME</span> 大きなDiffが、少数の判断事項になる</div>
+            </article>
+            <div class="step-arrow" aria-hidden="true">→</div>
+            <article class="step step-maieutic">
+              <div class="step-head"><span>02</span><small>ELICIT</small></div>
+              <h3>Maieutic</h3>
+              <p class="step-ja">意図を引き出す</p>
+              <p>実装だけでは確定できない期待を、仕様オーナーが答えられる具体的な質問へ変換します。</p>
+              <div class="step-outcome"><span>OUTCOME</span> 曖昧な不安が、答えられる仕様質問になる</div>
+            </article>
+            <div class="step-arrow" aria-hidden="true">→</div>
+            <article class="step step-elenchus">
+              <div class="step-head"><span>03</span><small>REFUTE</small></div>
+              <h3>Elenchus</h3>
+              <p class="step-ja">反証して確かめる</p>
+              <p>BaseとHeadへ同じテストを実行し、さらにバグを注入してテストの検知能力を証明します。</p>
+              <div class="step-outcome"><span>OUTCOME</span> 「Green」が、バグを検知できる証拠になる</div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="output section" id="output">
+        <div class="shell output-grid">
+          <div class="output-intro">
+            <p class="section-kicker light">THE REVIEW SURFACE</p>
+            <h2>出力は、いつも<br>4つのブロック。</h2>
+            <p>
+              スコアも「Mergeしてよい」という結論も出しません。
+              確認できた範囲と、決めるべきことと、まだ残るリスクを分けて示します。
+            </p>
+            <blockquote>Don't review every line.<br><strong>Review the decisions that matter.</strong></blockquote>
+          </div>
+
+          <div class="output-list">
+            <article>
+              <span class="output-number">01</span>
+              <div><h3>Review This</h3><p>未確定の仕様、意図を確認できていない振る舞い差、未解決のテスト不足。</p></div>
+              <span class="output-mark mark-review">!</span>
+            </article>
+            <article>
+              <span class="output-number">02</span>
+              <div><h3>We Verified</h3><p>維持された振る舞い、確定した変更、Mutationで検知能力まで証明したテスト。</p></div>
+              <span class="output-mark mark-verified">✓</span>
+            </article>
+            <article>
+              <span class="output-number">03</span>
+              <div><h3>Still at Risk</h3><p>環境制約や非決定性など、今回のレビューで検証できなかった範囲。</p></div>
+              <span class="output-mark mark-risk">△</span>
+            </article>
+            <article>
+              <span class="output-number">04</span>
+              <div><h3>Copy-ready Comments</h3><p>観測事実と判断の影響を揃えた、GitHubへコピーして使えるコメント候補。</p></div>
+              <span class="output-mark mark-comment">↗</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="use-cases section" id="use-cases">
+        <div class="shell">
+          <div class="section-heading compact">
+            <div>
+              <p class="section-kicker">USE CASES</p>
+              <h2>レビューの目的に合わせて使う。</h2>
+            </div>
+          </div>
+          <div class="case-grid">
+            <article>
+              <span class="case-label">FEATURE REVIEW</span>
+              <h3>新しい振る舞いの<br>「正しさ」を決める</h3>
+              <p>境界条件や例外時の期待を質問にし、仕様オーナーの回答をIntent Contractとテストへ結びます。</p>
+              <div class="case-sample">
+                <span>QUESTION</span>
+                契約終了日と更新日が同日の場合も、更新を許可する意図でしょうか？
+              </div>
+            </article>
+            <article>
+              <span class="case-label">REFACTOR GUARD</span>
+              <h3>リファクタリングの<br>振る舞い差を見つける</h3>
+              <p>BaseとHeadへ同じBehavior Testを実行。差があれば、意図した変更か回帰かを人間へ確認します。</p>
+              <div class="mini-flow"><span>BASE</span><b>same test</b><span>HEAD</span></div>
+            </article>
+            <article>
+              <span class="case-label">TEST ASSESSMENT</span>
+              <h3>AIが追加したテストの<br>「検知力」を測る</h3>
+              <p>同じリスクMutationを既存・変更後のテストへ当て、増えた保護と、まだ守られていないリスクを分離します。</p>
+              <div class="mutation-line"><span>BASE ✓</span><span>HEAD ✓</span><strong>MUTANT ×</strong></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="principles section">
+        <div class="shell principles-grid">
+          <div>
+            <p class="section-kicker">HUMAN IN THE LOOP</p>
+            <h2>判断は、<br>人間に残す。</h2>
+          </div>
+          <div class="principle-list">
+            <article><span>01</span><div><h3>レビューを代替しない</h3><p>重要な判断に集中できる材料を準備します。最終判断を奪いません。</p></div></article>
+            <article><span>02</span><div><h3>仕様を推測で埋めない</h3><p>コードから確定できないことは、仕様オーナーが答えられる質問にします。</p></div></article>
+            <article><span>03</span><div><h3>Greenを証拠に変える</h3><p>バグを注入して実際にテストが落ちるところまで確かめます。</p></div></article>
+            <article><span>04</span><div><h3>自動で投稿しない</h3><p>コメント候補はコピーできる形で提示し、投稿・編集・破棄を人間に委ねます。</p></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="install section" id="install">
+        <div class="shell install-card">
+          <div class="install-copy">
+            <p class="section-kicker light">GET STARTED</p>
+            <h2>最初のレビューを、<br>今すぐ始める。</h2>
+            <p>GitHub CLIまたはOpen Agent Skills CLIで、3つのSkillをまとめて導入できます。</p>
+            <a href="https://github.com/Shogo1222/socratic#installation">詳しい使い方をREADMEで見る <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="install-terminal">
+            <div class="terminal-bar"><span>GitHub CLI</span><i>● ● ●</i></div>
+            <div class="command-row">
+              <code><span>$</span> gh skill install Shogo1222/socratic --all</code>
+              <button class="copy-button" type="button" data-copy="gh skill install Shogo1222/socratic --all" aria-label="GitHub CLIのコマンドをコピー">COPY</button>
+            </div>
+            <div class="terminal-divider"><span>or</span></div>
+            <div class="command-row">
+              <code><span>$</span> npx skills add Shogo1222/socratic --skill '*'</code>
+              <button class="copy-button" type="button" data-copy="npx skills add Shogo1222/socratic --skill '*'" aria-label="Open Agent Skills CLIのコマンドをコピー">COPY</button>
+            </div>
+            <p class="terminal-hint">インストール後、コード変更に対して <code>$socratic</code> を実行</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell footer-inner">
+        <img src="assets/socratic-logo.png" alt="Socratic" width="170" height="57">
+        <p>Review the decisions that matter.</p>
+        <div>
+          <a href="https://github.com/Shogo1222/socratic">GitHub</a>
+          <a href="https://github.com/Shogo1222/socratic/blob/main/README.md">English</a>
+          <a href="https://github.com/Shogo1222/socratic/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

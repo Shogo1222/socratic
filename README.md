@@ -2,7 +2,7 @@
   <img src="./assets/socratic-logo.png" alt="Socratic" height="120">
 </p>
 
-English | [日本語](README.ja.md)
+[Website](https://shogo1222.github.io/socratic/) | English | [日本語](README.ja.md)
 
 # Socratic
 
