@@ -364,13 +364,23 @@ Each directory under `skills/` is an Agent Skill compatible with Codex and Claud
 
 Install all three skills from [Shogo1222/socratic](https://github.com/Shogo1222/socratic).
 
-With GitHub CLI's Agent Skills support:
+For company-managed devices, preview the pinned release before installing it at project scope:
 
 ```bash
-gh skill install Shogo1222/socratic --all
+GH_TELEMETRY=false gh skill preview \
+  Shogo1222/socratic socratic@v0.2.0
+
+GH_TELEMETRY=false gh skill install \
+  Shogo1222/socratic \
+  --all \
+  --agent codex \
+  --scope project \
+  --pin v0.2.0
 ```
 
-Or with the open Agent Skills CLI:
+The GitHub CLI Agent Skills commands are currently in preview. Confirm that your organization permits the CLI and selected AI host. Project scope limits installation to the current repository; it does not control what repository data the host sends to its AI provider.
+
+For compatibility, the open Agent Skills CLI remains available for personal evaluation, but the unpinned command is not the recommended enterprise installation path:
 
 ```bash
 npx skills add Shogo1222/socratic --skill '*'
@@ -420,11 +430,19 @@ Socratic connects these ideas. The explicit human-confirmed Intent Contract, Mai
 
 ## CI and releases
 
-GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. The workflow also compiles the Python validation scripts to catch syntax errors.
+GitHub Actions runs the same repository consistency check documented in [CONTRIBUTING.md](CONTRIBUTING.md) for every pull request and push to `main`. It also validates Agent Skills metadata, runs the distribution-audit tests, rejects any unexpected, executable, binary, or symbolic-link file under `skills/`, restricts external URL hosts, verifies required safety rules, and performs an actual 14-file installation into a temporary directory. The file manifest and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
 
-Maintainers create a release from **Actions → Release → Run workflow** on `main`. Enter a semantic version such as `0.2.0`; a leading `v` is accepted. The workflow validates the repository and version, rejects an existing tag, creates an annotated `v0.2.0` tag, and publishes a GitHub Release with generated notes. Draft and prerelease releases are supported.
+Maintainers create a release from **Actions → Release → Run workflow** on `main`. Enter a semantic version such as `0.2.0`; a leading `v` is accepted. The workflow validates the repository, distribution, installation result, and version; rejects an existing tag; creates an annotated `v0.2.0` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes. Draft and prerelease releases are supported.
 
-The release workflow does not modify source files. The Git tag is the release version of record.
+The release workflow does not modify source files. The Git tag is the release version of record. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
+
+Verify a published release and a downloaded asset with GitHub CLI:
+
+```bash
+gh release verify v0.2.0 --repo Shogo1222/socratic
+gh release verify-asset v0.2.0 ./socratic-v0.2.0.zip \
+  --repo Shogo1222/socratic
+```
 
 ## Status
 
