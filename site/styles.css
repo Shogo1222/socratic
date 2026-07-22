@@ -295,6 +295,9 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .mutation-path strong { color: #2c7650; text-align: right; }
 
 .principles-grid { display: grid; grid-template-columns: .7fr 1.3fr; gap: 100px; }
+.safety-summary { display: grid; gap: 8px; margin: 38px 0 0; padding: 18px 0; border-block: 1px solid var(--line); }
+.safety-summary strong { color: var(--orange); font: 900 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
+.safety-summary span { color: var(--muted); font-size: 12px; font-weight: 700; }
 .principle-list { border-top: 1px solid var(--line); }
 .principle-list article { display: grid; grid-template-columns: 48px 1fr; gap: 20px; padding: 26px 0; border-bottom: 1px solid var(--line); }
 .principle-list article > span { color: var(--orange); font: 800 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }

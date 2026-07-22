@@ -288,15 +288,16 @@
 
       <section class="principles section">
         <div class="shell principles-grid">
-          <div>
-            <p class="section-kicker">HUMAN IN THE LOOP</p>
-            <h2>判断は、<br>人間に残す。</h2>
+          <div class="principles-intro">
+            <p class="section-kicker">SAFE BY DEFAULT</p>
+            <h2>安全に調べる。<br>勝手に変えない。</h2>
+            <p class="safety-summary"><strong>DEFAULT: REVIEW-ONLY</strong><span>PR / GitHub / Working Treeへの書き込みなし</span></p>
           </div>
           <div class="principle-list">
-            <article><span>01</span><div><h3>レビューを代替しない</h3><p>重要な判断に集中できる材料を準備します。最終判断を奪いません。</p></div></article>
-            <article><span>02</span><div><h3>仕様を推測で埋めない</h3><p>コードから確定できないことは、仕様オーナーが答えられる質問にします。</p></div></article>
-            <article><span>03</span><div><h3>Greenを証拠に変える</h3><p>バグを注入して実際にテストが落ちるところまで確かめます。</p></div></article>
-            <article><span>04</span><div><h3>自動で投稿しない</h3><p>コメント候補はコピーできる形で提示し、投稿・編集・破棄を人間に委ねます。</p></div></article>
+            <article><span>01</span><div><h3>Review-onlyが既定</h3><p>PR、GitHub、RepositoryのWorking Treeへ書き込みません。</p></div></article>
+            <article><span>02</span><div><h3>隔離環境で検証する</h3><p>比較テストとMutationはDisposableな環境で実行し、Headの本番コードを変更しません。</p></div></article>
+            <article><span>03</span><div><h3>Git操作を自動化しない</h3><p>Stage、Commit、Push、Branch切替、PR作成、コメント投稿を行いません。</p></div></article>
+            <article><span>04</span><div><h3>書き込みは明示選択時だけ</h3><p>証明済みテストも、ユーザーが「Apply tests」を選ぶまではWorking Treeへ追加しません。</p></div></article>
           </div>
         </div>
       </section>
