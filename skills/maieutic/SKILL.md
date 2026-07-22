@@ -157,7 +157,10 @@ When reviewing a change, also shape each justified question as a copy-ready `Int
 
 Create the contract described in `references/intent-contract.md`. Give every decision and invariant a stable ID. Route information exactly as follows:
 
-- use decision `provenance: user-confirmed` for explicit answers;
+Inspect commit titles, pull-request text, changesets, and code comments before creating an unresolved item; consistent authoritative evidence becomes a repository-established decision. Ask a structured question only when that evidence does not resolve multiple reasonable expectations and the answer changes an observable oracle.
+
+- use decision `provenance: user-confirmed` for explicit answers from a specification owner or an authorized proxy;
+- use `reviewer-selected-benchmark-assumption` when a reviewer chooses an evaluation assumption without specification authority;
 - use decision `provenance: repository-established` only for authoritative repository evidence;
 - place unconfirmed inferences in `intent.evidence`, never in `decisions`;
 - place unresolved oracle choices in `unresolved`, never in `decisions`.
@@ -167,6 +170,8 @@ Maintain the active contract as a temporary run artifact outside the repository 
 Set `status` to `needs-decision` while relevant unresolved items remain and `confirmed` when required decisions are resolved. Advance to `tested` only when the mapped passing tests persist beyond the run — pre-existing tests, or tests applied to the working tree in Apply tests mode. In a Review-only run whose protection rests on proposed tests, stop at `confirmed`: a discarded test protects nothing.
 
 If a required question receives no answer, persist it as unresolved and stop that behavior at `needs-decision`. Continue only independent confirmed items. In non-interactive execution, report the required decisions once and exit without polling or inventing answers.
+
+When the answerer's authority is unknown, include **Defer / confirm with specification owner** as an option. Selecting it keeps the item unresolved, blocks only the mapped oracle, and produces a copy-ready question for the specification owner.
 
 ### 6. Review existing unit tests
 

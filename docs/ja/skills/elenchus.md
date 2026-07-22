@@ -178,11 +178,13 @@ ParentとDiffの最小の振る舞い差をMaieutic経由で提示する。Socra
 
 Safety規則に従い、主要Workspaceの対象範囲についてFilesystem ManifestとContent Hashを記録する。正確な対象状態を含む使い捨てFilesystem Snapshotを作り、`.socratic-disposable`でMarker付けする。すべてのMutation書き込みは同梱`IsolationGate.write_bytes`または`write_text`を通し、認可後に別の無Guard書き込みを行わない。**そのSnapshot内で**Baseline Policyを適用し、Git Status、Branch切替、Git Worktreeを隔離や復元へ使わない。
 
+Primary Rootは変更Packageではなく、それを含むGit Repository Rootへ解決する。Repository内へ解決するSandbox Symlinkはすべて拒否する。Test Cache、一時Directory、Framework出力はSandbox内へ置く。`primary_written_during_run: false`の主張には、検証済みHost Read-only保護または検証済みWrite-event Monitorが必要である。
+
 ### 4. Mutantを1件ずつ実行する
 
 各Mutantを未変異Snapshotの新しい使い捨てCopyへ単独適用し、変更ファイルを確認して、安定した最小テストをTimeout付きで実行・分類する。次のMutant前に状態を破棄する。
 
-- `killed`: 安定した関連テストが意図した振る舞い理由で失敗
+- `killed`: 安定した関連テストが意図した振る舞い理由で失敗し、観測した失敗理由を記録し、観測可能なContract違反を確認
 - `survived`: 安定した関連テストが成功
 - `invalid`: 意図したRiskを実行できない
 - `equivalent`: 観測可能なContract差がないことを根拠で証明
@@ -191,9 +193,13 @@ Safety規則に従い、主要Workspaceの対象範囲についてFilesystem Man
 
 Compile FailureはCompile自体がContractでない限りKillではない。Equivalentには具体的な根拠を記録する。Contractにない観測可能な振る舞いを変えるMutantはMissing Invariant候補としてMaieuticへ戻し、Equivalentにしない。
 
+Contractと整合するImport、Runtime、Environment失敗はKillではない。状況に応じてInvalid、Inconclusive、Not challengedとし、Process失敗だけから検知を推定しない。
+
 ### 5. Survivorを調査する
 
 Scenario、Assertion、Boundary、副作用・状態遷移、曖昧仕様、実装依存、未到達Pathのどれが原因か特定する。未解決IntentはMaieuticへ戻し、`needs-decision`を保存して独立項目だけを続ける。
+
+各Contract IDへ挑戦する前に同梱`assert_elenchus_allowed` Lifecycle Gateを呼ぶ。未解決なら対応するOracleを停止し、未解決Contractを`tested`として検証させない。
 
 ### 6. テストを設計・証明する
 

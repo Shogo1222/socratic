@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "mode": "harden",
   "write_mode": "apply-tests",
   "intent_contract": {
@@ -35,6 +35,8 @@
       "detecting_tests": [
         "test_rejects_an_account_at_the_exact_expiry_boundary_without_charging"
       ],
+      "observed_failure_reason": "The equality-boundary assertion fails because an expired account is renewed",
+      "contract_violation_observed": true,
       "follow_up": "none"
     },
     {
@@ -53,6 +55,8 @@
       "detecting_tests": [
         "test_eligible_renewal_charges_exactly_once_and_updates_state"
       ],
+      "observed_failure_reason": "The external charge assertion fails because renewal succeeds without payment",
+      "contract_violation_observed": true,
       "follow_up": "none"
     },
     {
@@ -71,6 +75,8 @@
       "detecting_tests": [
         "test_repeated_renewal_is_idempotent"
       ],
+      "observed_failure_reason": "The retry assertion observes a second charge",
+      "contract_violation_observed": true,
       "follow_up": "none"
     }
   ],
@@ -103,8 +109,22 @@
       "verified": false,
       "details": "The demo represents mutants as separate modules and does not edit subscription.py"
     },
+    "write_monitor": {
+      "mode": "host-events",
+      "verified": true,
+      "details": "The deterministic demo runner writes no production modules"
+    },
     "mutation_targets": [],
     "write_events": []
+  },
+  "persistent_side_effects": {
+    "authorization": "not-requested",
+    "writes": []
+  },
+  "canonical_output": {
+    "renderer": "socratic/scripts/validate_and_render.py",
+    "sha256": "e7325f2d5315caa6719ecf1145d96d06a77b8e9ea14f26c6511cf44f0697edb5",
+    "extra_prose": false
   },
   "postflight": {
     "primary_written_during_run": false,

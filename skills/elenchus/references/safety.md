@@ -17,6 +17,9 @@ Treat every mutation as destructive temporary state.
 - Never change local or remote Git state and never request permission to do so.
 - Create `.socratic-disposable` in each verified sandbox root, then route every mutation write through `scripts/isolation_gate.py`'s `IsolationGate.write_bytes` or `write_text`. Never perform a separate write after using only the authorization CLI.
 - Resolve and validate every target immediately before writing. A target outside the sandbox, inside the primary root, or reached through a sandbox-local symlink is a hard abort; backup and restore is never isolation.
+- Resolve the primary root to the enclosing Git repository. Reject any symlink anywhere in the sandbox that resolves into that repository, including dependency and build-tool links.
+- Redirect caches, temporary directories, package-manager state, and framework build output into the disposable sandbox.
+- Record `primary_written_during_run: false` only with verified host read-only protection or a verified OS or host write-event monitor covering the entire repository root.
 
 ## Git boundary
 
@@ -45,7 +48,7 @@ Record:
 - sandbox path;
 - focused test command and timeout;
 - relevant environment isolation.
-- resolved primary root, resolved sandbox root, host read-only protection mode, and every authorized mutation target.
+- resolved primary repository root, resolved sandbox root, host read-only protection mode, write-monitor mode, and every authorized mutation target.
 
 ## Postflight evidence
 

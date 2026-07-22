@@ -1,0 +1,12 @@
+{
+  "review_this": [
+    "The exact end-date behavior differs and requires confirmation from the specification owner"
+  ],
+  "we_verified": [
+    "Behavior away from the exact end-date boundary is preserved by tests existing at run start"
+  ],
+  "still_at_risk": [
+    "The exact end-date oracle remains unresolved"
+  ],
+  "copy_ready_comments": []
+}

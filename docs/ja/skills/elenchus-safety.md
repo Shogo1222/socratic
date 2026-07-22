@@ -21,6 +21,9 @@
 - ローカルまたはRemoteのGit状態を決して変更せず、その許可も求めない。
 - 検証済みSandbox Rootへ`.socratic-disposable`を作成し、すべてのMutation書き込みを`IsolationGate.write_bytes`または`write_text`へ通す。認可CLIだけを実行した後に別の書き込みを行わない。
 - Targetを各書き込み直前にResolve・検証する。Sandbox外、主要Root内、Sandbox内Symlink経由のTargetはHard Abortし、BackupとRestoreを隔離として認めない。
+- Primary Rootを包含するGit Repository Rootへ解決する。DependencyやBuild ToolのLinkを含め、Sandbox内のどのSymlinkでもRepository内へ解決するものは拒否する。
+- Cache、一時Directory、Package Manager State、Framework Build OutputをDisposable Sandbox内へRedirectする。
+- Repository Root全体を覆う検証済みHost Read-only保護またはOS/Host Write-event Monitorがある場合だけ、`primary_written_during_run: false`を記録する。
 
 ## Git境界
 

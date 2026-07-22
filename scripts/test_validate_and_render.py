@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import hashlib
 import json
 import sys
 import tempfile
@@ -87,6 +88,44 @@ class ValidateAndRenderTest(unittest.TestCase):
         with self.assertRaises(validate_and_render.ArtifactError):
             validate_and_render.validate_cross_artifact(contract, report)
 
+    def test_false_primary_write_claim_requires_verified_protection_or_monitor(self) -> None:
+        contract = {"status": "confirmed", "decisions": [], "unresolved": []}
+        report = {
+            "write_mode": "review-only",
+            "intent_contract": {"status": "confirmed"},
+            "mutations": [],
+            "unresolved": [],
+            "isolation": {
+                "execution_strategy": "comparison-only",
+                "primary_root": "/primary",
+                "sandbox_root": "/sandbox",
+                "host_protection": {"verified": False},
+                "write_monitor": {"verified": False},
+                "mutation_targets": [],
+            },
+            "postflight": {
+                "primary_written_during_run": False,
+                "production_mutation_free": True,
+                "sandbox_destroyed": True,
+            },
+        }
+        with self.assertRaises(validate_and_render.ArtifactError):
+            validate_and_render.validate_cross_artifact(contract, report)
+
+    def test_artifact_renderer_emits_only_strict_json_code_block(self) -> None:
+        rendered = validate_and_render.render_artifact_json({"b": 2, "a": 1})
+        self.assertEqual(rendered, '```json\n{\n  "a": 1,\n  "b": 2\n}\n```\n')
+
+    def test_canonical_hash_is_renderer_stdout_hash(self) -> None:
+        review = {
+            "review_this": [], "we_verified": [], "still_at_risk": [],
+            "copy_ready_comments": [],
+        }
+        expected = hashlib.sha256(
+            validate_and_render.render_review(review).encode("utf-8")
+        ).hexdigest()
+        self.assertEqual(len(expected), 64)
+
     def test_renders_exactly_four_blocks(self) -> None:
         review = {
             "review_this": [],
@@ -128,12 +167,11 @@ class ValidateAndRenderTest(unittest.TestCase):
                 / "expected-elenchus-report.json"
             ).read_text(encoding="utf-8")
         )
-        review = {
-            "review_this": [],
-            "we_verified": ["Three incidents were detected by tests existing at run start"],
-            "still_at_risk": [],
-            "copy_ready_comments": [],
-        }
+        review = json.loads(
+            (ROOT / "demo" / "subscription_renewal" / "canonical-review.json").read_text(
+                encoding="utf-8"
+            )
+        )
         validate_and_render.validate_with_schemas(contract, report, review, ROOT / "schemas")
 
 

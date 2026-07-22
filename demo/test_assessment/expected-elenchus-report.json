@@ -1,10 +1,10 @@
 {
-  "version": 5,
+  "version": 6,
   "mode": "assessment",
   "write_mode": "review-only",
   "intent_contract": {
     "path": "demo/test_assessment/intent-contract.json",
-    "status": "provisional"
+    "status": "needs-decision"
   },
   "baseline": {
     "command": "DEMO_IMPL=demo.test_assessment.pricing python3 -m unittest -q demo.test_assessment.tests_changed",
@@ -66,6 +66,8 @@
       "expected_detection": "An exact-total assertion at ten items",
       "result": "survived",
       "detecting_tests": [],
+      "observed_failure_reason": "",
+      "contract_violation_observed": false,
       "follow_up": "decision"
     },
     {
@@ -82,6 +84,8 @@
       "expected_detection": "Any assertion that observes a discounted volume total",
       "result": "killed",
       "detecting_tests": ["test_volume_orders_get_some_discount"],
+      "observed_failure_reason": "The changed cohort observes a full-price total instead of the volume discount",
+      "contract_violation_observed": true,
       "follow_up": "none"
     },
     {
@@ -98,6 +102,8 @@
       "expected_detection": "A test asserting ValueError for a negative quantity",
       "result": "survived",
       "detecting_tests": [],
+      "observed_failure_reason": "",
+      "contract_violation_observed": false,
       "follow_up": "decision"
     },
     {
@@ -114,6 +120,8 @@
       "expected_detection": "An exact-total assertion at one hundred items",
       "result": "killed",
       "detecting_tests": ["test_bulk_discount_at_one_hundred_items"],
+      "observed_failure_reason": "The exact bulk-tier total assertion observes only the volume discount",
+      "contract_violation_observed": true,
       "follow_up": "none"
     }
   ],
@@ -144,8 +152,22 @@
       "verified": false,
       "details": "The demo represents cohorts and mutants as separate modules"
     },
+    "write_monitor": {
+      "mode": "host-events",
+      "verified": true,
+      "details": "The deterministic demo runner writes no production modules"
+    },
     "mutation_targets": [],
     "write_events": []
+  },
+  "persistent_side_effects": {
+    "authorization": "not-requested",
+    "writes": []
+  },
+  "canonical_output": {
+    "renderer": "socratic/scripts/validate_and_render.py",
+    "sha256": "b0969d56a6fda3228b10cd894eea34db9168791459a0c007945d78c09aaa430c",
+    "extra_prose": false
   },
   "postflight": {
     "primary_written_during_run": false,

@@ -194,6 +194,8 @@ Prefer semantic and omission faults. Use traditional operator mutations only whe
 
 Follow every rule in `references/safety.md`. Capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, mark it with `.socratic-disposable`, and apply the Baseline Policy there. Route every mutation write through the bundled `scripts/isolation_gate.py` `IsolationGate.write_bytes` or `write_text` API; a preflight authorization followed by an unguarded write is prohibited. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism.
 
+Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires verified host read-only protection or a verified write-event monitor.
+
 ### 4. Execute one mutant at a time
 
 For each mutant:
@@ -206,7 +208,7 @@ For each mutant:
 
 Use:
 
-- `killed`: a stable relevant test fails for the intended behavioral reason;
+- `killed`: a stable relevant test fails for the intended behavioral reason, with the observed failure reason recorded and an observable Contract violation confirmed;
 - `survived`: stable relevant tests pass;
 - `invalid`: the mutant cannot exercise the intended risk;
 - `equivalent`: evidence proves no observable contract difference;
@@ -215,11 +217,15 @@ Use:
 
 A compilation failure is not a useful kill unless compilation is the protected contract. Record concrete equivalence evidence. If a mutant changes observable behavior that the contract does not mention, treat it as a missing-invariant candidate and return it to Maieutic; do not classify it as equivalent.
 
+An import, runtime, or environment failure that is compatible with the Contract is not a kill. Classify it as invalid, inconclusive, or not challenged as appropriate; never infer detection from process failure alone.
+
 ### 5. Investigate survivors
 
 Determine whether each survivor is caused by a missing scenario, weak assertion, boundary gap, unobserved side effect or state transition, ambiguous specification, implementation-coupled test, or unreached path.
 
 Return unresolved intent to Maieutic rather than generating an oracle. Persist `needs-decision` and continue only independent confirmed items.
+
+Call the bundled `assert_elenchus_allowed` lifecycle gate before challenging each Contract ID. Stop the mapped oracle when unresolved; do not let an unresolved Contract validate as `tested`.
 
 ### 6. Design and prove tests
 
@@ -259,7 +265,8 @@ Produce the report against the bundled report schema as a temporary run artifact
 - the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), test handoff or `null`, authorized workspace changes, and bidirectional proof;
 - every `not_challenged` Contract ID and reason;
 - unresolved decisions and reduced test scope;
-- isolation evidence with resolved roots, host protection, mutation targets, and write events;
+- isolation evidence with resolved repository and sandbox roots, host protection, write-monitor evidence, mutation targets, and write events;
+- separately authorized persistent side effects and the canonical renderer-output hash;
 - separate postflight facts for primary writes during the run, final hash equality, working-tree status, mutation removal, and sandbox destruction.
 
 Mutation score may be secondary context, never the success criterion. Never equate budget exhaustion with a fully hardened contract.

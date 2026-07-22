@@ -62,7 +62,13 @@
         "properties": {
           "id": { "type": "string", "pattern": "^UNR-[0-9]{3,}$" },
           "statement": { "type": "string", "minLength": 1 },
-          "test_impact": { "type": "string", "minLength": 1 }
+          "test_impact": { "type": "string", "minLength": 1 },
+          "blocked_contract_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
         },
         "additionalProperties": false
       }
@@ -97,7 +103,13 @@
         "id": { "type": "string", "pattern": "^DEC-[0-9]{3,}$" },
         "question": { "type": "string", "minLength": 1 },
         "expected": { "type": "string", "minLength": 1 },
-        "provenance": { "enum": ["user-confirmed", "repository-established"] }
+        "provenance": {
+          "enum": [
+            "user-confirmed",
+            "repository-established",
+            "reviewer-selected-benchmark-assumption"
+          ]
+        }
       },
       "additionalProperties": false
     },
@@ -112,5 +124,15 @@
       "additionalProperties": false
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "unresolved": { "minItems": 1 } }, "required": ["unresolved"] },
+      "then": { "properties": { "status": { "const": "needs-decision" } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "needs-decision" } }, "required": ["status"] },
+      "then": { "properties": { "unresolved": { "minItems": 1 } } }
+    }
+  ],
   "additionalProperties": false
 }
