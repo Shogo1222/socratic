@@ -17,7 +17,7 @@ class AssessmentSchemaTest(unittest.TestCase):
         )
 
     def test_assessment_mode_is_versioned_and_required(self) -> None:
-        self.assertEqual(self.report["properties"]["version"]["const"], 4)
+        self.assertEqual(self.report["properties"]["version"]["const"], 5)
         self.assertIn("assessment", self.report["required"])
         self.assertIn("assessment", self.report["properties"]["mode"]["enum"])
         self.assertIn("assessment", self.result["properties"]["mode"]["enum"])
@@ -36,6 +36,25 @@ class AssessmentSchemaTest(unittest.TestCase):
                 "inconclusive",
             },
         )
+
+    def test_isolation_and_run_time_write_evidence_are_required(self) -> None:
+        self.assertIn("isolation", self.report["required"])
+        isolation = self.report["properties"]["isolation"]
+        self.assertEqual(
+            set(isolation["required"]),
+            {
+                "execution_strategy",
+                "primary_root",
+                "sandbox_root",
+                "host_protection",
+                "mutation_targets",
+                "write_events",
+            },
+        )
+        postflight = self.report["properties"]["postflight"]
+        self.assertIn("primary_written_during_run", postflight["required"])
+        self.assertIn("primary_final_hash_unchanged", postflight["required"])
+        self.assertIn("sandbox_destroyed", postflight["required"])
 
 
 if __name__ == "__main__":

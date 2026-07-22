@@ -36,7 +36,7 @@ The skills permit only the documented read-only Git commands used to collect evi
 
 ## Disposable execution
 
-Base and Head comparisons and mutations run in disposable filesystem snapshots without changing branches or Git worktrees. The snapshot excludes `.git`, caches, dependencies, local environments, and known secret-bearing files. Preflight and postflight evidence verifies that the primary workspace did not change beyond explicitly authorized test paths. Temporary files must be removed on success, failure, timeout, or interruption; cleanup failures are reported with their exact paths.
+Base and Head comparisons and mutations run in disposable filesystem snapshots without changing branches or Git worktrees. The snapshot excludes `.git`, caches, dependencies, local environments, and known secret-bearing files. Each sandbox is explicitly marked disposable, and every mutation write is routed through the bundled Isolation Gate, which canonicalizes the target and rejects primary, out-of-sandbox, traversal, and sandbox-local symlink targets before writing. Postflight records primary writes during the run separately from final hash equality. Temporary files must be removed on success, failure, timeout, or interruption; cleanup failures are reported with their exact paths.
 
 ## Threats considered
 
@@ -50,6 +50,6 @@ Base and Head comparisons and mutations run in disposable filesystem snapshots w
 
 ## Limitations and residual risk
 
-Natural-language instructions are policy controls, not hard technical isolation. A host with broad filesystem or network permissions can still perform actions outside these instructions, and running repository tests executes repository-controlled code. Model behavior is not perfectly deterministic.
+The bundled Isolation Gate mechanically protects writes routed through it, but it cannot prevent a host or agent with broad filesystem access from bypassing the helper. Host-level read-only mounts or equivalent least-privilege enforcement remain required for a complete boundary. Running repository tests also executes repository-controlled code, and model behavior is not perfectly deterministic.
 
 Organizations should enforce least-privilege filesystem access, network egress restrictions, disposable execution, secret isolation, approved model-provider settings, and human review independently of the skill. Use a non-sensitive pilot repository before broader adoption. Report a boundary bypass through the [security policy](../SECURITY.md).

@@ -460,11 +460,11 @@ Socraticはこれらの考え方を接続します。明示的なHuman-confirmed
 
 組織で導入する場合は[セキュリティモデル](docs/ja/security-model.md)をReviewし、[企業向け導入ガイド](docs/ja/enterprise-installation.md)に従ってください。疑わしい脆弱性は[セキュリティポリシー](SECURITY.ja.md)に沿って非公開で報告してください。
 
-Skillは、Git操作、Workspaceへの書き込み、Credential、Repository由来の指示、Disposable Mutation、Cleanupについて検証可能な境界を定義します。これらの自然言語Controlは、OS Sandbox、Network Policy、Provider契約、通常のHuman Reviewに代わるものではありません。
+Skillは、Git操作、Workspaceへの書き込み、Credential、Repository由来の指示、Disposable Mutation、Cleanupについて検証可能な境界を定義します。同梱Isolation Gateを通るMutation書き込みはPathを機械的に検証しますが、Host側のRead-only Mount、Network Policy、Provider契約、通常のHuman Reviewは独立した防御として必要です。
 
 ## 現在の状態
 
-v0.2はリリース済みです。3スキルはピン留めしたGitHub Releaseからインストールでき、StandaloneのTest Assessment Modeが利用可能で、実行時の成果物はSchemaで検証され、CIと自動Releaseのパイプラインが稼働しています。決定的な言語別アダプターと、専用の隔離Mutation Runnerは今後の実装対象です。
+v0.2はリリース済みです。3スキルはピン留めしたGitHub Releaseからインストールでき、StandaloneのTest Assessment ModeとCI・自動Release Pipelineが利用可能です。現在のSourceにはFail-closed Isolation Gate、厳格な実行Artifact検証、Mutation Report v5、正準4ブロックRendererを追加しています。決定的な言語別AdapterとHost側Read-only Adapterは今後の実装対象です。
 
 初期のコントリビューション方針は[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)を参照してください。
 

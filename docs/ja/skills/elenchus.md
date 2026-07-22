@@ -176,7 +176,7 @@ ParentとDiffの最小の振る舞い差をMaieutic経由で提示する。Socra
 
 ### 3. 隔離環境とBaselineを確立する
 
-Safety規則に従い、主要Workspaceの対象範囲についてFilesystem ManifestとContent Hashを記録する。正確な対象状態を含む使い捨てFilesystem Snapshotを作り、**そのSnapshot内で**Baseline Policyを適用する。Git Status、Branch切替、Git Worktreeを隔離や復元へ使わない。
+Safety規則に従い、主要Workspaceの対象範囲についてFilesystem ManifestとContent Hashを記録する。正確な対象状態を含む使い捨てFilesystem Snapshotを作り、`.socratic-disposable`でMarker付けする。すべてのMutation書き込みは同梱`IsolationGate.write_bytes`または`write_text`を通し、認可後に別の無Guard書き込みを行わない。**そのSnapshot内で**Baseline Policyを適用し、Git Status、Branch切替、Git Worktreeを隔離や復元へ使わない。
 
 ### 4. Mutantを1件ずつ実行する
 
@@ -216,13 +216,13 @@ Apply testsでは、明示許可後かつPatch Hash、全ファイルPreconditio
 
 ## レビュアー向けサマリー
 
-発見を正準の4ブロックSurfaceへ、種類ではなく状態で振り分けて提供する。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未挑戦のContract ID・縮小したScope・比較不能だった範囲はStill at Riskへ。各テストに**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかを付ける。Review-onlyのPostflightがPreflightと一致した場合は**今回のReview-only実行中、Working Treeは不変**と報告する。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載する。ファイル・行番号・コメント本文・生成根拠を持つCopy-readyなコメント候補(`Behavior difference`または`Test gap`)を最大1〜3件出し、決して投稿しない。マージ可否、信頼度、スコアを報告しない。
+発見を正準の4ブロックSurfaceへ、種類ではなく状態で振り分けて提供する。各テストに**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかを付ける。Write Ledgerが主要Workspace書き込みなしを示し、最終Hashも一致する場合だけ**今回のReview-only実行中、Working Treeは不変**と報告する。最終Hash一致だけでは不十分とする。提案テストに依存する解決はStill at Riskにも記載し、Copy-readyなコメント候補を最大1〜3件出す。マージ可否、信頼度、スコアを報告しない。
 
 直接のTest Assessment Modeでは、そのWorkflowに定義したStandalone Assessment Surfaceを使う。Socraticから呼び出された場合は、StandaloneのScope質問とSurfaceを抑止し、Socraticの正確なScopeを継承して、Assessment証拠を正準4ブロックへ渡す。
 
 ## Reportの成果物
 
-同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test AssessmentのScope選択・ExistingとChanged Cohort・比較分類・除外Scope(SocraticがCatch・Harden ModeでCohort比較を要求した場合も記録し、Cohort比較を行っていない場合は`null`)、Mutation分類、Catch結果と人間のVerdict、Write Mode、実行基準のDisposition(Preflight時点でexisting・Disposable環境でproposed・今回の実行がapplied)付きの全Test Change、テスト引き渡しまたは`null`、許可されたWorkspace変更、双方向証明、全`not_challenged` ID、未解決判断、縮小Scope、本番Mutationがない実行後証跡を含める。
+同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test Assessment、Mutation分類、Catch結果、Write Mode、Test Change、引き渡し、許可されたWorkspace変更、全`not_challenged` ID、未解決判断に加え、Resolve済みRoot、Host Protection、Mutation Target、Write Eventを含む隔離証跡を記録する。Postflightでは実行中の主要Workspace書き込み、最終Hash一致、Working Tree Status、Mutation除去、Sandbox破棄を別々に記録する。
 
 Mutation Scoreは補助情報であり成功基準ではない。予算切れをContract全体のHardening完了とみなさない。
 

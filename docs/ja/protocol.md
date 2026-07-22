@@ -110,7 +110,7 @@ Standalone AssessmentはReview-onlyで、既定ではTestを作りません。Su
 
 適用成功後はContractとReportをApplied状態へ更新し、正準の4ブロックSurfaceを再描画します。先のReview-only Surfaceは処理方法を選ぶためのContextであり、Apply testsの最終結果ではありません。
 
-テストのDispositionは、周辺の会話やGit HistoryではなくSocratic実行開始時のPreflightを基準にします。Preflight時点で存在するテストは、同じ会話の先の依頼で作成された場合でも`existing`、Disposable環境だけのテストは`proposed`、明示許可された今回の実行が主要Workspaceへ書き込んだテストだけが`applied`です。レビュワー向けの文章では、**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**と明記します。Review-onlyのPostflightが一致した場合は、**今回のReview-only実行中、Working Treeは不変**と報告します。
+テストのDispositionは、周辺の会話やGit HistoryではなくSocratic実行開始時のPreflightを基準にします。Preflight時点で存在するテストは、同じ会話の先の依頼で作成された場合でも`existing`、Disposable環境だけのテストは`proposed`、明示許可された今回の実行が主要Workspaceへ書き込んだテストだけが`applied`です。レビュワー向けの文章では、**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**と明記します。Write Ledgerが実行中の主要Workspace書き込みなしを示し、かつ最終HashがPreflightと一致する場合だけ、**今回のReview-only実行中、Working Treeは不変**と報告します。
 
 ## Oracle選択の境界
 
@@ -143,7 +143,7 @@ Unit Testで観測できないArtifactには、リポジトリが対応する最
 
 ## 安全性の境界
 
-本番コードのMutationは使い捨てWorkspaceだけに存在させます。主要Workspaceへ反映できるのは許可されたテストまたはドキュメント変更だけで、一時的な本番Mutationは反映しません。実行前後の証跡を必須とし、CompileまたはInfrastructure Failureを振る舞い上のKillやCatchとして数えません。
+本番コードのMutationは`.socratic-disposable`でMarker付けした使い捨てWorkspaceだけに存在させます。すべてのMutation書き込みを直前に同梱Isolation Gateへ通し、BackupとRestoreを隔離として認めません。主要Workspaceへ反映できるのは許可されたテストまたはドキュメント変更だけです。Reportでは実行中の主要Workspace書き込みと最終Hash一致を分離し、CompileまたはInfrastructure Failureを振る舞い上のKillやCatchとして数えません。
 
 ## Version Controlの安全性境界
 

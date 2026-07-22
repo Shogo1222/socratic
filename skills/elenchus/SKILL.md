@@ -192,7 +192,7 @@ Prefer semantic and omission faults. Use traditional operator mutations only whe
 
 ### 3. Establish isolation and baseline
 
-Follow every rule in `references/safety.md`. Capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, and apply the Baseline Policy there. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism.
+Follow every rule in `references/safety.md`. Capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, mark it with `.socratic-disposable`, and apply the Baseline Policy there. Route every mutation write through the bundled `scripts/isolation_gate.py` `IsolationGate.write_bytes` or `write_text` API; a preflight authorization followed by an unguarded write is prohibited. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism.
 
 ### 4. Execute one mutant at a time
 
@@ -244,7 +244,7 @@ Discard all mutation sandboxes. Keep only an unresolved `available` test handoff
 
 ## Reviewer-facing summary
 
-Contribute findings to the canonical four-block surface, routed by state, not type: unconfirmed behavior differences and unresolved decisions to Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection to We Verified; unchallenged Contract IDs, reduced scope, and non-comparable ranges to Still at Risk. Attribute every test as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. If Review-only postflight evidence matches preflight, state **Working tree unchanged during this Review-only run**. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. Emit at most one to three copy-ready comment candidates (`Behavior difference` or `Test gap`) with file, line, comment body, and generation evidence; never post them. Never report merge readiness, a confidence level, or a score.
+Contribute findings to the canonical four-block surface, routed by state, not type: unconfirmed behavior differences and unresolved decisions to Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection to We Verified; unchallenged Contract IDs, reduced scope, and non-comparable ranges to Still at Risk. Attribute every test as **existing at run start**, **proposed and proven in disposable workspace**, or **applied by this run after explicit request**. State **Working tree unchanged during this Review-only run** only when the write ledger records no primary write and final hashes match preflight; final hash equality alone is insufficient. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. Emit at most one to three copy-ready comment candidates (`Behavior difference` or `Test gap`) with file, line, comment body, and generation evidence; never post them. Never report merge readiness, a confidence level, or a score.
 
 For direct Test Assessment Mode, use the standalone assessment surface from its workflow. When Socratic invokes Elenchus, suppress the standalone scope question and surface, inherit Socratic's exact scope, and contribute the assessment evidence to the canonical four blocks.
 
@@ -259,7 +259,8 @@ Produce the report against the bundled report schema as a temporary run artifact
 - the write mode, every test change with its run-relative disposition (existing at preflight, proposed in disposable workspace, or applied by this run), test handoff or `null`, authorized workspace changes, and bidirectional proof;
 - every `not_challenged` Contract ID and reason;
 - unresolved decisions and reduced test scope;
-- postflight proof that primary production code is mutation-free.
+- isolation evidence with resolved roots, host protection, mutation targets, and write events;
+- separate postflight facts for primary writes during the run, final hash equality, working-tree status, mutation removal, and sandbox destruction.
 
 Mutation score may be secondary context, never the success criterion. Never equate budget exhaustion with a fully hardened contract.
 

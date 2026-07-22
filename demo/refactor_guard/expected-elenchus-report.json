@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "mode": "catch",
   "write_mode": "review-only",
   "intent_contract": {
@@ -60,9 +60,24 @@
   ],
   "test_handoff": null,
   "authorized_workspace_changes": [],
+  "isolation": {
+    "execution_strategy": "comparison-only",
+    "primary_root": "demo/refactor_guard",
+    "sandbox_root": "separate comparison modules",
+    "host_protection": {
+      "mode": "unavailable",
+      "verified": false,
+      "details": "The demo represents base, head, and probes as separate modules"
+    },
+    "mutation_targets": [],
+    "write_events": []
+  },
   "postflight": {
-    "primary_workspace_matches_preflight": true,
+    "primary_written_during_run": false,
+    "primary_final_hash_unchanged": true,
+    "working_tree_final_status": "clean demo fixture",
     "production_mutation_free": true,
+    "sandbox_destroyed": true,
     "notes": "Demo probes live as a separate module; base.py and head.py are never edited"
   }
 }

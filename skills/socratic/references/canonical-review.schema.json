@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Canonical Socratic Review",
+  "type": "object",
+  "required": ["review_this", "we_verified", "still_at_risk", "copy_ready_comments"],
+  "properties": {
+    "review_this": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "we_verified": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "still_at_risk": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "copy_ready_comments": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["tag", "file", "line", "body", "evidence"],
+        "properties": {
+          "tag": { "enum": ["Intent decision", "Behavior difference", "Test gap"] },
+          "file": { "type": "string", "minLength": 1 },
+          "line": { "type": "integer", "minimum": 1 },
+          "body": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

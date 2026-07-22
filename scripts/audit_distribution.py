@@ -24,6 +24,7 @@ EXPECTED_FILES = (
     "elenchus/references/safety.md",
     "elenchus/references/test-handoff.md",
     "elenchus/references/test-handoff.schema.json",
+    "elenchus/scripts/isolation_gate.py",
     "maieutic/SKILL.md",
     "maieutic/agents/openai.yaml",
     "maieutic/references/intent-contract.md",
@@ -31,8 +32,10 @@ EXPECTED_FILES = (
     "maieutic/references/qa-techniques.md",
     "socratic/SKILL.md",
     "socratic/agents/openai.yaml",
+    "socratic/references/canonical-review.schema.json",
+    "socratic/scripts/validate_and_render.py",
 )
-ALLOWED_EXTENSIONS = {".json", ".md", ".yaml"}
+ALLOWED_EXTENSIONS = {".json", ".md", ".py", ".yaml"}
 ALLOWED_URL_HOSTS = {"json-schema.org"}
 URL_PATTERN = re.compile(r"https?://[^\s<>()\[\]{}\"']+")
 REQUIRED_SAFETY_TEXT = {
@@ -62,11 +65,21 @@ REQUIRED_SAFETY_TEXT = {
         "Never invoke `gh`",
         "excluding repository metadata, caches, secrets, and dependencies",
     ),
+    "elenchus/scripts/isolation_gate.py": (
+        "mutation target is outside sandbox",
+        "mutation target is inside primary workspace",
+        ".socratic-disposable",
+    ),
     "elenchus/references/test-handoff.md": (
         "Never include production or documentation edits in the patch.",
         "If any precondition differs, do not force the patch.",
         "Reject absolute paths, backslashes, `..` traversal, symlink targets",
         "Treat no answer as Discard.",
+    ),
+    "socratic/scripts/validate_and_render.py": (
+        "Validate Socratic run artifacts",
+        "render exactly the canonical four blocks",
+        "Review-only report records a primary workspace write",
     ),
 }
 

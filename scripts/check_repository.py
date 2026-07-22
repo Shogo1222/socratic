@@ -23,6 +23,9 @@ SCHEMA_MIRRORS = {
     "schemas/test-handoff.schema.json": (
         "skills/elenchus/references/test-handoff.schema.json",
     ),
+    "schemas/canonical-review.schema.json": (
+        "skills/socratic/references/canonical-review.schema.json",
+    ),
 }
 
 TRANSLATION_PAIRS = {
