@@ -213,8 +213,7 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .expectation-node { color: #e9eef5; background: var(--blue); border-color: var(--blue); }
 .expectation-node > span { color: #c9def2; }
 .expectation-node > small { margin-top: 22px; color: #bfd2e5; font: 700 8px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-.map-arrow { display: grid; place-items: center; gap: 8px; color: var(--orange); }
-.map-arrow small { color: var(--muted); font: 800 7px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .13em; }
+.map-arrow { display: grid; place-items: center; color: var(--orange); }
 .map-arrow b { font-size: 22px; }
 
 .section { padding: 120px 0; }
