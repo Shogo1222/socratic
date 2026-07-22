@@ -1,0 +1,67 @@
+# 企業向け導入ガイド
+
+[English](../enterprise-installation.md)
+
+このGuideは、組織管理のPCでSocraticを利用するための承認Checklistです。勤務先のSecurity、Legal、Procurement、AI利用Policyに代わるものではありません。
+
+## Install前の確認
+
+組織の責任者と次の項目をすべて確認してください。
+
+- Host AgentとGitHub CLIが承認済みである
+- Model Providerとの契約、Data Retention、学習利用、処理Regionの設定が対象RepositoryのSource Codeを許容する
+- Pilot Repositoryに本番Credentialや規制対象Dataが含まれない
+- Filesystem AccessとNetwork Egressが最小権限である
+- Test Commandを本番Accessや課金を伴う副作用なしにDisposable環境で実行できる
+- [セキュリティモデル](security-model.md)と[セキュリティポリシー](../../SECURITY.ja.md)をReview済みである
+
+## Releaseの検証
+
+Immutableな公開Releaseを使い、Installする正確なTagを固定してください。以下の`v0.2.0`は、承認済みReleaseへ置き換えます。
+
+```bash
+gh release verify v0.2.0 --repo Shogo1222/socratic
+gh release download v0.2.0 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
+```
+
+Install前にFileと権限をPreviewします。
+
+```bash
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.2.0
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.2.0
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
+```
+
+想定する配布物は14個のText Fileであり、実行可能File、Binary、Symbolic Linkを含みません。PreviewをReleaseのManifestとChecksumと比較してください。
+
+## Project ScopeでのInstall
+
+現在のProjectだけへInstallします。
+
+```bash
+GH_TELEMETRY=false gh skill install Shogo1222/socratic \
+  --all \
+  --agent codex \
+  --scope project \
+  --pin v0.2.0
+```
+
+Project Scopeが制限するのはSkill FileのInstall先です。Host Agentが読める範囲や、Model ProviderへSource Codeが送信されるかどうかは制限しません。それらはHost、OS、Network、組織Accountで制御してください。
+
+## Pilot Checklist
+
+1. 本番Credentialを持たない、機密情報を含まないRepositoryから始めます。
+2. 既定のReview-only ModeでSocraticを実行します。
+3. Working Treeが変更されず、明示的な保存選択なしに`.socratic/` Artifactが作られないことを確認します。
+4. Git Write、Code Host Write、外部Serviceへ接続するTest、Credentialを含むCommandがBlockedになることを確認します。
+5. Review This、We Verified、Still at Risk、Copy-ready Commentsの4部構成の結果を確認します。
+6. 中断・失敗経路を試し、一時Pathが削除されるか、削除失敗として報告されることを確認します。
+7. 承認したTagとChecksumを組織のSoftware Inventoryへ記録します。
+
+Apply testsは、TeamがReview-onlyの挙動を確認し、Test変更を明示依頼した後だけ利用してください。適用されたすべての変更には通常のCode Reviewを継続してください。
+
+## Update
+
+組織利用では移動するBranchを参照しないでください。新しいTagごとにChangelog、Security Impact、Release Manifest、ChecksumをReviewし、承認Versionを変更する前にPreviewとPilot確認を繰り返してください。
+
+Skillを削除する場合は、CommandがInstallしたProject Scopeの3つのSkill Directory `socratic`、`maieutic`、`elenchus`について、解決済みのPathを確認してから、そのDirectoryだけを削除してください。より広いAgent DirectoryやProject Directoryを再帰削除しないでください。
