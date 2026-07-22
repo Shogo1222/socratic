@@ -188,8 +188,9 @@ h1 span { color: var(--orange); }
 h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .balanced-heading { font-size: clamp(38px, 4vw, 54px); overflow-wrap: normal; word-break: keep-all; }
 .balanced-heading span { display: block; white-space: nowrap; }
-.problem-heading { font-size: clamp(40px, 5vw, 68px); }
-.green-word { color: #2f8f5b; font-style: normal; }
+.problem-heading { font-size: clamp(36px, 4.3vw, 58px); }
+.problem-heading span + span { margin-top: .08em; }
+.green-word { color: #2f8f5b; font-style: italic; }
 .problem-copy { padding-top: 34px; color: #464f5a; font-size: 16px; }
 .problem-copy p { margin: 0 0 20px; }
 .problem-answer { padding-left: 20px; border-left: 3px solid var(--orange); color: var(--ink); font-weight: 800; }
@@ -401,7 +402,7 @@ footer { padding: 58px 0; }
   .product-headline strong { margin-top: 10px; font-size: clamp(39px, 10.5vw, 51px); }
   .hero-lead { font-size: 15px; }
   .balanced-heading { font-size: clamp(32px, 10vw, 44px); }
-  .problem-heading { font-size: clamp(34px, 10.5vw, 48px); }
+  .problem-heading { font-size: clamp(31px, 9vw, 42px); }
   .hero-actions { align-items: stretch; flex-direction: column; }
   .button { width: 100%; }
   .review-card { transform: none; }
