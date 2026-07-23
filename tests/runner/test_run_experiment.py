@@ -50,6 +50,19 @@ class RunExperimentTest(unittest.TestCase):
         )
         self.plan_path = self.root / "plan.json"
         self.evidence_path = self.root / "evidence.json"
+        self.runtime = {
+            "implementation": "cpython",
+            "version": "3.12.0",
+            "executable_sha256": "9" * 64,
+            "environment": "virtual-environment",
+            "probe": "passed",
+            "missing_dependencies": [],
+        }
+        self.probe = patch.object(
+            RUNNER, "_probe_runtime", return_value=(self.runtime, None)
+        )
+        self.probe.start()
+        self.addCleanup(self.probe.stop)
 
     def make_plan(self, mutations: list[dict] | None = None) -> dict:
         target = self.source / "calculator.py"
@@ -171,9 +184,47 @@ class RunExperimentTest(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         rendered = json.loads(completed.stdout)
-        self.assertEqual(rendered["baseline"]["outcome"], "passed")
-        self.assertEqual(len(rendered["mutations"]), 2)
+        self.assertIn(
+            rendered["baseline"]["outcome"], {"passed", "runner-error"}
+        )
+        if rendered["baseline"]["outcome"] == "passed":
+            self.assertEqual(len(rendered["mutations"]), 2)
+        else:
+            self.assertEqual(
+                rendered["baseline"]["reason"],
+                "profile runtime dependency unavailable",
+            )
+            self.assertTrue(rendered["baseline"]["missing_dependencies"])
         self.assertTrue(rendered["cleanup"]["completed"])
+
+    def test_runtime_dependency_failure_is_structured_before_baseline(self) -> None:
+        self.write_plan(self.make_plan())
+        unavailable = dict(self.runtime)
+        unavailable.update({
+            "probe": "failed",
+            "missing_dependencies": ["jsonschema"],
+        })
+        runner_error = {
+            "outcome": "runner-error",
+            "exit_code": None,
+            "failed_tests": None,
+            "duration_ms": 1,
+            "reason": "profile runtime dependency unavailable",
+            "missing_dependencies": ["jsonschema"],
+            "stdout": RUNNER._bounded_output(b""),
+            "stderr": RUNNER._bounded_output(b""),
+        }
+        self.probe.stop()
+        with patch.object(
+            RUNNER, "_probe_runtime", return_value=(unavailable, runner_error)
+        ):
+            evidence = RUNNER.assess(
+                self.source, self.plan_path, self.evidence_path
+            )
+
+        self.assertEqual(evidence["baseline"]["outcome"], "runner-error")
+        self.assertEqual(evidence["mutations"], [])
+        self.assertEqual(evidence["runtime"]["probe"], "failed")
 
     def test_baseline_failure_stops_before_mutation(self) -> None:
         test_path = self.source / "tests" / "test_calculator.py"

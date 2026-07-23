@@ -41,6 +41,8 @@ Invoke the prototype through the existing guarded entrypoint:
 
 Set Source and target preimage identities to `runner-computed` for the normal one-call path. The Runner writes Evidence create-once; the agent must not create or edit `evidence-bundle.json`.
 
+The injected Python must pass the isolated runtime dependency probe. A user-site installation that disappears with sanitized `HOME` is not accepted as a trusted runtime. When the probe fails, inspect `runtime.missing_dependencies` and `baseline.reason`; do not interpret the result as a failed behavioral test.
+
 ## Later profiles
 
 Pytest and Node profiles require their own typed selection schemas and parsers. Do not emulate them through a custom argv field. A custom profile is permitted only after a Host-mediated human approval protocol and signed Profile digest exist.

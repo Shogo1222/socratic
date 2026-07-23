@@ -41,6 +41,8 @@ Prototypeは既存のGuarded Entrypointから呼び出す。
 
 通常の1回呼び出しでは、SourceとTarget Preimage Identityに`runner-computed`を指定する。EvidenceはRunnerがCreate-onceで書き込み、Agentは`evidence-bundle.json`を作成・編集してはならない。
 
+注入されたPythonは隔離Runtime Dependency Probeに成功しなければならない。Sanitized `HOME`で見えなくなるUser Site InstallationはTrusted Runtimeとして受理しない。Probe失敗時は`runtime.missing_dependencies`と`baseline.reason`を確認し、Behavioral Test Failureとして解釈しない。
+
 ## 後続Profile
 
 PytestとNode Profileには、それぞれ固有の型付きSelection SchemaとParserが必要である。Custom argv Fieldで代用しない。Custom Profileは、Hostを介した人間の承認Protocolと署名済みProfile Digestが存在した後だけ許可する。

@@ -18,14 +18,23 @@ def output(digest: str = "f" * 64) -> dict:
 
 
 def execution(*, outcome: str = "passed", failed_tests: list[str] | None = None) -> dict:
-    return {
+    result = {
         "outcome": outcome,
-        "exit_code": 0 if outcome == "passed" else 1,
+        "exit_code": (
+            0 if outcome == "passed"
+            else None if outcome in {"timeout", "runner-error"}
+            else 1
+        ),
         "failed_tests": [] if failed_tests is None else failed_tests,
         "duration_ms": 1,
         "stdout": output(),
         "stderr": output(),
     }
+    if outcome == "runner-error":
+        result["reason"] = "profile runtime dependency unavailable"
+        result["missing_dependencies"] = ["jsonschema"]
+        result["failed_tests"] = None
+    return result
 
 
 def plan() -> dict:
@@ -73,8 +82,16 @@ def evidence() -> dict:
         "round": "ROUND-001",
         "source": {"sha256": "b" * 64},
         "plan_sha256": "c" * 64,
-        "runner": {"version": "0.4.0-alpha.2", "sha256": "d" * 64},
+        "runner": {"version": "0.4.0-alpha.3", "sha256": "d" * 64},
         "profile": {"name": "python-unittest", "digest": "e" * 64},
+        "runtime": {
+            "implementation": "cpython",
+            "version": "3.12.0",
+            "executable_sha256": "9" * 64,
+            "environment": "virtual-environment",
+            "probe": "passed",
+            "missing_dependencies": [],
+        },
         "backend": {"kind": "local-copy", "attested": False},
         "baseline": execution(),
         "mutations": [
@@ -170,6 +187,14 @@ class NarrowRunnerSchemaTest(unittest.TestCase):
         inconsistent["baseline"]["outcome"] = "passed"
         inconsistent["baseline"]["exit_code"] = 1
         self.assert_invalid(inconsistent, "evidence-bundle.schema.json")
+
+    def test_accepts_structured_runtime_dependency_failure(self) -> None:
+        unavailable = evidence()
+        unavailable["runtime"]["probe"] = "failed"
+        unavailable["runtime"]["missing_dependencies"] = ["jsonschema"]
+        unavailable["baseline"] = execution(outcome="runner-error")
+        unavailable["mutations"] = []
+        self.validate(unavailable, "evidence-bundle.schema.json")
 
     def test_local_copy_cannot_claim_attestation_or_signature(self) -> None:
         claimed = evidence()
