@@ -180,7 +180,9 @@ Safety規則に従い、主要Workspaceの対象範囲についてFilesystem Man
 
 Socraticから呼ばれた場合は、信頼されたHost Adapter APIが発行したReady Manifestだけを受け入れる。各Mutationを`mutate`または`register_prebuilt`へ通し、同じMutation IDを付けた`phase=mutation`の`execute`でTestを行う。別の成功Baseline実行も必須とする。Host連携、保護Storage、受理済みHost Protection Attestation、Phase付き実行のいずれかがなければMutationせず`blocked`を返す。
 
-Primary Rootは変更Packageではなく、それを含むGit Repository Rootへ解決する。Repository内へ解決するSandbox Symlinkはすべて拒否する。Test Cache、一時Directory、Framework出力はSandbox内へ置く。`primary_written_during_run: false`の主張には、HostがAttestしたRead-only保護またはWrite-event Monitorが必要である。Schema v7の`verified: true`はそのHost Assertionの受理を記録するもので、Runnerによる独立したOS検証ではない。
+Raw Command Outcomeと解釈を分離する。Nonzero ExitだけではBehavioral Killとしない。Assertion Evidenceが対象Contract違反を示す場合だけ`outcome_interpretation.kind`を`behavioral-failure`とする。Infrastructure Failure、Process Crash、Timeout、Unparseable Outputは該当Kindを記録し、Mutationを`inconclusive`と分類する。
+
+Primary Rootは変更Packageではなく、それを含むGit Repository Rootへ解決する。Repository内へ解決するSandbox Symlinkはすべて拒否する。Test Cache、一時Directory、Framework出力はSandbox内へ置く。`primary_written_during_run: false`の主張には、HostがAttestしたRead-only保護またはWrite-event Monitorが必要である。Schema v8の`verified: true`はそのHost Assertionの受理を記録するもので、Runnerによる独立したOS検証ではない。
 
 ### 4. Mutantを1件ずつ実行する
 

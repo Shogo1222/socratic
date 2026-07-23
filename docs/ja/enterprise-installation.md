@@ -42,7 +42,7 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 
 <!-- socratic-distribution-file-count: 25 -->
 <!-- socratic-plugin-file-count: 45 -->
-Standalone Skill配布物は25個のUTF-8 Text Fileで、そのうち3個はPython Source Helperで、分析Draft SchemaとそのLocal Mutation Report v7依存も含みます。監査対象Multi-Host Plugin Component SetはClaude Code・Codex・ローカルCursor Desktop統合とPlugin管理Python Runtime Bootstrapを含む45個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Source Checkoutには追加のRepository Level Fileが含まれますが、それらは45 Fileの監査対象Plugin Release Assetには含まれません。HelperにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。配布Auditの「実行可能」拒否は、具体的にはPOSIXの`0o111` Execute-bit Maskを検査します。監査対象配布物にBinaryやSymbolic Linkは含まれません。PreviewをReleaseのManifestとChecksumと比較してください。
+Standalone Skill配布物は25個のUTF-8 Text Fileで、そのうち3個はPython Source Helperで、分析Draft SchemaとそのLocal Mutation Report v8依存も含みます。監査対象Multi-Host Plugin Component SetはClaude Code・Codex・ローカルCursor Desktop統合とPlugin管理Python Runtime Bootstrapを含む45個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Source Checkoutには追加のRepository Level Fileが含まれますが、それらは45 Fileの監査対象Plugin Release Assetには含まれません。HelperにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。配布Auditの「実行可能」拒否は、具体的にはPOSIXの`0o111` Execute-bit Maskを検査します。監査対象配布物にBinaryやSymbolic Linkは含まれません。PreviewをReleaseのManifestとChecksumと比較してください。
 
 Managed Codex導入では、ユーザーが変更できるPlugin Hook Trustへ依存しません。OS管理のAbsolute PathからPre-agent Gateを`requirements.toml`で配布し、`[features].hooks = true`を強制し、`allow_managed_hooks_only = true`を設定してください。対象環境でManaged Host IntegrationとReady-run Capability Pathを検証するまで、v0.3.0 Alphaを完成扱いにしません。
 

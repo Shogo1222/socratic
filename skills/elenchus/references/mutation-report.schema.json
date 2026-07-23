@@ -16,13 +16,14 @@
     "test_changes",
     "test_handoff",
     "authorized_workspace_changes",
+    "execution_evidence",
     "isolation",
     "persistent_side_effects",
     "canonical_output",
     "postflight"
   ],
   "properties": {
-    "version": { "const": 7 },
+    "version": { "const": 8 },
     "mode": { "enum": ["assessment", "harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
     "run": {
@@ -173,6 +174,52 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
+    },
+    "execution_evidence": {
+      "type": "object",
+      "required": ["source", "baseline", "mutations"],
+      "properties": {
+        "source": { "const": "host-ledger" },
+        "baseline": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["attempt", "outcome", "exit_code"],
+            "properties": {
+              "attempt": { "type": "integer", "minimum": 1 },
+              "outcome": { "enum": ["passed", "failed", "timeout"] },
+              "exit_code": {
+                "oneOf": [
+                  { "type": "integer" },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "mutations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mutation_id", "attempt", "outcome", "exit_code"],
+            "properties": {
+              "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+              "attempt": { "type": "integer", "minimum": 1 },
+              "outcome": { "enum": ["passed", "failed", "timeout"] },
+              "exit_code": {
+                "oneOf": [
+                  { "type": "integer" },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "isolation": {
       "type": "object",

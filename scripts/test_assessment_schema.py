@@ -17,7 +17,7 @@ class AssessmentSchemaTest(unittest.TestCase):
         )
 
     def test_assessment_mode_is_versioned_and_required(self) -> None:
-        self.assertEqual(self.report["properties"]["version"]["const"], 7)
+        self.assertEqual(self.report["properties"]["version"]["const"], 8)
         self.assertIn("run", self.report["required"])
         self.assertIn("assessment", self.report["required"])
         self.assertIn("assessment", self.report["properties"]["mode"]["enum"])
@@ -61,13 +61,25 @@ class AssessmentSchemaTest(unittest.TestCase):
     def test_killed_result_requires_contract_violation_attribution(self) -> None:
         self.assertIn("observed_failure_reason", self.result["required"])
         self.assertIn("contract_violation_observed", self.result["required"])
-        killed_rule = self.result["allOf"][2]["then"]["properties"]
+        killed_rule = next(
+            rule["then"]["properties"]
+            for rule in self.result["allOf"]
+            if "contract_violation_observed"
+            in rule.get("then", {}).get("properties", {})
+        )
         self.assertEqual(killed_rule["contract_violation_observed"]["const"], True)
         self.assertEqual(killed_rule["observed_failure_reason"]["minLength"], 1)
 
     def test_report_requires_canonical_and_persistent_side_effect_ledgers(self) -> None:
         self.assertIn("canonical_output", self.report["required"])
         self.assertIn("persistent_side_effects", self.report["required"])
+        self.assertIn("execution_evidence", self.report["required"])
+        self.assertEqual(
+            self.report["properties"]["execution_evidence"]["properties"]["source"][
+                "const"
+            ],
+            "host-ledger",
+        )
 
 
 if __name__ == "__main__":

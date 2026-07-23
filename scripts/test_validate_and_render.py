@@ -207,6 +207,31 @@ class ValidateAndRenderTest(unittest.TestCase):
         )
         validate_and_render.validate_with_schemas(contract, report, review, ROOT / "schemas")
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("jsonschema") and importlib.util.find_spec("referencing"),
+        "schema validation dependencies unavailable",
+    )
+    def test_schema_rejects_infrastructure_failure_claimed_as_killed(self) -> None:
+        report = json.loads(
+            (
+                ROOT
+                / "demo"
+                / "subscription_renewal"
+                / "expected-elenchus-report.json"
+            ).read_text(encoding="utf-8")
+        )
+        mutation = report["mutations"][0]
+        mutation["outcome_interpretation"] = {
+            "kind": "infrastructure-failure",
+            "reason": "The test runner failed before collecting assertions.",
+        }
+        with self.assertRaisesRegex(
+            validate_and_render.ArtifactError, "behavioral-failure"
+        ):
+            validate_and_render.validate_document(
+                mutation, "mutation-result.schema.json", ROOT / "schemas"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

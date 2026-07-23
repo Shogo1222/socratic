@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "run": {
     "id": "33333333333333333333333333333333",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -28,9 +28,15 @@
   "assessment": {
     "selected_scope": "current-change",
     "selection_reason": "The diff changes only the pricing tests, so existing and changed cohorts around pricing.py are compared",
-    "production_files": ["demo/test_assessment/pricing.py"],
-    "existing_tests": ["demo/test_assessment/tests_existing.py"],
-    "changed_tests": ["demo/test_assessment/tests_changed.py"],
+    "production_files": [
+      "demo/test_assessment/pricing.py"
+    ],
+    "existing_tests": [
+      "demo/test_assessment/tests_existing.py"
+    ],
+    "changed_tests": [
+      "demo/test_assessment/tests_changed.py"
+    ],
     "excluded_scope": [],
     "comparisons": [
       {
@@ -63,7 +69,9 @@
     {
       "id": "MUT-001",
       "mode": "assessment",
-      "contract_ids": ["INV-001"],
+      "contract_ids": [
+        "INV-001"
+      ],
       "source_intent": "The volume discount starts at exactly ten items",
       "changed_intent": "The volume discount starts at eleven items",
       "represented_risk": "Customers at the advertised threshold are overcharged",
@@ -76,12 +84,18 @@
       "detecting_tests": [],
       "observed_failure_reason": "",
       "contract_violation_observed": false,
-      "follow_up": "decision"
+      "follow_up": "decision",
+      "outcome_interpretation": {
+        "kind": "passed",
+        "reason": "The guarded test command completed successfully."
+      }
     },
     {
       "id": "MUT-002",
       "mode": "assessment",
-      "contract_ids": ["INV-001"],
+      "contract_ids": [
+        "INV-001"
+      ],
       "source_intent": "Ten or more items receive the 10% volume discount",
       "changed_intent": "No volume discount exists",
       "represented_risk": "Every volume customer is overcharged",
@@ -91,15 +105,23 @@
       "code_location": "demo/test_assessment/pricing.py:total_price",
       "expected_detection": "Any assertion that observes a discounted volume total",
       "result": "killed",
-      "detecting_tests": ["test_volume_orders_get_some_discount"],
+      "detecting_tests": [
+        "test_volume_orders_get_some_discount"
+      ],
       "observed_failure_reason": "The changed cohort observes a full-price total instead of the volume discount",
       "contract_violation_observed": true,
-      "follow_up": "none"
+      "follow_up": "none",
+      "outcome_interpretation": {
+        "kind": "behavioral-failure",
+        "reason": "The changed cohort observes a full-price total instead of the volume discount"
+      }
     },
     {
       "id": "MUT-003",
       "mode": "assessment",
-      "contract_ids": ["INV-003"],
+      "contract_ids": [
+        "INV-003"
+      ],
       "source_intent": "A negative quantity is rejected",
       "changed_intent": "A negative quantity silently produces a negative total",
       "represented_risk": "Refund-like totals from malformed input",
@@ -112,12 +134,18 @@
       "detecting_tests": [],
       "observed_failure_reason": "",
       "contract_violation_observed": false,
-      "follow_up": "decision"
+      "follow_up": "decision",
+      "outcome_interpretation": {
+        "kind": "passed",
+        "reason": "The guarded test command completed successfully."
+      }
     },
     {
       "id": "MUT-004",
       "mode": "assessment",
-      "contract_ids": ["INV-002"],
+      "contract_ids": [
+        "INV-002"
+      ],
       "source_intent": "One hundred or more items receive the 20% bulk discount",
       "changed_intent": "Bulk orders only ever receive the 10% discount",
       "represented_risk": "Large customers are overcharged",
@@ -127,14 +155,22 @@
       "code_location": "demo/test_assessment/pricing.py:total_price",
       "expected_detection": "An exact-total assertion at one hundred items",
       "result": "killed",
-      "detecting_tests": ["test_bulk_discount_at_one_hundred_items"],
+      "detecting_tests": [
+        "test_bulk_discount_at_one_hundred_items"
+      ],
       "observed_failure_reason": "The exact bulk-tier total assertion observes only the volume discount",
       "contract_violation_observed": true,
-      "follow_up": "none"
+      "follow_up": "none",
+      "outcome_interpretation": {
+        "kind": "behavioral-failure",
+        "reason": "The exact bulk-tier total assertion observes only the volume discount"
+      }
     }
   ],
   "not_challenged": [],
-  "unresolved": ["UNR-001"],
+  "unresolved": [
+    "UNR-001"
+  ],
   "test_changes": [
     {
       "name": "test_small_order_pays_full_price",
@@ -184,5 +220,41 @@
     "production_mutation_free": true,
     "sandbox_destroyed": true,
     "notes": "Cohorts and mutants are separate modules; pricing.py is never edited. Baseline and mutation results record the changed cohort; existing-cohort outcomes live in assessment.comparisons"
+  },
+  "execution_evidence": {
+    "source": "host-ledger",
+    "baseline": [
+      {
+        "attempt": 1,
+        "outcome": "passed",
+        "exit_code": 0
+      }
+    ],
+    "mutations": [
+      {
+        "mutation_id": "MUT-001",
+        "attempt": 1,
+        "outcome": "passed",
+        "exit_code": 0
+      },
+      {
+        "mutation_id": "MUT-002",
+        "attempt": 1,
+        "outcome": "failed",
+        "exit_code": 1
+      },
+      {
+        "mutation_id": "MUT-003",
+        "attempt": 1,
+        "outcome": "passed",
+        "exit_code": 0
+      },
+      {
+        "mutation_id": "MUT-004",
+        "attempt": 1,
+        "outcome": "failed",
+        "exit_code": 1
+      }
+    ]
   }
 }
