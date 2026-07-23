@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 import json
 import re
+import stat
 import sys
 from pathlib import Path
 
-from audit_distribution import EXPECTED_FILES
+from audit_distribution import EXPECTED_FILES, EXPECTED_PLUGIN_FILES
 
 
 ROOT = Path(__file__).resolve().parent.parent
 JAPANESE = re.compile(r"[ぁ-んァ-ヶ一-龠]")
 SEMVER = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
 EXPECTED_DISTRIBUTION_FILE_COUNT = len(EXPECTED_FILES)
+EXPECTED_PLUGIN_FILE_COUNT = len(EXPECTED_PLUGIN_FILES)
 DISTRIBUTION_COUNT_DOCUMENTS = (
     "docs/security-model.md",
     "docs/ja/security-model.md",
@@ -93,6 +95,8 @@ def check_distribution_documentation() -> None:
         f"<!-- socratic-distribution-file-count: {EXPECTED_DISTRIBUTION_FILE_COUNT} -->"
     )
     marker_pattern = re.compile(r"<!-- socratic-distribution-file-count: ([0-9]+) -->")
+    expected_plugin_marker = f"<!-- socratic-plugin-file-count: {EXPECTED_PLUGIN_FILE_COUNT} -->"
+    plugin_marker_pattern = re.compile(r"<!-- socratic-plugin-file-count: ([0-9]+) -->")
     for relative in DISTRIBUTION_COUNT_DOCUMENTS:
         text = (ROOT / relative).read_text(encoding="utf-8")
         markers = marker_pattern.findall(text)
@@ -101,6 +105,51 @@ def check_distribution_documentation() -> None:
                 f"documented distribution file count is stale: {relative} "
                 f"(expected {EXPECTED_DISTRIBUTION_FILE_COUNT})"
             )
+        plugin_markers = plugin_marker_pattern.findall(text)
+        if plugin_markers != [str(EXPECTED_PLUGIN_FILE_COUNT)] or text.count(expected_plugin_marker) != 1:
+            fail(
+                f"documented Plugin file count is stale: {relative} "
+                f"(expected {EXPECTED_PLUGIN_FILE_COUNT})"
+            )
+
+
+def check_plugin_gate() -> None:
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
+    if manifest.get("name") != "socratic":
+        fail("plugin name must be socratic")
+    if manifest.get("version") != version:
+        fail("plugin version must match VERSION")
+    if manifest.get("skills") != "./skills/":
+        fail("plugin must bundle the repository skills directory")
+    if manifest.get("hooks") != "./hooks/hooks.json":
+        fail("plugin must declare the pre-agent hooks manifest")
+
+    hooks_path = ROOT / "hooks/hooks.json"
+    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
+    try:
+        groups = hooks["hooks"]["UserPromptSubmit"]
+        handlers = groups[0]["hooks"]
+        handler = handlers[0]
+    except (KeyError, IndexError, TypeError):
+        fail("plugin must define exactly one UserPromptSubmit gate")
+    if len(groups) != 1 or len(handlers) != 1:
+        fail("plugin must define exactly one UserPromptSubmit gate")
+    if handler.get("type") != "command" or handler.get("command") != (
+        'python3 "$PLUGIN_ROOT/hooks/socratic_preflight.py"'
+    ):
+        fail("plugin UserPromptSubmit gate must invoke the bundled preflight hook")
+
+    hook_script = ROOT / "hooks/socratic_preflight.py"
+    if not hook_script.is_file():
+        fail("plugin preflight hook is missing")
+    if stat.S_IMODE(hook_script.stat().st_mode) & 0o111:
+        fail("plugin preflight hook must not have a POSIX execute bit")
+    hook_script.read_text(encoding="utf-8")
+
+    metadata = (ROOT / "skills/socratic/agents/openai.yaml").read_text(encoding="utf-8")
+    if "allow_implicit_invocation: false" not in metadata:
+        fail("Socratic must disable implicit invocation so the Host hook can identify every run")
 
 
 def check_schema_references() -> None:
@@ -181,6 +230,7 @@ def check_skill_structure() -> None:
 def main() -> int:
     check_release_version()
     check_distribution_documentation()
+    check_plugin_gate()
     check_schema_mirrors()
     check_schema_references()
     check_translations()

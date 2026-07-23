@@ -88,6 +88,8 @@ Before executing a repository-defined command, inspect the command and the scrip
 
 ### Mandatory Review-only entrypoint
 
+Enter this workflow only after a native Host integration has completed trusted preflight. The Codex Plugin's pre-agent hook terminates ordinary no-Host requests before this Skill is loaded; a standalone Skill installation is not a compliant Socratic entrypoint.
+
 Every Review-only mutation run must use the trusted Host Adapter integration for `preflight_with_host`, each guarded `mutate` or `register_prebuilt`, a baseline `execute`, every mutation-specific `execute`, and `finish`. The standalone CLI cannot create a ready run and always returns `blocked`; self-asserted attestation JSON is never accepted. If the Host Adapter, schema, or Host-attested read-only/write-monitor capability is unavailable, stop before running any mutation. In schema v7, `verified: true` means that the Runner accepted the trusted Host's attestation, not that the Runner independently verified the OS boundary. Manual approximation, direct Primary mutation followed by restoration, repository commands outside `execute`, hand-written artifacts, and hand-written four-block output are non-compliant and must never be presented as a Socratic run.
 
 If standalone preflight returns `status=blocked`, execute exactly this terminal sequence and no alternative workflow:

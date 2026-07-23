@@ -39,17 +39,21 @@ Socratic lets a reviewer grasp four things quickly:
 
 ## Installation
 
-Install the three skills with the GitHub CLI:
+For the v0.3.0 integration preview on Codex, install the Plugin rather than the standalone Socratic Skill. The Plugin bundles a `UserPromptSubmit` Host hook that stops an explicit Socratic request before the agent starts when no native trusted Host Adapter is available. Install the signed Plugin bundle through an approved marketplace once that marketplace entry is published; the source repository does not auto-register itself in personal or organizational marketplaces.
+
+Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
+
+The standalone Agent Skills remain available for Maieutic and Elenchus development, but installing `$socratic` alone does not provide the pre-agent safety boundary:
 
 ```bash
-# choose skills interactively
+# choose standalone skills interactively
 gh skill install Shogo1222/socratic
 
-# install everything without prompts
+# install all standalone skills without prompts
 gh skill install Shogo1222/socratic --all
 
-# pin to a published release
-gh skill install Shogo1222/socratic --all --pin v0.2.8
+# pin standalone resources to an integration-preview release
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.1
 ```
 
 Or with the open Agent Skills CLI:

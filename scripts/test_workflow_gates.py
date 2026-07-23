@@ -190,6 +190,11 @@ class TerminalBlockedPreflightTest(unittest.TestCase):
         for rule in japanese_rules:
             self.assertIn(rule, japanese)
 
+    def test_release_packages_plugin_gate_and_marks_prereleases(self) -> None:
+        workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.assertIn("socratic-plugin-$TAG.zip", workflow)
+        self.assertIn("--prerelease", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

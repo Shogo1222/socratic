@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -46,7 +47,8 @@ class DistributionDocumentationTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             count = counts.get(relative, 21)
             path.write_text(
-                f"<!-- socratic-distribution-file-count: {count} -->\n",
+                f"<!-- socratic-distribution-file-count: {count} -->\n"
+                "<!-- socratic-plugin-file-count: 24 -->\n",
                 encoding="utf-8",
             )
 
@@ -56,7 +58,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             self.make_documents(root)
             with patch.object(check_repository, "ROOT", root), patch.object(
                 check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 21
-            ):
+            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 24):
                 check_repository.check_distribution_documentation()
 
     def test_rejects_expected_files_change_without_documentation_update(self) -> None:
@@ -65,7 +67,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             self.make_documents(root)
             with patch.object(check_repository, "ROOT", root), patch.object(
                 check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 22
-            ), redirect_stderr(io.StringIO()):
+            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 24), redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     check_repository.check_distribution_documentation()
 
@@ -78,9 +80,66 @@ class DistributionDocumentationTest(unittest.TestCase):
                 self.make_documents(root, {stale_document: 16})
                 with patch.object(check_repository, "ROOT", root), patch.object(
                     check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 21
-                ), redirect_stderr(io.StringIO()):
+                ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 24), redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit):
                         check_repository.check_distribution_documentation()
+
+
+class PluginStructureTest(unittest.TestCase):
+    def make_plugin(self, root: Path, *, version: str = "0.3.0-alpha.1") -> None:
+        (root / ".codex-plugin").mkdir(parents=True)
+        (root / "hooks").mkdir()
+        (root / "skills/socratic/agents").mkdir(parents=True)
+        (root / "VERSION").write_text("0.3.0-alpha.1\n", encoding="utf-8")
+        (root / ".codex-plugin/plugin.json").write_text(
+            json.dumps(
+                {
+                    "name": "socratic",
+                    "version": version,
+                    "skills": "./skills/",
+                    "hooks": "./hooks/hooks.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "hooks/hooks.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "UserPromptSubmit": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": 'python3 "$PLUGIN_ROOT/hooks/socratic_preflight.py"',
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (root / "hooks/socratic_preflight.py").write_text("# fixture\n", encoding="utf-8")
+        (root / "skills/socratic/agents/openai.yaml").write_text(
+            "policy:\n  allow_implicit_invocation: false\n", encoding="utf-8"
+        )
+
+    def test_accepts_versioned_pre_agent_plugin_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_plugin(root)
+            with patch.object(check_repository, "ROOT", root):
+                check_repository.check_plugin_gate()
+
+    def test_rejects_plugin_version_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_plugin(root, version="0.2.8")
+            with patch.object(check_repository, "ROOT", root), redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    check_repository.check_plugin_gate()
 
 
 if __name__ == "__main__":

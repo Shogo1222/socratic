@@ -1,0 +1,27 @@
+{
+  "name": "socratic",
+  "version": "0.3.0-alpha.1",
+  "description": "Host-gated intent review and mutation testing with a pre-agent fail-closed boundary.",
+  "author": {
+    "name": "Shogo1222",
+    "url": "https://github.com/Shogo1222"
+  },
+  "homepage": "https://github.com/Shogo1222/socratic",
+  "repository": "https://github.com/Shogo1222/socratic",
+  "license": "MIT",
+  "keywords": ["code-review", "mutation-testing", "agent-safety"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Socratic",
+    "shortDescription": "Host-gated intent and mutation review",
+    "longDescription": "Review intent and test strength only when a trusted Host supplies the required execution boundary.",
+    "developerName": "Shogo1222",
+    "category": "Developer Tools",
+    "capabilities": ["Review"],
+    "websiteURL": "https://github.com/Shogo1222/socratic",
+    "defaultPrompt": [
+      "Use $socratic to review this change."
+    ]
+  }
+}

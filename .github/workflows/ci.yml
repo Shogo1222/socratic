@@ -59,7 +59,9 @@ jobs:
         run: |
           python3 scripts/audit_distribution.py \
             --manifest-output "$RUNNER_TEMP/distribution-manifest.json" \
-            --skill-sums-output "$RUNNER_TEMP/SKILL_SHA256SUMS"
+            --skill-sums-output "$RUNNER_TEMP/SKILL_SHA256SUMS" \
+            --plugin-manifest-output "$RUNNER_TEMP/plugin-distribution-manifest.json" \
+            --plugin-sums-output "$RUNNER_TEMP/PLUGIN_SHA256SUMS"
 
       - name: Verify installed distribution
         run: |
@@ -78,4 +80,6 @@ jobs:
           path: |
             ${{ runner.temp }}/distribution-manifest.json
             ${{ runner.temp }}/SKILL_SHA256SUMS
+            ${{ runner.temp }}/plugin-distribution-manifest.json
+            ${{ runner.temp }}/PLUGIN_SHA256SUMS
           if-no-files-found: error

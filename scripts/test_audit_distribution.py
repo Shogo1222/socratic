@@ -5,7 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from audit_distribution import EXPECTED_FILES, ROOT, inspect_tree
+from audit_distribution import (
+    EXPECTED_FILES,
+    EXPECTED_PLUGIN_FILES,
+    ROOT,
+    inspect_plugin_tree,
+    inspect_tree,
+)
 
 
 class DistributionAuditTest(unittest.TestCase):
@@ -18,6 +24,21 @@ class DistributionAuditTest(unittest.TestCase):
         entries, errors = inspect_tree(ROOT / "skills", require_safety_text=True)
         self.assertEqual(errors, [])
         self.assertEqual(len(entries), len(EXPECTED_FILES))
+
+    def test_current_plugin_distribution_passes(self) -> None:
+        entries, errors = inspect_plugin_tree(ROOT)
+        self.assertEqual(errors, [])
+        self.assertEqual(len(entries), len(EXPECTED_PLUGIN_FILES))
+
+    def test_plugin_distribution_rejects_unexpected_hook(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shutil.copytree(ROOT / ".codex-plugin", root / ".codex-plugin")
+            shutil.copytree(ROOT / "hooks", root / "hooks")
+            shutil.copytree(ROOT / "skills", root / "skills")
+            (root / "hooks/untracked.py").write_text("pass\n", encoding="utf-8")
+            _, errors = inspect_plugin_tree(root)
+            self.assertTrue(any("unexpected plugin file" in error for error in errors))
 
     def test_rejects_executable_and_unexpected_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
