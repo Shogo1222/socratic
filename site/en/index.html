@@ -303,6 +303,20 @@
             <article><span>03</span><div><h3>No automated Git operations</h3><p>No staging, commits, pushes, branch switching, pull requests, or posted review comments.</p></div></article>
             <article><span>04</span><div><h3>Write only after explicit choice</h3><p>Even proven tests stay outside the working tree until the user explicitly chooses “Apply tests.”</p></div></article>
           </div>
+          <div class="safety-mechanism">
+            <div class="mechanism-heading">
+              <p class="section-kicker">HOW IT IS CHECKED</p>
+              <h3>Safety enforced by machinery,<br>not just instructions.</h3>
+              <p>Claude Code checks once before work begins, again before every file or command operation, and once more before presenting a result. Safety does not depend on asking the AI to behave.</p>
+            </div>
+            <ol class="mechanism-list">
+              <li><span>01</span><div><strong>Check that it is safe to start</strong><p>When the request is submitted (<code>UserPromptSubmit</code>), Socratic starts a monitor dedicated to this run. If the monitor or required software cannot be prepared, the run stops as <code>blocked</code> before the AI investigates.</p></div></li>
+              <li><span>02</span><div><strong>Check every operation before it runs</strong><p>A pre-operation check (<code>PreToolUse</code>) rejects edits, saves, and patches to the repository under review. Commands are limited to the safety-checked runner and Git operations that only read information.</p></div></li>
+              <li><span>03</span><div><strong>Introduce test defects only in a copy</strong><p>Mutation testing—deliberately introducing a small defect—runs in a disposable copy outside the original repository. The write-location check (Isolation Gate) rejects writes outside that copy and shortcuts that point back to the original files.</p></div></li>
+              <li><span>04</span><div><strong>Match every claim to an execution record</strong><p>The system checks a per-run secret (nonce), setup record (Manifest), tamper-evident activity log (hash-chained Ledger), file fingerprints (SHA-256), and data rules (JSON Schema). It cannot report “caught” or “missed” without the matching test record.</p></div></li>
+            </ol>
+            <p class="mechanism-caveat"><strong>Important assumption:</strong> these Plugin hooks—checks that run before the request and each operation—must be reviewed and enabled by the user. Organizations that need rules users cannot disable should combine OS-managed mandatory hooks with permissions that allow only the required operations.</p>
+          </div>
         </div>
       </section>
 

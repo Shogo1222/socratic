@@ -299,13 +299,27 @@
           <div class="principles-intro">
             <p class="section-kicker">SAFE BY DEFAULT</p>
             <h2 class="balanced-heading"><span>安全に調べる。</span><span>勝手に変えない。</span></h2>
-            <p class="safety-summary"><strong>DEFAULT: REVIEW-ONLY</strong><span>PR / GitHub / Working Treeへの書き込みなし</span></p>
+            <p class="safety-summary"><strong>DEFAULT: REVIEW-ONLY（見るだけ）</strong><span>PR・GitHub・手元の作業ファイルを書き換えません</span></p>
           </div>
           <div class="principle-list">
-            <article><span>01</span><div><h3>Review-onlyが既定</h3><p>PR、GitHub、RepositoryのWorking Treeへ書き込みません。</p></div></article>
-            <article><span>02</span><div><h3>隔離環境で検証する</h3><p>比較テストとMutationはDisposableな環境で実行し、Headの本番コードを変更しません。</p></div></article>
-            <article><span>03</span><div><h3>Git操作を自動化しない</h3><p>Stage、Commit、Push、Branch切替、PR作成、コメント投稿を行いません。</p></div></article>
-            <article><span>04</span><div><h3>書き込みは明示選択時だけ</h3><p>証明済みテストも、ユーザーが「Apply tests」を選ぶまではWorking Treeへ追加しません。</p></div></article>
+            <article><span>01</span><div><h3>初期設定は「見るだけ」</h3><p>PR、GitHub、手元の作業ファイルには書き込みません。</p></div></article>
+            <article><span>02</span><div><h3>作業用コピーで検証する</h3><p>比較テストと、わざと小さな不具合を入れる検査（Mutation Test）は、使い捨てのコピー上で実行します。確認対象のコードは変更しません。</p></div></article>
+            <article><span>03</span><div><h3>Git操作を自動化しない</h3><p>変更候補への登録（Stage）、履歴への保存（Commit）、GitHubへの送信（Push）、作業の枝分け（Branch）の切替、PR作成、コメント投稿を行いません。</p></div></article>
+            <article><span>04</span><div><h3>書き込みは明示選択時だけ</h3><p>有効性を確認できたテストも、ユーザーが「テストを反映する（Apply tests）」を選ぶまでは追加しません。</p></div></article>
+          </div>
+          <div class="safety-mechanism">
+            <div class="mechanism-heading">
+              <p class="section-kicker">HOW IT IS CHECKED</p>
+              <h3><span>「守る」という</span><span>指示だけに頼らない</span><span>仕組み。</span></h3>
+              <p>Claude Codeの追加機能が、開始前・操作の直前・結果を出す直前にチェックします。AIへの注意書きだけで安全を判断しません。</p>
+            </div>
+            <ol class="mechanism-list">
+              <li><span>01</span><div><strong>開始できる状態か、最初に確認</strong><p>依頼を送信した時点（<code>UserPromptSubmit</code>）で、この作業専用の監視役を起動します。監視役や必要な部品を準備できなければ、AIが調査を始める前に「実行不可（<code>blocked</code>）」で止まります。</p></div></li>
+              <li><span>02</span><div><strong>ファイル操作の直前に、毎回確認</strong><p>道具を使う直前の検査（<code>PreToolUse</code>）が、確認対象への編集・保存・差分適用を拒否します。コマンド実行も、安全確認付きの実行役と、内容を見るだけのGit操作に限定します。</p></div></li>
+              <li><span>03</span><div><strong>わざと入れる不具合は、コピー側だけ</strong><p>小さな不具合を入れる検査（Mutation Test）は、元のリポジトリ（コードの保管場所）の外に作った使い捨てコピー（Sandbox）で行います。書き込み先検査（Isolation Gate）が、コピー外への書き込みや、元のファイルへつながる抜け道を拒否します。</p></div></li>
+              <li><span>04</span><div><strong>結果と実際の実行記録を照合</strong><p>実行ごとの合言葉（Nonce）、設定票（Manifest）、改ざんを見つけられる実行記録（Hash-chain Ledger）、ファイルの指紋（SHA-256）、データ形式（JSON Schema）を照合します。対応するテスト記録がなければ「検知した／見逃した」と報告できません。</p></div></li>
+            </ol>
+            <p class="mechanism-caveat"><strong>大切な前提:</strong> この追加機能の事前・直前チェック（Plugin Hook）は、利用者が内容を確認して有効にする仕組みです。利用者にも解除できない会社のルールにする場合は、OS側で管理する強制チェック（Managed Hook）と、必要な操作だけを許可する権限設定を併用してください。</p>
           </div>
         </div>
       </section>
