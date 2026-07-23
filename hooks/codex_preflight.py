@@ -38,8 +38,9 @@ def _runtime_python() -> Path:
     return module.ensure_runtime(Path(__file__).resolve().parent.parent)
 
 
-def _blocked() -> dict[str, Any]:
-    return {"continue": False, "stopReason": BLOCKED_REASON}
+def _blocked(detail: str | None = None) -> dict[str, Any]:
+    reason = f"blocked: {detail}" if detail else BLOCKED_REASON
+    return {"continue": False, "stopReason": reason}
 
 
 def evaluate(payload: Any) -> dict[str, Any]:
@@ -68,7 +69,9 @@ def evaluate(payload: Any) -> dict[str, Any]:
             host_name="Codex",
         )
         runtime_python = _runtime_python()
-    except (OSError, RuntimeError):
+    except RuntimeError as error:
+        return _blocked(str(error))
+    except OSError:
         return _blocked()
     assert state is not None
     runner = Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"

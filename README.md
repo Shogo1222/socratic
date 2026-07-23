@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.4
+gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.5
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
@@ -393,7 +393,7 @@ The default mode is **Review-only**: nothing is written to the PR, GitHub, or th
 
 Only when the user explicitly asks for test additions — including selecting **Apply tests** for a proven handoff — does Socratic switch to **Apply tests** and add tests, based on confirmed intent, to the working tree. It verifies handoff preconditions before application and repeats the focused original-code and mutation proof afterward. Version-control operations stay with the user in both modes.
 
-The Socratic agent may use allowlisted, read-only local Git commands to inspect the materialized change. It never stages, commits, pushes, fetches, switches branches, creates worktrees, contacts a remote, invokes `gh`, creates a pull request, or posts a comment. When the invocation includes a GitHub PR URL or `PR #<number>`, the trusted Host—not the agent—resolves metadata with `gh`, fetches the exact Base and Head commits into private Host storage, verifies both SHAs, and gives the Runner read-only snapshots. Failure to resolve or verify either commit blocks the run. All version-control writes remain with the user.
+The Socratic agent may use allowlisted, read-only local Git commands to inspect the materialized change. It never stages, commits, pushes, fetches, switches branches, creates worktrees, contacts a remote, invokes `gh`, creates a pull request, or posts a comment. When the invocation includes a GitHub PR URL or `PR #<number>`, the trusted Host—not the agent—resolves metadata with `gh`, fetches the exact Base and Head commits into private Host storage, verifies both SHAs, and gives the Runner read-only snapshots. The Base is fetched by its immutable historical SHA, never by the current tip of its branch, so merged and older PRs remain reproducible after the target branch advances. Failure to resolve or verify either commit blocks the run with the failed materialization stage. All version-control writes remain with the user.
 
 ## Internal architecture
 

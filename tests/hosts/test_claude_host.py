@@ -291,6 +291,20 @@ class ClaudeHostTest(unittest.TestCase):
                 ["git", "-C", str(primary), "push", "origin", "HEAD:refs/pull/7/head"],
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
+            subprocess.run(
+                ["git", "-C", str(primary), "switch", "main"],
+                check=True, stdout=subprocess.DEVNULL,
+            )
+            (primary / "after-pr.txt").write_text("main advanced\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(primary), "add", "after-pr.txt"], check=True)
+            subprocess.run(
+                ["git", "-C", str(primary), "commit", "-m", "advance main"],
+                check=True, stdout=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                ["git", "-C", str(primary), "push", "origin", "main"],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
             metadata = {
                 "number": 7,
                 "url": "https://github.com/Shogo1222/socratic/pull/7",
@@ -318,6 +332,7 @@ class ClaudeHostTest(unittest.TestCase):
             self.assertEqual(
                 (Path(provenance["head_root"]) / "value.txt").read_text(), "head\n"
             )
+            self.assertFalse((Path(provenance["base_root"]) / "after-pr.txt").exists())
             bad_metadata = dict(metadata, headRefOid="0" * 40)
 
             def fake_bad_gh(argv, **kwargs):
@@ -339,6 +354,25 @@ class ClaudeHostTest(unittest.TestCase):
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic"}
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(self.hook.evaluate(payload)["decision"], "block")
+
+    def test_materialization_failure_is_reported_by_the_hook(self) -> None:
+        with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
+            self.host,
+            "prepare_or_retarget_session",
+            side_effect=RuntimeError(
+                "Host could not materialize the exact pull-request base commit"
+            ),
+        ):
+            decision = self.hook.evaluate({
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "/socratic:socratic PR #438",
+                "session_id": "materialization-error",
+                "cwd": str(ROOT),
+            })
+        self.assertEqual(
+            decision["reason"],
+            "blocked: Host could not materialize the exact pull-request base commit",
+        )
 
     def test_each_explicit_skill_starts_the_host(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

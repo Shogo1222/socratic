@@ -89,7 +89,7 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 
 Native Host IntegrationがTrusted Preflightを完了した後だけ、このWorkflowへ入る。Claude Code TerminalではMarketplace Commandとして表示される`/socratic`、Codexまたは対応するローカルCursor Desktop Workspaceでは`$socratic`を実行する。`$maieutic`と`$elenchus`の直接起動にも同じHost Gateを使う。各Host PluginはSkillの実行前にLive brokerを自動起動し、正確なPreflight Commandを注入してTool Gateを有効化する。実行中ManifestはTurn間で維持し、完了・Abort・Idle・broker stale時にSessionをCleanupする。注入されたCommandを捏造・変更しない。Standalone Skill Installと未対応のCursor CLI、Remote、Cloud Surfaceは準拠Entry Pointではない。
 
-ユーザーが起動PromptへGitHub Pull Request URLまたは`PR #<number>`を指定した場合、注入CommandのHost Materialized Review Rootだけを使用する。AgentではなくHostが正確なBase・Head Commitを解決・FetchしてSHAを検証し、`change_context`へ記録する。PRを再Fetchしたり、呼び出し元の現在Checkoutで置換したり、異なるPR Provenanceを主張してはならない。Host Materializationが失敗した場合、GateはTerminal Blockedとなる。
+ユーザーが起動PromptへGitHub Pull Request URLまたは`PR #<number>`を指定した場合、注入CommandのHost Materialized Review Rootだけを使用する。AgentではなくHostが正確なBase・Head Commitを解決・FetchしてSHAを検証し、`change_context`へ記録する。Merged済み・過去のPRを含め、BaseはBranchの現在の先端ではなく当時のSHAでFetchする。PRを再Fetchしたり、呼び出し元の現在Checkoutで置換したり、異なるPR Provenanceを主張してはならない。Host Materializationが失敗した場合、Gateは失敗段階を示してTerminal Blockedとなる。
 
 Local-workspace Runの開始後にユーザーがPRを選択した場合、または別のPRへ変更した場合、Hostは旧Runを終了し、新しくMaterializeしたReview Rootを注入しなければならない。置換されたRunのScope判断、Finding、Plan、Artifact、委譲結果をすべて破棄する。Target取得のFallbackとして`gh`、`git fetch`、Subagentを使用しない。Hostが新Targetを注入しない場合、旧Scopeのまま続行せず停止する。
 
