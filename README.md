@@ -39,6 +39,10 @@ Socratic lets a reviewer grasp four things quickly:
 
 ## Installation
 
+Socratic targets Claude Code, Codex, and Cursor. Other agent hosts are not supported by this integration preview.
+
+### Claude Code
+
 For the v0.3.0 integration preview, add the repository as a Claude Code Marketplace and install the Plugin:
 
 ```text
@@ -57,26 +61,28 @@ Then start Claude normally in a trusted Git repository and invoke `/socratic:soc
 
 Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
 
-The standalone Agent Skills remain available for Maieutic and Elenchus development, but installing `$socratic` alone does not provide the pre-agent safety boundary:
+### Codex and Cursor
+
+Install the standalone Agent Skills only for Codex or Cursor. They remain available for Maieutic and Elenchus development, but installing `$socratic` alone does not provide the pre-agent safety boundary:
 
 ```bash
-# choose standalone skills interactively
+# choose skills and install them for Codex or Cursor interactively
 gh skill install Shogo1222/socratic
 
-# install all standalone skills without prompts
+# install all three skills
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
 gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
 ```
 
-Or with the open Agent Skills CLI:
+Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
 
 ```bash
 npx skills add Shogo1222/socratic --skill '*'
 ```
 
-Then invoke `$socratic` on a code change. Invoke `$maieutic` or `$elenchus` directly when only that stage is needed.
+Invoke `$maieutic` or `$elenchus` directly for standalone analysis. `$socratic` remains fail-closed until that host provides the trusted pre-agent boundary required by the integration workflow.
 
 The mandatory review runner requires Python 3 with `jsonschema` and `referencing`:
 
