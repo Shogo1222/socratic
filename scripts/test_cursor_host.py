@@ -50,6 +50,20 @@ class CursorHostTest(unittest.TestCase):
                 )
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["host"]["adapter_id"], "cursor-desktop-hook-host-v1")
+                allowed_artifact = self.gate.evaluate({
+                    "hook_event_name": "preToolUse",
+                    "conversation_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": str(Path(state["artifact_root"]) / "review.json")},
+                })
+                self.assertEqual(allowed_artifact["permission"], "allow")
+                denied_arbitrary_temp = self.gate.evaluate({
+                    "hook_event_name": "preToolUse",
+                    "conversation_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": "/tmp/not-host-issued.json"},
+                })
+                self.assertEqual(denied_arbitrary_temp["permission"], "deny")
                 denied = self.gate.evaluate({
                     "hook_event_name": "preToolUse",
                     "conversation_id": session_id,

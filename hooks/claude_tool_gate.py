@@ -28,6 +28,32 @@ def _deny(reason: str) -> dict[str, Any]:
     }}
 
 
+def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
+    if not isinstance(raw_path, str) or not raw_path:
+        return False
+    root = Path(state.get("artifact_root", "/__missing_artifact_root__")).resolve(strict=True)
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        return False
+    try:
+        candidate.resolve(strict=False).relative_to(root)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _patch_paths(patch: Any) -> list[str] | None:
+    if not isinstance(patch, str):
+        return None
+    paths: list[str] = []
+    for line in patch.splitlines():
+        for marker in ("*** Add File: ", "*** Update File: ", "*** Delete File: ", "*** Move to: "):
+            if line.startswith(marker):
+                paths.append(line[len(marker):].strip())
+                break
+    return paths or None
+
+
 def evaluate(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("hook_event_name") != "PreToolUse":
         return {}
@@ -39,8 +65,18 @@ def evaluate(payload: Any) -> dict[str, Any]:
         return {}
     tool = payload.get("tool_name")
     tool_input = payload.get("tool_input", {})
-    if tool in {"Edit", "Write", "NotebookEdit", "apply_patch"}:
+    if tool in {"Edit", "Write", "NotebookEdit"}:
+        path = None
+        if isinstance(tool_input, dict):
+            path = tool_input.get("file_path") or tool_input.get("path") or tool_input.get("notebook_path")
+        if _inside_artifact_root(state, path):
+            return {}
         return _deny("Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox")
+    if tool == "apply_patch":
+        paths = _patch_paths(tool_input.get("patch") if isinstance(tool_input, dict) else None)
+        if paths and all(_inside_artifact_root(state, path) for path in paths):
+            return {}
+        return _deny("Socratic apply_patch may write only absolute paths under the Host artifact root")
     if tool == "Bash":
         command = tool_input.get("command") if isinstance(tool_input, dict) else None
         if not isinstance(command, str):

@@ -42,6 +42,8 @@ def prepare_session(
     root.mkdir(parents=True, mode=0o700)
     storage = root / "host-storage"
     storage.mkdir(mode=0o700)
+    artifacts = storage / "artifacts"
+    artifacts.mkdir(mode=0o700)
     state = {
         "session_id": session_id,
         "primary_root": str(primary),
@@ -51,6 +53,7 @@ def prepare_session(
         "run_id": secrets.token_hex(16),
         "run_nonce": secrets.token_urlsafe(48),
         "storage_root": str(storage),
+        "artifact_root": str(artifacts),
         "protection_mode": "host-events",
         "protection_details": f"{host_name} tool gate denies Primary writes and unguarded execution",
     }

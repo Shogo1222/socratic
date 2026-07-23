@@ -51,6 +51,16 @@ class CodexHostTest(unittest.TestCase):
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["status"], "ready")
                 self.assertEqual(manifest["host"]["adapter_id"], "codex-plugin-hook-host-v1")
+                artifact = Path(state["artifact_root"]) / "report.json"
+                allowed_artifact = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse",
+                    "session_id": session_id,
+                    "tool_name": "apply_patch",
+                    "tool_input": {
+                        "patch": f"*** Begin Patch\n*** Add File: {artifact}\n+{{}}\n*** End Patch"
+                    },
+                })
+                self.assertEqual(allowed_artifact, {})
                 denied = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse",
                     "session_id": session_id,

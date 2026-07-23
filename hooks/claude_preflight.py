@@ -90,7 +90,8 @@ def evaluate(payload: Any) -> dict[str, str]:
             f"--primary {shlex.quote(state['primary_root'])} "
             f"--host-socket {shlex.quote(state['socket_path'])} "
             f"--host-token {shlex.quote(state['token'])}\n"
-            "All mutations and tests must use that Runner manifest."
+            "All mutations and tests must use that Runner manifest. "
+            f"Write Contract, Report, and Review JSON only under {shlex.quote(state['artifact_root'])}."
         )
         return {"hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit", "additionalContext": context

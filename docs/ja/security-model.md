@@ -30,6 +30,8 @@ Schema v7との互換性のため、JSON Field名`verified`は維持します。
 
 v0.3.0 Claude Code・Codex Pluginは`UserPromptSubmit`からSession単位のHost brokerを起動し、`PreToolUse`でReview-onlyを強制します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収します。ローカルCursor Desktop PluginはNativeな`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`、`stop`を同じActive-run維持規則で使用します。Host Eventが不足・不正な場合はSocratic開始前にFail-closedで停止します。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。現行Lifecycle coverageで同じ保証を確立できないCursor CLI、Remote Workspace、Cloud Agentは対象外です。
 
+各Live Host SessionはHost Storage配下にPrivateな`artifact_root`を1つ作成する。Write Toolはその配下にだけContract、Report、Reviewを作成できる。Primary、Disposable Sandbox、Manifest／Ledger、任意のTemporary Directory、他Repository、User設定、Plugin CodeへのPathは引き続き拒否する。`apply_patch`は宣言された全PathがAbsoluteで、同じArtifact Root配下へResolveされる場合だけ受理する。Artifact Writeは意図的にMutation Ledger Headを変更しないため、Primary保護を弱めずにReport／Ledgerの循環依存を解消する。
+
 このPlugin HookがNo-Host経路を閉じるのは、ユーザーがHookをReview・Trustした後だけです。通常のPlugin Hookはユーザーが無効化でき、特殊なHosted ToolはLocal Tool Hookを通らない可能性があります。迂回不能なPolicyが必要な組織は、`requirements.toml`でHookを強制有効化したManaged Hookを使い、Hook実装をOS管理Directoryへ配置し、Unmanaged Hook Sourceを拒否する必要があります。Skill指示、MCP Tool、User-trusted Plugin Hookだけでは完全なHost Security Boundaryになりません。
 
 Apply testsは、ユーザーが明示的に依頼した後だけ利用できます。確認済みIntentを表すTestだけを書き込み、変更したすべてのPathを報告します。本番Codeの変更やVersion Control操作は許可しません。

@@ -24,6 +24,32 @@ def _deny(reason: str) -> dict[str, str]:
     return {"permission": "deny", "user_message": reason, "agent_message": reason}
 
 
+def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
+    if not isinstance(raw_path, str) or not raw_path:
+        return False
+    root = Path(state.get("artifact_root", "/__missing_artifact_root__")).resolve(strict=True)
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        return False
+    try:
+        candidate.resolve(strict=False).relative_to(root)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _patch_paths(patch: Any) -> list[str] | None:
+    if not isinstance(patch, str):
+        return None
+    paths: list[str] = []
+    for line in patch.splitlines():
+        for marker in ("*** Add File: ", "*** Update File: ", "*** Delete File: ", "*** Move to: "):
+            if line.startswith(marker):
+                paths.append(line[len(marker):].strip())
+                break
+    return paths or None
+
+
 def _session_id(payload: dict[str, Any]) -> str | None:
     for key in ("conversation_id", "session_id"):
         value = payload.get(key)
@@ -51,12 +77,23 @@ def evaluate(payload: Any) -> dict[str, str]:
     if event not in {"preToolUse", "beforeShellExecution"}:
         return {"permission": "allow"}
     session_id = _session_id(payload)
-    if session_id is None or not _host_module().load_session(session_id):
+    state = _host_module().load_session(session_id) if session_id is not None else None
+    if state is None:
         return {"permission": "allow"}
     tool = payload.get("tool_name")
     tool_input = payload.get("tool_input", {})
-    if tool in {"Write", "StrReplace", "Delete", "Edit", "apply_patch"}:
+    if tool in {"Write", "StrReplace", "Delete", "Edit"}:
+        path = None
+        if isinstance(tool_input, dict):
+            path = tool_input.get("file_path") or tool_input.get("path")
+        if _inside_artifact_root(state, path):
+            return {"permission": "allow"}
         return _deny("Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox")
+    if tool == "apply_patch":
+        paths = _patch_paths(tool_input.get("patch") if isinstance(tool_input, dict) else None)
+        if paths and all(_inside_artifact_root(state, path) for path in paths):
+            return {"permission": "allow"}
+        return _deny("Socratic apply_patch may write only absolute paths under the Host artifact root")
     if event == "beforeShellExecution" or tool in {"Shell", "Bash"}:
         command = payload.get("command")
         if command is None and isinstance(tool_input, dict):

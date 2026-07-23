@@ -58,6 +58,35 @@ class ClaudeHostTest(unittest.TestCase):
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["status"], "ready")
                 self.assertEqual(manifest["host"]["adapter_id"], "claude-code-hook-host-v1")
+                artifact_path = Path(state["artifact_root"]) / "intent-contract.json"
+                allowed_artifact = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write", "tool_input": {"file_path": str(artifact_path)},
+                })
+                self.assertEqual(allowed_artifact, {})
+                denied_arbitrary_temp = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write", "tool_input": {"file_path": "/tmp/not-host-issued.json"},
+                })
+                self.assertEqual(
+                    denied_arbitrary_temp["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                allowed_artifact_patch = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "apply_patch", "tool_input": {
+                        "patch": f"*** Begin Patch\n*** Add File: {artifact_path}\n+{{}}\n*** End Patch"
+                    },
+                })
+                self.assertEqual(allowed_artifact_patch, {})
+                denied_manifest = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write", "tool_input": {
+                        "file_path": str(Path(state["storage_root"]) / "run-manifest.json")
+                    },
+                })
+                self.assertEqual(
+                    denied_manifest["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
                 with patch.object(
                     sys, "stdin", io.StringIO(json.dumps({"session_id": session_id}))
                 ), redirect_stdout(io.StringIO()):
