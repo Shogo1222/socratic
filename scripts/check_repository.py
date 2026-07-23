@@ -122,10 +122,10 @@ def check_plugin_gate() -> None:
         fail("plugin version must match VERSION")
     if manifest.get("skills") != "./skills/":
         fail("plugin must bundle the repository skills directory")
-    if manifest.get("hooks") != "./hooks/hooks.json":
+    if manifest.get("hooks") != "./hooks/codex-hooks.json":
         fail("plugin must declare the pre-agent hooks manifest")
 
-    hooks_path = ROOT / "hooks/hooks.json"
+    hooks_path = ROOT / "hooks/codex-hooks.json"
     hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
     try:
         groups = hooks["hooks"]["UserPromptSubmit"]
@@ -146,6 +146,16 @@ def check_plugin_gate() -> None:
     if stat.S_IMODE(hook_script.stat().st_mode) & 0o111:
         fail("plugin preflight hook must not have a POSIX execute bit")
     hook_script.read_text(encoding="utf-8")
+
+    claude_manifest = json.loads(
+        (ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8")
+    )
+    if claude_manifest.get("name") != "socratic" or claude_manifest.get("version") != version:
+        fail("Claude Plugin identity and version must match VERSION")
+    claude_hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
+    claude_handler = claude_hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]
+    if "${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py" not in claude_handler.get("command", ""):
+        fail("Claude Plugin must invoke its Claude-format preflight hook")
 
     metadata = (ROOT / "skills/socratic/agents/openai.yaml").read_text(encoding="utf-8")
     if "allow_implicit_invocation: false" not in metadata:
