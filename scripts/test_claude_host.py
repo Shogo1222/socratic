@@ -59,7 +59,9 @@ class ClaudeHostTest(unittest.TestCase):
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["status"], "ready")
                 self.assertEqual(manifest["host"]["adapter_id"], "claude-code-hook-host-v1")
-                artifact_path = Path(state["artifact_root"]) / "intent-contract.json"
+                artifact_path = (
+                    Path(state["artifact_root"]) / "intent-contract.draft.json"
+                )
                 allowed_artifact = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write", "tool_input": {"file_path": str(artifact_path)},
@@ -79,6 +81,16 @@ class ClaudeHostTest(unittest.TestCase):
                     },
                 })
                 self.assertEqual(allowed_artifact_patch, {})
+                denied_arbitrary_artifact = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write", "tool_input": {
+                        "file_path": str(Path(state["artifact_root"]) / "helper.py")
+                    },
+                })
+                self.assertEqual(
+                    denied_arbitrary_artifact["hookSpecificOutput"]["permissionDecision"],
+                    "deny",
+                )
                 denied_manifest = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write", "tool_input": {

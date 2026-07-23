@@ -19,7 +19,17 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.6"
+SOCRATIC_VERSION = "0.3.0-alpha.7"
+ARTIFACT_FILES = {
+    "contract": "intent-contract.draft.json",
+    "report": "mutation-report.draft.json",
+    "review": "canonical-review.draft.json",
+}
+ARTIFACT_SCHEMAS = {
+    "contract": "intent-contract.schema.json",
+    "report": "mutation-report-draft.schema.json",
+    "review": "canonical-review.schema.json",
+}
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -132,6 +142,33 @@ def _load_json(path: Path) -> Any:
         raise RunGateError(f"strict JSON load failed for {path}: {error}") from error
 
 
+def _tree_hash(root: Path) -> str:
+    digest = hashlib.sha256()
+    for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
+        names[:] = sorted(name for name in names if name not in IGNORED_NAMES)
+        relative_directory = Path(directory).relative_to(root)
+        for filename in sorted(filenames):
+            if (
+                filename in IGNORED_NAMES
+                or filename.startswith(".env.")
+                or filename.endswith(".pyc")
+            ):
+                continue
+            path = Path(directory) / filename
+            relative = (relative_directory / filename).as_posix()
+            digest.update(relative.encode("utf-8") + b"\0")
+            if path.is_symlink():
+                digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
+            elif path.is_file():
+                digest.update(b"file\0")
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            else:
+                digest.update(b"other\0")
+    return digest.hexdigest()
+
+
 def _write_exclusive(path: Path, value: Any) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
@@ -175,10 +212,24 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
         raise RunGateError("host storage root must already exist")
     manifest_path = _outside(storage_root / "run-manifest.json", primary_root, "manifest")
     ledger_path = _outside(storage_root / "mutation-ledger.jsonl", primary_root, "ledger")
+    artifact_root = _outside(storage_root / "artifacts", primary_root, "artifact root")
+    artifact_index_path = _outside(
+        storage_root / "artifact-index.json", primary_root, "artifact index"
+    )
     sandbox: Path | None = None
     ledger_created = False
     manifest_created = False
+    artifact_index_created = False
+    artifact_root_created = False
     try:
+        if artifact_root.exists():
+            if not artifact_root.is_dir() or artifact_root.is_symlink():
+                raise RunGateError("Host artifact root must be a regular directory")
+            if any(artifact_root.iterdir()):
+                raise RunGateError("Host artifact root must be empty before preflight")
+        else:
+            artifact_root.mkdir(mode=0o700)
+            artifact_root_created = True
         sandbox = Path(tempfile.mkdtemp(prefix=f"workspace-{grant.run_id}-", dir=storage_root))
         _outside(sandbox, primary_root, "sandbox", strict=True)
         shutil.copytree(primary_root, sandbox, dirs_exist_ok=True, symlinks=True, ignore=_ignored)
@@ -215,9 +266,17 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             },
             "environment": {key: str(path.resolve()) for key, path in environment.items()},
             "ledger_path": str(ledger_path),
+            "artifact_root": str(artifact_root),
+            "artifact_index_path": str(artifact_index_path),
+            "primary_sha256": _tree_hash(primary_root),
         }
         _write_exclusive(ledger_path, {"header": {"run_id": grant.run_id, "run_nonce": grant.run_nonce}})
         ledger_created = True
+        _write_exclusive(
+            artifact_index_path,
+            {"version": 1, "run_id": grant.run_id, "artifacts": {}},
+        )
+        artifact_index_created = True
         _write_exclusive(manifest_path, manifest)
         manifest_created = True
         return manifest, manifest_path
@@ -226,12 +285,18 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             shutil.rmtree(sandbox, ignore_errors=True)
         if ledger_created:
             ledger_path.unlink(missing_ok=True)
+        if artifact_index_created:
+            artifact_index_path.unlink(missing_ok=True)
+        if artifact_root_created:
+            artifact_root.rmdir()
         if manifest_created:
             manifest_path.unlink(missing_ok=True)
         raise
 
 
-def _ready_manifest(manifest_path: Path) -> dict[str, Any]:
+def _ready_manifest(
+    manifest_path: Path, *, allow_missing_sandbox: bool = False
+) -> dict[str, Any]:
     if not manifest_path.is_file():
         raise RunGateError("a valid run manifest is required")
     manifest = _load_json(manifest_path)
@@ -246,8 +311,17 @@ def _ready_manifest(manifest_path: Path) -> dict[str, Any]:
     primary_root = Path(manifest["primary_root"]).resolve(strict=True)
     _outside(manifest_path, primary_root, "manifest", strict=True)
     _outside(Path(manifest["ledger_path"]), primary_root, "ledger", strict=True)
-    _outside(Path(manifest["sandbox_root"]), primary_root, "sandbox", strict=True)
+    _outside(
+        Path(manifest["sandbox_root"]),
+        primary_root,
+        "sandbox",
+        strict=not allow_missing_sandbox,
+    )
     _outside(Path(manifest["host"]["storage_root"]), primary_root, "host storage", strict=True)
+    _outside(Path(manifest["artifact_root"]), primary_root, "artifact root", strict=True)
+    _outside(
+        Path(manifest["artifact_index_path"]), primary_root, "artifact index", strict=True
+    )
     if manifest.get("status") != "ready" or manifest.get("entrypoint") != ENTRYPOINT:
         raise RunGateError("run manifest is blocked or was not created by the mandatory entrypoint")
     if manifest.get("protection", {}).get("verified") is not True:
@@ -303,6 +377,105 @@ def _append_event(manifest: dict[str, Any], event: dict[str, Any]) -> dict[str, 
     with os.fdopen(descriptor, "ab") as stream:
         stream.write(_canonical_bytes(record))
     return event
+
+
+def _write_index(path: Path, value: dict[str, Any]) -> None:
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.unlink(missing_ok=True)
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(_canonical_bytes(value))
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _artifact_index(manifest: dict[str, Any]) -> dict[str, Any]:
+    index = _load_json(Path(manifest["artifact_index_path"]))
+    if index.get("version") != 1 or index.get("run_id") != manifest["run_id"]:
+        raise RunGateError("Host artifact index does not match this run")
+    if not isinstance(index.get("artifacts"), dict):
+        raise RunGateError("Host artifact index is malformed")
+    return index
+
+
+def _validator_module():
+    return _load_module(
+        "socratic_validate_and_render",
+        Path(__file__).resolve().with_name("validate_and_render.py"),
+    )
+
+
+def _record_validation_error(manifest: dict[str, Any], kind: str, message: str) -> None:
+    path = Path(manifest["artifact_root"]) / "validation-errors.json"
+    current: dict[str, Any] = {
+        "version": 1,
+        "run_id": manifest["run_id"],
+        "errors": [],
+    }
+    if path.is_file():
+        loaded = _load_json(path)
+        if isinstance(loaded, dict) and isinstance(loaded.get("errors"), list):
+            current = loaded
+    current["errors"].append({"artifact": kind, "message": message})
+    _write_index(path, current)
+
+
+def stage_artifact(
+    manifest_path: Path,
+    kind: str,
+    schema_root: Path | None = None,
+) -> dict[str, Any]:
+    manifest = _ready_manifest(manifest_path)
+    if kind not in ARTIFACT_FILES:
+        raise RunGateError(f"unknown artifact kind: {kind}")
+    index = _artifact_index(manifest)
+    if kind in index["artifacts"]:
+        raise RunGateError(f"artifact is already staged and create-once: {kind}")
+    artifact_path = Path(manifest["artifact_root"]) / ARTIFACT_FILES[kind]
+    if (
+        not artifact_path.is_file()
+        or artifact_path.is_symlink()
+        or artifact_path.parent.resolve(strict=True) != Path(manifest["artifact_root"]).resolve(strict=True)
+    ):
+        raise RunGateError(f"draft artifact is missing from the Host staging channel: {kind}")
+    document = _load_json(artifact_path)
+    if not isinstance(document, dict):
+        raise RunGateError(f"draft artifact root must be an object: {kind}")
+    validator = _validator_module()
+    try:
+        validator.validate_document(document, ARTIFACT_SCHEMAS[kind], schema_root)
+    except validator.ArtifactError as error:
+        _record_validation_error(manifest, kind, str(error))
+        raise RunGateError(str(error)) from error
+    record = {
+        "path": str(artifact_path),
+        "sha256": _sha256_path(artifact_path),
+        "schema": ARTIFACT_SCHEMAS[kind],
+    }
+    index["artifacts"][kind] = record
+    _write_index(Path(manifest["artifact_index_path"]), index)
+    (Path(manifest["artifact_root"]) / "validation-errors.json").unlink(missing_ok=True)
+    return record
+
+
+def _staged_artifacts(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    index = _artifact_index(manifest)
+    if set(index["artifacts"]) != set(ARTIFACT_FILES):
+        missing = sorted(set(ARTIFACT_FILES) - set(index["artifacts"]))
+        raise RunGateError(f"finish requires all staged artifacts: {missing}")
+    documents: dict[str, dict[str, Any]] = {}
+    for kind, filename in ARTIFACT_FILES.items():
+        record = index["artifacts"][kind]
+        path = Path(manifest["artifact_root"]) / filename
+        if record.get("path") != str(path) or record.get("sha256") != _sha256_path(path):
+            raise RunGateError(f"staged artifact changed after Host indexing: {kind}")
+        document = _load_json(path)
+        if not isinstance(document, dict):
+            raise RunGateError(f"staged artifact root must be an object: {kind}")
+        documents[kind] = document
+    return documents
 
 
 def mutate(manifest_path: Path, mutation_id: str, relative_target: str, content: bytes) -> dict[str, Any]:
@@ -388,6 +561,103 @@ def execute(
         "environment": manifest["environment"],
     })
     return completed.returncode
+
+
+def _attested_report(
+    manifest: dict[str, Any],
+    contract: dict[str, Any],
+    draft: dict[str, Any],
+    ledger: list[dict[str, Any]],
+    *,
+    manifest_sha256: str,
+    ledger_head: str,
+) -> dict[str, Any]:
+    guarded = [item for item in ledger if item.get("kind") == "guarded-write"]
+    registered = [
+        item for item in ledger if item.get("kind") in {"guarded-write", "prebuilt"}
+    ]
+    if guarded:
+        strategy = "guarded-file-write"
+    elif registered:
+        strategy = "prebuilt-mutant"
+    else:
+        strategy = "comparison-only"
+    protection = manifest["protection"]
+    protected = protection["mode"] in {"os-read-only", "permission-read-only"}
+    monitored = protection["mode"] in {"host-events", "os-audit"}
+    unresolved = [item["id"] for item in contract.get("unresolved", [])]
+    report = {
+        "version": 7,
+        "mode": draft["mode"],
+        "write_mode": "review-only",
+        "run": {
+            "id": manifest["run_id"],
+            "entrypoint": ENTRYPOINT,
+            "host_adapter": manifest["host"]["adapter_id"],
+            "run_nonce": manifest["host"]["run_nonce"],
+            "manifest_sha256": manifest_sha256,
+            "ledger_head": ledger_head,
+        },
+        "intent_contract": {
+            "path": "host-artifact://intent-contract",
+            "status": contract["status"],
+        },
+        "baseline": draft["baseline"],
+        "assessment": draft["assessment"],
+        "mutations": draft["mutations"],
+        "not_challenged": draft["not_challenged"],
+        "unresolved": unresolved,
+        "test_changes": draft["test_changes"],
+        "test_handoff": draft["test_handoff"],
+        "authorized_workspace_changes": draft["authorized_workspace_changes"],
+        "isolation": {
+            "execution_strategy": strategy,
+            "primary_root": manifest["primary_root"],
+            "sandbox_root": manifest["sandbox_root"],
+            "host_protection": {
+                "mode": protection["mode"] if protected else "unavailable",
+                "verified": protected,
+                "details": protection["details"] if protected else "not used",
+            },
+            "write_monitor": {
+                "mode": protection["mode"] if monitored else "unavailable",
+                "verified": monitored,
+                "details": protection["details"] if monitored else "not used",
+            },
+            "mutation_targets": [
+                {
+                    "mutation_id": item["mutation_id"],
+                    "requested_path": item["requested_path"],
+                    "resolved_path": item["resolved_path"],
+                    "within_sandbox": True,
+                }
+                for item in guarded
+            ],
+            "write_events": [
+                {
+                    "target": item["resolved_path"],
+                    "bytes": item["bytes"],
+                    "within_sandbox": True,
+                }
+                for item in guarded
+            ],
+        },
+        "persistent_side_effects": draft["persistent_side_effects"],
+        "canonical_output": {
+            "renderer": "socratic/scripts/validate_and_render.py",
+            "sha256": "0" * 64,
+            "extra_prose": False,
+        },
+        "postflight": {
+            "primary_written_during_run": False,
+            "primary_final_hash_unchanged": True,
+            "working_tree_final_status": "primary content hash matched preflight",
+            "production_mutation_free": True,
+            "sandbox_destroyed": True,
+            "notes": "Host protection accepted; disposable sandbox removed before rendering.",
+        },
+    }
+    return report
 
 
 def finish_document(
@@ -477,58 +747,149 @@ def finish_document(
         raise RunGateError("report mutation targets do not match the guarded write ledger")
 
 
-def finish(
-    manifest_path: Path, contract: dict[str, Any], report: dict[str, Any],
-    review: dict[str, Any], schema_root: Path | None = None,
-) -> str:
-    manifest = _ready_manifest(manifest_path)
-    ledger_path = Path(manifest["ledger_path"])
+def _record_host_output(
+    manifest: dict[str, Any],
+    kind: str,
+    filename: str,
+    content: bytes,
+    schema: str,
+) -> Path:
+    path = Path(manifest["artifact_root"]) / filename
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(content)
+    index = _artifact_index(manifest)
+    index["artifacts"][kind] = {
+        "path": str(path),
+        "sha256": _sha256_path(path),
+        "schema": schema,
+        "host_generated": True,
+    }
+    _write_index(Path(manifest["artifact_index_path"]), index)
+    return path
+
+
+def _cleanup_loaded(manifest: dict[str, Any], manifest_path: Path) -> list[str]:
+    errors: list[str] = []
     sandbox = Path(manifest["sandbox_root"])
-    result: str | None = None
-    failure: BaseException | None = None
-    try:
-        ledger = _ledger_events(manifest)
-        finish_document(
-            manifest, report, review, ledger,
-            manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
-        )
-        validator = _load_module("socratic_validate_and_render", Path(__file__).resolve().with_name("validate_and_render.py"))
+    artifact_root = Path(manifest["artifact_root"])
+    if sandbox.exists():
         try:
-            validator.validate_with_schemas(contract, report, review, schema_root)
-        except validator.ArtifactError as error:
-            raise RunGateError(str(error)) from error
-        result = validator.render_review(review)
-    except BaseException as error:
-        failure = error
-    cleanup_errors: list[str] = []
-    try:
-        if sandbox.exists():
             shutil.rmtree(sandbox)
-    except OSError as error:
-        cleanup_errors.append(f"sandbox cleanup failed: {error}")
-    for path in (ledger_path, manifest_path):
+        except OSError as error:
+            errors.append(f"sandbox cleanup failed: {error}")
+    if artifact_root.exists():
+        try:
+            shutil.rmtree(artifact_root)
+        except OSError as error:
+            errors.append(f"artifact cleanup failed: {error}")
+    for path in (
+        Path(manifest["ledger_path"]),
+        Path(manifest["artifact_index_path"]),
+        manifest_path,
+    ):
         try:
             path.unlink(missing_ok=True)
         except OSError as error:
-            cleanup_errors.append(f"artifact cleanup failed for {path}: {error}")
-    if cleanup_errors:
-        raise RunGateError("; ".join(cleanup_errors)) from failure
-    if failure is not None:
-        raise failure
-    assert result is not None
-    return result
+            errors.append(f"run cleanup failed for {path}: {error}")
+    return errors
+
+
+def cleanup(manifest_path: Path) -> None:
+    if not manifest_path.is_file():
+        return
+    manifest = _ready_manifest(manifest_path, allow_missing_sandbox=True)
+    errors = _cleanup_loaded(manifest, manifest_path)
+    if errors:
+        raise RunGateError("; ".join(errors))
+
+
+def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
+    manifest = _ready_manifest(manifest_path)
+    sandbox = Path(manifest["sandbox_root"])
+    try:
+        documents = _staged_artifacts(manifest)
+        ledger = _ledger_events(manifest)
+        current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
+        if current_primary_hash != manifest["primary_sha256"]:
+            raise RunGateError("Primary content hash changed during the Review-only run")
+        if sandbox.exists():
+            shutil.rmtree(sandbox)
+        if sandbox.exists():
+            raise RunGateError("disposable sandbox still exists after cleanup")
+        report = _attested_report(
+            manifest,
+            documents["contract"],
+            documents["report"],
+            ledger,
+            manifest_sha256=_sha256_path(manifest_path),
+            ledger_head=_ledger_head(manifest),
+        )
+        finish_document(
+            manifest, report, documents["review"], ledger,
+            manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
+        )
+        validator = _validator_module()
+        try:
+            validator.validate_document(
+                documents["contract"], "intent-contract.schema.json", schema_root
+            )
+            validator.validate_document(
+                report, "mutation-report.schema.json", schema_root
+            )
+            validator.validate_document(
+                documents["review"], "canonical-review.schema.json", schema_root
+            )
+            validator.validate_cross_artifact(documents["contract"], report)
+            rendered = validator.render_review(documents["review"])
+            report["canonical_output"]["sha256"] = _sha256_bytes(
+                rendered.encode("utf-8")
+            )
+            validator.validate_with_schemas(
+                documents["contract"], report, documents["review"], schema_root
+            )
+        except validator.ArtifactError as error:
+            raise RunGateError(str(error)) from error
+        _record_host_output(
+            manifest,
+            "attested-report",
+            "mutation-report.attested.json",
+            _canonical_bytes(report),
+            "mutation-report.schema.json",
+        )
+        _record_host_output(
+            manifest,
+            "renderer-output",
+            "renderer-output.txt",
+            rendered.encode("utf-8"),
+            "canonical renderer stdout",
+        )
+        return rendered
+    except BaseException as failure:
+        try:
+            _record_validation_error(manifest, "finish", str(failure))
+        except BaseException:
+            pass
+        cleanup_errors = _cleanup_loaded(manifest, manifest_path)
+        if cleanup_errors:
+            raise RunGateError("; ".join(cleanup_errors)) from failure
+        raise
 
 
 def abort(manifest_path: Path) -> None:
     if not manifest_path.is_file():
         return
     manifest = _load_json(manifest_path)
-    if isinstance(manifest, dict):
-        if isinstance(manifest.get("sandbox_root"), str):
-            shutil.rmtree(Path(manifest["sandbox_root"]), ignore_errors=True)
-        if isinstance(manifest.get("ledger_path"), str):
-            Path(manifest["ledger_path"]).unlink(missing_ok=True)
-    manifest_path.unlink(missing_ok=True)
+    if not isinstance(manifest, dict):
+        manifest_path.unlink(missing_ok=True)
+        return
+    required = {
+        "sandbox_root", "artifact_root", "ledger_path", "artifact_index_path"
+    }
+    if required.issubset(manifest):
+        _cleanup_loaded(manifest, manifest_path)
+    else:
+        manifest_path.unlink(missing_ok=True)
 
 
 def main() -> int:
@@ -553,12 +914,17 @@ def main() -> int:
     execute_parser.add_argument("--mutation-id")
     execute_parser.add_argument("--timeout", type=int, default=120)
     execute_parser.add_argument("argv", nargs=argparse.REMAINDER)
+    stage_parser = commands.add_parser("stage-artifact")
+    stage_parser.add_argument("--manifest", required=True, type=Path)
+    stage_parser.add_argument(
+        "--kind", required=True, choices=tuple(ARTIFACT_FILES)
+    )
+    stage_parser.add_argument("--schema-root", type=Path)
     finish_parser = commands.add_parser("finish")
     finish_parser.add_argument("--manifest", required=True, type=Path)
-    finish_parser.add_argument("--contract", required=True, type=Path)
-    finish_parser.add_argument("--report", required=True, type=Path)
-    finish_parser.add_argument("--review", required=True, type=Path)
     finish_parser.add_argument("--schema-root", type=Path)
+    cleanup_parser = commands.add_parser("cleanup")
+    cleanup_parser.add_argument("--manifest", required=True, type=Path)
     args = parser.parse_args()
     if args.command == "preflight":
         try:
@@ -577,6 +943,12 @@ def main() -> int:
             "status": "ready", "run_id": manifest["run_id"],
             "manifest_path": str(manifest_path),
             "sandbox_root": manifest["sandbox_root"],
+            "artifact_root": manifest["artifact_root"],
+            "next": "stage contract, report, and review drafts after guarded executions",
+            "allowed_operations": [
+                "mutate", "register-prebuilt", "execute", "stage-artifact",
+                "finish", "cleanup",
+            ],
         }, sort_keys=True))
         return 0
     try:
@@ -589,11 +961,15 @@ def main() -> int:
                 raise RunGateError("execute requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
             return execute(args.manifest, args.phase, args.mutation_id, argv, args.timeout)
-        elif args.command == "finish":
-            print(finish(
-                args.manifest, _load_json(args.contract), _load_json(args.report),
-                _load_json(args.review), args.schema_root,
+        elif args.command == "stage-artifact":
+            print(json.dumps(
+                stage_artifact(args.manifest, args.kind, args.schema_root),
+                sort_keys=True,
             ))
+        elif args.command == "finish":
+            sys.stdout.write(finish(args.manifest, args.schema_root))
+        elif args.command == "cleanup":
+            cleanup(args.manifest)
         return 0
     except (OSError, RunGateError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

@@ -3,6 +3,7 @@
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -10,6 +11,7 @@ import tempfile
 import subprocess
 import unittest
 from pathlib import Path
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 
@@ -64,6 +66,53 @@ class RunReviewTest(unittest.TestCase):
         storage.mkdir()
         return self.runner.preflight_with_host(repository, self.host(storage))
 
+    def report_draft(self) -> dict:
+        report = json.loads(
+            (ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text()
+        )
+        draft = {
+            "version": 1,
+            "mode": report["mode"],
+            "baseline": report["baseline"],
+            "assessment": report["assessment"],
+            "mutations": report["mutations"],
+            "not_challenged": report["not_challenged"],
+            "test_changes": report["test_changes"],
+            "test_handoff": report["test_handoff"],
+            "authorized_workspace_changes": [],
+            "persistent_side_effects": report["persistent_side_effects"],
+        }
+        for change in draft["test_changes"]:
+            if change["disposition"] == "applied":
+                change["disposition"] = "existing"
+        return draft
+
+    def stage_demo_artifacts(
+        self, manifest: dict, *, report=None
+    ) -> tuple[dict, dict]:
+        artifact_root = Path(manifest["artifact_root"])
+        contract = json.loads(
+            (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+        )
+        review = json.loads(
+            (ROOT / "demo/subscription_renewal/canonical-review.json").read_text()
+        )
+        documents = {
+            "contract": contract,
+            "report": report if report is not None else self.report_draft(),
+            "review": review,
+        }
+        for kind, document in documents.items():
+            (artifact_root / self.runner.ARTIFACT_FILES[kind]).write_text(
+                json.dumps(document), encoding="utf-8"
+            )
+            self.runner.stage_artifact(
+                Path(manifest["host"]["storage_root"]) / "run-manifest.json",
+                kind,
+                ROOT / "schemas",
+            )
+        return contract, review
+
     def test_standalone_preflight_is_blocked_and_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -97,6 +146,8 @@ class RunReviewTest(unittest.TestCase):
                 Path(manifest["ledger_path"]),
                 Path(manifest["sandbox_root"]),
                 Path(manifest["host"]["storage_root"]),
+                Path(manifest["artifact_root"]),
+                Path(manifest["artifact_index_path"]),
             ):
                 self.assertFalse(path.resolve().is_relative_to(repository.resolve()))
             sandbox = Path(manifest["sandbox_root"])
@@ -220,6 +271,8 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(event["result"], "timeout")
             self.assertIsNone(event["returncode"])
             self.assertEqual(event["phase"], "baseline")
+            self.runner.abort(manifest_path)
+            self.assertFalse(Path(manifest["artifact_root"]).exists())
 
     def test_finish_rejects_green_baseline_with_failing_execution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -299,31 +352,132 @@ class RunReviewTest(unittest.TestCase):
                     manifest_path, "mutation", mutation_id,
                     [sys.executable, "-c", "raise SystemExit(1)"], 10,
                 )
-            contract = json.loads((ROOT / "demo/subscription_renewal/intent-contract.json").read_text())
-            report = json.loads((ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text())
-            review = json.loads((ROOT / "demo/subscription_renewal/canonical-review.json").read_text())
-            report["run"] = {
-                "id": manifest["run_id"],
-                "entrypoint": "socratic/scripts/run_review.py",
-                "host_adapter": manifest["host"]["adapter_id"],
-                "run_nonce": manifest["host"]["run_nonce"],
-                "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
-                "ledger_head": self.runner._ledger_head(manifest),
-            }
-            report["isolation"].update({
-                "primary_root": manifest["primary_root"],
-                "sandbox_root": manifest["sandbox_root"],
-                "host_protection": {
-                    "mode": "os-read-only", "verified": True,
-                    "details": "fixture host denied a Primary write probe",
-                },
-                "write_monitor": {"mode": "unavailable", "verified": False, "details": "not needed"},
-            })
-            rendered = self.runner.finish(manifest_path, contract, report, review, ROOT / "schemas")
+            _contract, review = self.stage_demo_artifacts(manifest)
+            rendered = self.runner._validator_module().render_review(review)
+            stdout = io.StringIO()
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "run_review.py", "finish", "--manifest", str(manifest_path),
+                    "--schema-root", str(ROOT / "schemas"),
+                ],
+            ), redirect_stdout(stdout):
+                self.assertEqual(self.runner.main(), 0)
+            self.assertEqual(stdout.getvalue(), rendered)
             self.assertTrue(rendered.startswith("Review This:\n"))
+            self.assertTrue(manifest_path.exists())
+            self.assertTrue(Path(manifest["ledger_path"]).exists())
+            self.assertFalse(Path(manifest["sandbox_root"]).exists())
+            attested_path = Path(manifest["artifact_root"]) / "mutation-report.attested.json"
+            attested = json.loads(attested_path.read_text(encoding="utf-8"))
+            self.assertEqual(attested["run"]["id"], manifest["run_id"])
+            self.assertEqual(
+                attested["run"]["ledger_head"], self.runner._ledger_head(manifest)
+            )
+            self.assertFalse(attested["canonical_output"]["extra_prose"])
+            self.assertEqual(
+                (Path(manifest["artifact_root"]) / "renderer-output.txt").read_text(),
+                rendered,
+            )
+            self.runner.cleanup(manifest_path)
+            self.runner.cleanup(manifest_path)
             self.assertFalse(manifest_path.exists())
             self.assertFalse(Path(manifest["ledger_path"]).exists())
-            self.assertFalse(Path(manifest["sandbox_root"]).exists())
+            self.assertFalse(Path(manifest["artifact_root"]).exists())
+
+    def test_stage_rejects_invalid_draft_and_records_all_schema_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            invalid = {"version": 1, "mode": "harden", "test_changes": ["wrong"]}
+            path = Path(manifest["artifact_root"]) / self.runner.ARTIFACT_FILES["report"]
+            path.write_text(json.dumps(invalid), encoding="utf-8")
+            with self.assertRaisesRegex(self.runner.RunGateError, "validation failed"):
+                self.runner.stage_artifact(
+                    manifest_path, "report", ROOT / "schemas"
+                )
+            errors = json.loads(
+                (Path(manifest["artifact_root"]) / "validation-errors.json").read_text()
+            )
+            message = errors["errors"][0]["message"]
+            self.assertIn("'baseline' is a required property", message)
+            self.assertIn("'wrong' is not of type 'object'", message)
+            self.runner.abort(manifest_path)
+
+    def test_staged_artifact_is_create_once_and_detects_tampering(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.stage_demo_artifacts(manifest)
+            artifact = Path(manifest["artifact_root"]) / self.runner.ARTIFACT_FILES["report"]
+            with self.assertRaisesRegex(self.runner.RunGateError, "create-once"):
+                self.runner.stage_artifact(manifest_path, "report", ROOT / "schemas")
+            artifact.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(self.runner.RunGateError, "staged artifact changed"):
+                self.runner._staged_artifacts(manifest)
+            self.runner.abort(manifest_path)
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlinks unavailable")
+    def test_stage_rejects_symlinked_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            outside = root / "outside.json"
+            outside.write_text(json.dumps(self.report_draft()), encoding="utf-8")
+            artifact = Path(manifest["artifact_root"]) / self.runner.ARTIFACT_FILES["report"]
+            os.symlink(outside, artifact)
+            with self.assertRaisesRegex(self.runner.RunGateError, "missing"):
+                self.runner.stage_artifact(manifest_path, "report", ROOT / "schemas")
+            self.runner.abort(manifest_path)
+
+    def test_finish_cross_artifact_failure_cleans_without_rendering(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
+                self.runner.register_prebuilt(
+                    manifest_path, mutation_id, f"packages/app/mutant-{index}.ts"
+                )
+                self.runner.execute(
+                    manifest_path, "mutation", mutation_id,
+                    [sys.executable, "-c", "raise SystemExit(1)"], 10,
+                )
+            draft = self.report_draft()
+            draft["mutations"][0]["contract_ids"] = ["DEC-999"]
+            self.stage_demo_artifacts(manifest, report=draft)
+            validator = self.runner._validator_module()
+            with patch.object(
+                validator, "render_review", side_effect=AssertionError("renderer called")
+            ):
+                with patch.object(
+                    self.runner, "_validator_module", return_value=validator
+                ):
+                    with self.assertRaisesRegex(
+                        self.runner.RunGateError, "unknown Contract IDs"
+                    ):
+                        self.runner.finish(manifest_path, ROOT / "schemas")
+            self.assertFalse(manifest_path.exists())
+            self.assertFalse(Path(manifest["artifact_root"]).exists())
+
+    def test_primary_hash_change_invalidates_finish_and_cleans(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.stage_demo_artifacts(manifest)
+            (repository / "packages/app/source.ts").write_text("changed\n")
+            with self.assertRaisesRegex(self.runner.RunGateError, "Primary content hash changed"):
+                self.runner.finish(manifest_path, ROOT / "schemas")
+            self.assertFalse(manifest_path.exists())
+            self.assertFalse(Path(manifest["artifact_root"]).exists())
 
 
 if __name__ == "__main__":

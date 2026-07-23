@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Elenchus Mutation Report Analysis Draft",
+  "type": "object",
+  "required": [
+    "version",
+    "mode",
+    "baseline",
+    "assessment",
+    "mutations",
+    "not_challenged",
+    "test_changes",
+    "test_handoff",
+    "authorized_workspace_changes",
+    "persistent_side_effects"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "mode": { "$ref": "mutation-report.schema.json#/properties/mode" },
+    "baseline": { "$ref": "mutation-report.schema.json#/properties/baseline" },
+    "assessment": { "$ref": "mutation-report.schema.json#/properties/assessment" },
+    "mutations": { "$ref": "mutation-report.schema.json#/properties/mutations" },
+    "not_challenged": { "$ref": "mutation-report.schema.json#/properties/not_challenged" },
+    "test_changes": { "$ref": "mutation-report.schema.json#/properties/test_changes" },
+    "test_handoff": { "$ref": "mutation-report.schema.json#/properties/test_handoff" },
+    "authorized_workspace_changes": {
+      "$ref": "mutation-report.schema.json#/properties/authorized_workspace_changes"
+    },
+    "persistent_side_effects": {
+      "$ref": "mutation-report.schema.json#/properties/persistent_side_effects"
+    }
+  },
+  "additionalProperties": false
+}

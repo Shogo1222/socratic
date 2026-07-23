@@ -126,6 +126,36 @@ class ValidateAndRenderTest(unittest.TestCase):
         ).hexdigest()
         self.assertEqual(len(expected), 64)
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("jsonschema") and importlib.util.find_spec("referencing"),
+        "schema validation dependencies unavailable",
+    )
+    def test_report_draft_rejects_attestation_fields(self) -> None:
+        draft = {
+            "version": 1,
+            "mode": "harden",
+            "baseline": {
+                "command": "test", "status": "green", "attempts": 1,
+                "stable_tests": ["test"], "excluded_tests": [],
+            },
+            "assessment": None,
+            "mutations": [],
+            "not_challenged": [],
+            "test_changes": [],
+            "test_handoff": None,
+            "authorized_workspace_changes": [],
+            "persistent_side_effects": {
+                "authorization": "not-requested", "writes": [],
+            },
+            "run": {"id": "agent-authored"},
+        }
+        with self.assertRaisesRegex(
+            validate_and_render.ArtifactError, "Additional properties"
+        ):
+            validate_and_render.validate_document(
+                draft, "mutation-report-draft.schema.json", ROOT / "schemas"
+            )
+
     def test_renders_exactly_four_blocks(self) -> None:
         review = {
             "review_this": [],

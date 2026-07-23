@@ -54,7 +54,11 @@ class CursorHostTest(unittest.TestCase):
                     "hook_event_name": "preToolUse",
                     "conversation_id": session_id,
                     "tool_name": "Write",
-                    "tool_input": {"file_path": str(Path(state["artifact_root"]) / "review.json")},
+                    "tool_input": {
+                        "file_path": str(
+                            Path(state["artifact_root"]) / "canonical-review.draft.json"
+                        )
+                    },
                 })
                 self.assertEqual(allowed_artifact["permission"], "allow")
                 denied_arbitrary_temp = self.gate.evaluate({

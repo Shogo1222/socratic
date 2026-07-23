@@ -27,12 +27,18 @@ SCHEMA_MIRRORS = {
     ),
     "schemas/mutation-result.schema.json": (
         "skills/elenchus/references/mutation-result.schema.json",
+        "skills/socratic/references/mutation-result.schema.json",
     ),
     "schemas/mutation-report.schema.json": (
         "skills/elenchus/references/mutation-report.schema.json",
+        "skills/socratic/references/mutation-report.schema.json",
+    ),
+    "schemas/mutation-report-draft.schema.json": (
+        "skills/socratic/references/mutation-report-draft.schema.json",
     ),
     "schemas/test-handoff.schema.json": (
         "skills/elenchus/references/test-handoff.schema.json",
+        "skills/socratic/references/test-handoff.schema.json",
     ),
     "schemas/canonical-review.schema.json": (
         "skills/socratic/references/canonical-review.schema.json",

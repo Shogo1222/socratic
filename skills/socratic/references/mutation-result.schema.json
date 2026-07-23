@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mutation Result",
+  "type": "object",
+  "required": [
+    "id",
+    "mode",
+    "contract_ids",
+    "source_intent",
+    "changed_intent",
+    "represented_risk",
+    "severity",
+    "likelihood",
+    "code_change",
+    "code_location",
+    "expected_detection",
+    "result",
+    "detecting_tests",
+    "observed_failure_reason",
+    "contract_violation_observed",
+    "follow_up"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+    "mode": { "enum": ["assessment", "harden", "catch"] },
+    "contract_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "source_intent": { "type": "string", "minLength": 1 },
+    "changed_intent": { "type": "string", "minLength": 1 },
+    "represented_risk": { "type": "string", "minLength": 1 },
+    "severity": { "enum": ["critical", "high", "medium", "low"] },
+    "likelihood": { "enum": ["high", "medium", "low"] },
+    "code_change": { "type": "string", "minLength": 1 },
+    "code_location": { "type": "string", "minLength": 1 },
+    "expected_detection": { "type": "string", "minLength": 1 },
+    "result": {
+      "enum": [
+        "killed",
+        "survived",
+        "invalid",
+        "equivalent",
+        "timeout",
+        "inconclusive",
+        "weak-catch",
+        "strong-catch",
+        "false-positive",
+        "not-comparable",
+        "no-catch"
+      ]
+    },
+    "detecting_tests": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "observed_failure_reason": { "type": "string" },
+    "contract_violation_observed": { "type": "boolean" },
+    "equivalence_evidence": { "type": "string", "minLength": 1 },
+    "catch": {
+      "type": "object",
+      "required": ["parent_outcome", "mutant_outcome", "change_outcome", "human_verdict"],
+      "properties": {
+        "parent_outcome": { "enum": ["pass", "fail", "not-runnable"] },
+        "mutant_outcome": { "enum": ["pass", "fail", "not-runnable"] },
+        "change_outcome": { "enum": ["pass", "fail", "not-runnable"] },
+        "human_verdict": { "enum": ["intended", "unintended", "unanswered", "not-requested"] }
+      },
+      "additionalProperties": false
+    },
+    "follow_up": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "result": { "const": "equivalent" } } },
+      "then": { "required": ["equivalence_evidence"] }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "catch" } } },
+      "then": { "required": ["catch"] }
+    },
+    {
+      "if": { "properties": { "result": { "const": "killed" } }, "required": ["result"] },
+      "then": {
+        "properties": {
+          "contract_violation_observed": { "const": true },
+          "observed_failure_reason": { "type": "string", "minLength": 1 },
+          "detecting_tests": { "minItems": 1 }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}
