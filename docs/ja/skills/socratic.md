@@ -107,6 +107,12 @@ Host AdapterはRun ID、Nonce、保護された外部Storage、Artifact Index、
 
 Host ContextはSession固有の`artifact_root`も1つ提供する。その直下へ固定Draft File `intent-contract.draft.json`、`mutation-report.draft.json`、`canonical-review.draft.json`だけを書く。Mutation Report Draftには分析Fieldだけを含め、Run Identity、Attestation、Isolation、Postflight、Renderer Hashを含めない。各Draftへ`stage-artifact`を一度ずつ呼び、Strict Schema ValidationとHost管理Artifact IndexへのCreate-once Hash記録を行う。Tool Gateはその他のFilename、Primary、Sandbox、Manifest、Ledger、任意のTemporary Path、Traversal、Symlinkを拒否する。`finish`後は構造化UIでArtifactと証明済みテストのDispositionを解決してから`cleanup`を呼ぶ。
 
+### 実験的Narrow Runner Contract
+
+同梱する`experiment-plan`、`evidence-bundle`、`interpretation` Schemaはv0.4 Prototype境界を定義する。AgentはIntentに結び付いた事故Model、型付きTest Selection、型付きMutation、Evidence解釈を提供し、将来の決定論的RunnerがCopy、Mutation、実行、Hash、Cleanupを所有する。これらのSchemaは本Releaseで新しい実行Pathを有効にしない。上記の必須Host Flowを引き続き使用する。
+
+`local-copy` BackendのPrototype Evidenceは常に`attested: false`でHost署名を持たず、正準Socratic ReviewとしてRenderしてはならない。同梱Runnerが実装する前に`assess` Commandを捏造しない。将来の準拠BackendはPrimaryを利用不能またはRead-onlyにし、CredentialとHost Secretを渡さず、Test実行時Networkを無効にし、Resourceを制限して無条件Cleanupを所有しなければならない。
+
 ### 1. Scopeを確定する
 
 Diff、ImmutableなBase・Head Snapshotの識別子、リポジトリ指示、影響する振る舞い、対象テストコマンド、Risk Partitionを特定する。Host提供の変更Context、展開済みDirectory、または読み取り専用GitのAllowlistから取得する。BranchやWorktreeを作成・切替しない。禁止操作なしで両Snapshotを展開できない場合、比較を弱めずRefactor GuardをBlockedとして報告する。対象外Partitionを明示し、レビュー目的を判定してWorkflow Branchを選ぶ。

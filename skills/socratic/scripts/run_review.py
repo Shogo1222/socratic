@@ -20,7 +20,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.11"
+SOCRATIC_VERSION = "0.4.0-alpha.1"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",

@@ -24,6 +24,15 @@ SCHEMA_MIRRORS = {
     "schemas/challenge-plan.schema.json": (
         "skills/socratic/references/challenge-plan.schema.json",
     ),
+    "schemas/evidence-bundle.schema.json": (
+        "skills/socratic/references/evidence-bundle.schema.json",
+    ),
+    "schemas/experiment-plan.schema.json": (
+        "skills/socratic/references/experiment-plan.schema.json",
+    ),
+    "schemas/interpretation.schema.json": (
+        "skills/socratic/references/interpretation.schema.json",
+    ),
     "schemas/intent-contract.schema.json": (
         "skills/maieutic/references/intent-contract.schema.json",
         "skills/elenchus/references/intent-contract.schema.json",
@@ -59,6 +68,8 @@ TRANSLATION_PAIRS = {
     "docs/protocol.md": "docs/ja/protocol.md",
     "docs/security-model.md": "docs/ja/security-model.md",
     "docs/enterprise-installation.md": "docs/ja/enterprise-installation.md",
+    "docs/runner-architecture.md": "docs/ja/runner-architecture.md",
+    "docs/test-profiles.md": "docs/ja/test-profiles.md",
     "skills/socratic/SKILL.md": "docs/ja/skills/socratic.md",
     "skills/maieutic/SKILL.md": "docs/ja/skills/maieutic.md",
     "skills/maieutic/references/intent-contract.md": "docs/ja/skills/maieutic-intent-contract.md",

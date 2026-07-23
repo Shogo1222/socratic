@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Socratic Evidence Interpretation",
+  "type": "object",
+  "required": ["version", "interpretations", "canonical_review"],
+  "properties": {
+    "version": { "const": 1 },
+    "interpretations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "mutation_ref", "contract_refs", "accident_model", "classification",
+          "outcome"
+        ],
+        "properties": {
+          "mutation_ref": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+          "contract_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "accident_model": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "classification": {
+            "enum": ["killed", "survived", "inconclusive", "equivalent", "invalid"]
+          },
+          "outcome": {
+            "type": "object",
+            "required": ["kind", "reason", "test_refs"],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "passed", "behavioral-failure", "infrastructure-failure",
+                  "process-crash", "timeout", "unparseable"
+                ]
+              },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "test_refs": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "uniqueItems": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": { "classification": { "const": "killed" } },
+              "required": ["classification"]
+            },
+            "then": {
+              "properties": {
+                "outcome": {
+                  "properties": {
+                    "kind": { "const": "behavioral-failure" },
+                    "test_refs": { "minItems": 1 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "classification": { "const": "survived" } },
+              "required": ["classification"]
+            },
+            "then": {
+              "properties": {
+                "outcome": {
+                  "properties": { "kind": { "const": "passed" } }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "canonical_review": { "$ref": "canonical-review.schema.json" }
+  },
+  "additionalProperties": false
+}
