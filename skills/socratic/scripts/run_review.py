@@ -19,7 +19,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.7"
+SOCRATIC_VERSION = "0.3.0-alpha.8"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -586,8 +586,22 @@ def _attested_report(
     protected = protection["mode"] in {"os-read-only", "permission-read-only"}
     monitored = protection["mode"] in {"host-events", "os-audit"}
     unresolved = [item["id"] for item in contract.get("unresolved", [])]
+    baselines = [
+        item for item in ledger
+        if item.get("kind") == "command" and item.get("phase") == "baseline"
+    ]
+    mutation_executions = [
+        item for item in ledger
+        if item.get("kind") == "command" and item.get("phase") == "mutation"
+    ]
+
+    def raw_outcome(item: dict[str, Any]) -> str:
+        if item.get("result") == "timeout":
+            return "timeout"
+        return "passed" if item.get("returncode") == 0 else "failed"
+
     report = {
-        "version": 7,
+        "version": 8,
         "mode": draft["mode"],
         "write_mode": "review-only",
         "run": {
@@ -610,6 +624,35 @@ def _attested_report(
         "test_changes": draft["test_changes"],
         "test_handoff": draft["test_handoff"],
         "authorized_workspace_changes": draft["authorized_workspace_changes"],
+        "execution_evidence": {
+            "source": "host-ledger",
+            "baseline": [
+                {
+                    "attempt": attempt,
+                    "outcome": raw_outcome(item),
+                    "exit_code": item.get("returncode"),
+                }
+                for attempt, item in enumerate(baselines, 1)
+            ],
+            "mutations": [
+                {
+                    "mutation_id": item["mutation_id"],
+                    "attempt": attempt,
+                    "outcome": raw_outcome(item),
+                    "exit_code": item.get("returncode"),
+                }
+                for mutation_id in sorted({
+                    item["mutation_id"] for item in mutation_executions
+                })
+                for attempt, item in enumerate(
+                    [
+                        event for event in mutation_executions
+                        if event["mutation_id"] == mutation_id
+                    ],
+                    1,
+                )
+            ],
+        },
         "isolation": {
             "execution_strategy": strategy,
             "primary_root": manifest["primary_root"],
@@ -723,12 +766,43 @@ def finish_document(
             if item.get("result", "completed") == "completed"
         ]
         timed_out = any(item.get("result") == "timeout" for item in mutation_executions)
+        interpretation = mutation.get("outcome_interpretation", {}).get("kind")
+        failed = any(code != 0 for code in completed_codes)
+        passed = bool(completed_codes) and all(code == 0 for code in completed_codes)
+        if interpretation == "passed" and (timed_out or not passed):
+            raise RunGateError(
+                f"passed interpretation contradicts raw execution: {mutation_id}"
+            )
+        if interpretation in {
+            "behavioral-failure",
+            "infrastructure-failure",
+            "process-crash",
+            "unparseable",
+        } and not failed:
+            raise RunGateError(
+                f"failure interpretation has no failing execution: {mutation_id}"
+            )
+        if interpretation == "timeout" and not timed_out:
+            raise RunGateError(
+                f"timeout interpretation has no timeout execution: {mutation_id}"
+            )
         if mutation["result"] == "killed" and not any(code != 0 for code in completed_codes):
             raise RunGateError(f"killed mutation has no failing execution: {mutation_id}")
+        if (
+            mutation["result"] == "killed"
+            and interpretation != "behavioral-failure"
+        ):
+            raise RunGateError(
+                f"killed mutation is not classified as a behavioral failure: {mutation_id}"
+            )
         if mutation["result"] == "survived" and (
             timed_out or not completed_codes or any(code != 0 for code in completed_codes)
         ):
             raise RunGateError(f"survived mutation has a failing execution: {mutation_id}")
+        if mutation["result"] == "survived" and interpretation != "passed":
+            raise RunGateError(
+                f"survived mutation is not classified as passed: {mutation_id}"
+            )
         if mutation["result"] == "timeout" and not timed_out:
             raise RunGateError(f"timeout mutation has no timeout execution: {mutation_id}")
     isolation = report.get("isolation", {})

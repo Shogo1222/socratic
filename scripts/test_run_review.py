@@ -338,6 +338,66 @@ class RunReviewTest(unittest.TestCase):
                     ledger_head=self.runner._ledger_head(manifest),
                 )
 
+    def test_finish_rejects_infrastructure_failure_reported_as_killed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            self.runner.register_prebuilt(
+                manifest_path, "MUT-001", "packages/app/mutant-1.ts"
+            )
+            self.runner.execute(
+                manifest_path,
+                "mutation",
+                "MUT-001",
+                [sys.executable, "-c", "raise SystemExit(1)"],
+                10,
+            )
+            contract = json.loads(
+                (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+            )
+            draft = self.report_draft()
+            draft["mutations"] = draft["mutations"][:1]
+            draft["mutations"][0]["outcome_interpretation"] = {
+                "kind": "infrastructure-failure",
+                "reason": "The test runner failed before collecting assertions.",
+            }
+            ledger = self.runner._ledger_events(manifest)
+            report = self.runner._attested_report(
+                manifest,
+                contract,
+                draft,
+                ledger,
+                manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                ledger_head=self.runner._ledger_head(manifest),
+            )
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "not classified as a behavioral failure"
+            ):
+                self.runner.finish_document(
+                    manifest,
+                    report,
+                    {},
+                    ledger,
+                    manifest_sha256=hashlib.sha256(
+                        manifest_path.read_bytes()
+                    ).hexdigest(),
+                    ledger_head=self.runner._ledger_head(manifest),
+                )
+
+            report["mutations"][0]["result"] = "inconclusive"
+            self.runner.finish_document(
+                manifest,
+                report,
+                {},
+                ledger,
+                manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                ledger_head=self.runner._ledger_head(manifest),
+            )
+
     def test_end_to_end_requires_baseline_and_every_mutation_execution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -372,6 +432,19 @@ class RunReviewTest(unittest.TestCase):
             attested_path = Path(manifest["artifact_root"]) / "mutation-report.attested.json"
             attested = json.loads(attested_path.read_text(encoding="utf-8"))
             self.assertEqual(attested["run"]["id"], manifest["run_id"])
+            self.assertEqual(attested["version"], 8)
+            self.assertEqual(attested["execution_evidence"]["source"], "host-ledger")
+            self.assertEqual(
+                attested["execution_evidence"]["baseline"],
+                [{"attempt": 1, "outcome": "passed", "exit_code": 0}],
+            )
+            self.assertEqual(
+                [
+                    item["outcome"]
+                    for item in attested["execution_evidence"]["mutations"]
+                ],
+                ["failed", "failed", "failed"],
+            )
             self.assertEqual(
                 attested["run"]["ledger_head"], self.runner._ledger_head(manifest)
             )

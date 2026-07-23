@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "run": {
     "id": "11111111111111111111111111111111",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -30,7 +30,10 @@
     {
       "id": "MUT-001",
       "mode": "harden",
-      "contract_ids": ["DEC-001", "INV-001"],
+      "contract_ids": [
+        "DEC-001",
+        "INV-001"
+      ],
       "source_intent": "An account is expired at the exact expiry instant",
       "changed_intent": "An account remains eligible at the exact expiry instant",
       "represented_risk": "Renewal after expiry",
@@ -45,12 +48,19 @@
       ],
       "observed_failure_reason": "The equality-boundary assertion fails because an expired account is renewed",
       "contract_violation_observed": true,
-      "follow_up": "none"
+      "follow_up": "none",
+      "outcome_interpretation": {
+        "kind": "behavioral-failure",
+        "reason": "The equality-boundary assertion fails because an expired account is renewed"
+      }
     },
     {
       "id": "MUT-002",
       "mode": "harden",
-      "contract_ids": ["DEC-002", "FX-001"],
+      "contract_ids": [
+        "DEC-002",
+        "FX-001"
+      ],
       "source_intent": "An eligible renewal charges exactly once",
       "changed_intent": "Renewal may report success without charging",
       "represented_risk": "Service is granted without payment",
@@ -65,12 +75,19 @@
       ],
       "observed_failure_reason": "The external charge assertion fails because renewal succeeds without payment",
       "contract_violation_observed": true,
-      "follow_up": "none"
+      "follow_up": "none",
+      "outcome_interpretation": {
+        "kind": "behavioral-failure",
+        "reason": "The external charge assertion fails because renewal succeeds without payment"
+      }
     },
     {
       "id": "MUT-003",
       "mode": "harden",
-      "contract_ids": ["INV-002", "FX-002"],
+      "contract_ids": [
+        "INV-002",
+        "FX-002"
+      ],
       "source_intent": "Retrying a completed renewal does not charge again",
       "changed_intent": "Every retry performs another charge",
       "represented_risk": "Duplicate payment",
@@ -85,7 +102,11 @@
       ],
       "observed_failure_reason": "The retry assertion observes a second charge",
       "contract_violation_observed": true,
-      "follow_up": "none"
+      "follow_up": "none",
+      "outcome_interpretation": {
+        "kind": "behavioral-failure",
+        "reason": "The retry assertion observes a second charge"
+      }
     }
   ],
   "not_challenged": [],
@@ -141,5 +162,35 @@
     "production_mutation_free": true,
     "sandbox_destroyed": true,
     "notes": "Demo mutants are separate modules; subscription.py is never edited"
+  },
+  "execution_evidence": {
+    "source": "host-ledger",
+    "baseline": [
+      {
+        "attempt": 1,
+        "outcome": "passed",
+        "exit_code": 0
+      }
+    ],
+    "mutations": [
+      {
+        "mutation_id": "MUT-001",
+        "attempt": 1,
+        "outcome": "failed",
+        "exit_code": 1
+      },
+      {
+        "mutation_id": "MUT-002",
+        "attempt": 1,
+        "outcome": "failed",
+        "exit_code": 1
+      },
+      {
+        "mutation_id": "MUT-003",
+        "attempt": 1,
+        "outcome": "failed",
+        "exit_code": 1
+      }
+    ]
   }
 }

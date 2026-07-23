@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "run": {
     "id": "22222222222222222222222222222222",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -30,7 +30,9 @@
     {
       "id": "MUT-001",
       "mode": "catch",
-      "contract_ids": ["INV-001"],
+      "contract_ids": [
+        "INV-001"
+      ],
       "source_intent": "The end date itself is inside the membership term",
       "changed_intent": "The membership is already expired on the end date",
       "represented_risk": "A boundary flip hidden inside a readability refactoring",
@@ -40,7 +42,9 @@
       "code_location": "demo/refactor_guard/head.py:_is_active",
       "expected_detection": "The end-date probe renews on base and raises on the mutant",
       "result": "strong-catch",
-      "detecting_tests": ["test_renews_on_the_exact_end_date"],
+      "detecting_tests": [
+        "test_renews_on_the_exact_end_date"
+      ],
       "observed_failure_reason": "The exact end-date probe passes on Base and fails behaviorally on Head",
       "contract_violation_observed": true,
       "catch": {
@@ -49,11 +53,17 @@
         "change_outcome": "fail",
         "human_verdict": "unintended"
       },
-      "follow_up": "none"
+      "follow_up": "none",
+      "outcome_interpretation": {
+        "kind": "behavioral-failure",
+        "reason": "The exact end-date probe passes on Base and fails behaviorally on Head"
+      }
     }
   ],
   "not_challenged": [],
-  "unresolved": ["UNR-001"],
+  "unresolved": [
+    "UNR-001"
+  ],
   "test_changes": [
     {
       "name": "test_renews_well_before_the_end_date",
@@ -103,5 +113,23 @@
     "production_mutation_free": true,
     "sandbox_destroyed": true,
     "notes": "Demo probes live as a separate module; base.py and head.py are never edited"
+  },
+  "execution_evidence": {
+    "source": "host-ledger",
+    "baseline": [
+      {
+        "attempt": 1,
+        "outcome": "passed",
+        "exit_code": 0
+      }
+    ],
+    "mutations": [
+      {
+        "mutation_id": "MUT-001",
+        "attempt": 1,
+        "outcome": "failed",
+        "exit_code": 1
+      }
+    ]
   }
 }

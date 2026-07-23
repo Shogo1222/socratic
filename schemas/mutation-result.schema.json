@@ -15,6 +15,7 @@
     "code_location",
     "expected_detection",
     "result",
+    "outcome_interpretation",
     "detecting_tests",
     "observed_failure_reason",
     "contract_violation_observed",
@@ -52,6 +53,24 @@
         "no-catch"
       ]
     },
+    "outcome_interpretation": {
+      "type": "object",
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "passed",
+            "behavioral-failure",
+            "infrastructure-failure",
+            "process-crash",
+            "timeout",
+            "unparseable"
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "detecting_tests": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
@@ -81,6 +100,59 @@
     {
       "if": { "properties": { "mode": { "const": "catch" } } },
       "then": { "required": ["catch"] }
+    },
+    {
+      "if": { "properties": { "result": { "const": "killed" } }, "required": ["result"] },
+      "then": {
+        "properties": {
+          "outcome_interpretation": {
+            "properties": { "kind": { "const": "behavioral-failure" } },
+            "required": ["kind"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result": { "const": "survived" } }, "required": ["result"] },
+      "then": {
+        "properties": {
+          "outcome_interpretation": {
+            "properties": { "kind": { "const": "passed" } },
+            "required": ["kind"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result": { "const": "timeout" } }, "required": ["result"] },
+      "then": {
+        "properties": {
+          "outcome_interpretation": {
+            "properties": { "kind": { "const": "timeout" } },
+            "required": ["kind"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result": { "const": "inconclusive" } }, "required": ["result"] },
+      "then": {
+        "properties": {
+          "outcome_interpretation": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "infrastructure-failure",
+                  "process-crash",
+                  "timeout",
+                  "unparseable"
+                ]
+              }
+            },
+            "required": ["kind"]
+          }
+        }
+      }
     },
     {
       "if": { "properties": { "result": { "const": "killed" } }, "required": ["result"] },

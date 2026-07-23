@@ -196,7 +196,9 @@ Follow every rule in `references/safety.md`. Capture a scoped filesystem manifes
 
 When Socratic invokes Elenchus, accept only a ready manifest issued through Socratic's trusted Host Adapter API. Route every mutation through `mutate` or `register_prebuilt`, then run its tests through `execute` with `phase=mutation` and the same Mutation ID. A separate successful baseline execution is mandatory. If Host integration, protected storage, an accepted Host protection attestation, or phase-bound execution is unavailable, return `blocked` without mutation. Never approximate these phases manually or mutate Primary and restore it later.
 
-Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires an accepted Host attestation for read-only protection or write-event monitoring. In schema v7, `verified: true` records that acceptance; it is not an independent OS verification performed by the Runner.
+Keep raw command outcomes separate from interpretation. A nonzero exit is not by itself a behavioral kill. Record `outcome_interpretation.kind` as `behavioral-failure` only when assertion evidence demonstrates the represented Contract violation. Use `infrastructure-failure`, `process-crash`, `timeout`, or `unparseable` and classify the mutation as `inconclusive` otherwise.
+
+Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires an accepted Host attestation for read-only protection or write-event monitoring. In schema v8, `verified: true` records that acceptance; it is not an independent OS verification performed by the Runner.
 
 ### 4. Execute one mutant at a time
 
