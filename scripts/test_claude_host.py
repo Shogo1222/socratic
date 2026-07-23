@@ -81,6 +81,13 @@ class ClaudeHostTest(unittest.TestCase):
                     },
                 })
                 self.assertEqual(allowed_artifact_patch, {})
+                challenge_plan = Path(state["artifact_root"]) / "challenge-plan.json"
+                allowed_challenge_plan = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": str(challenge_plan)},
+                })
+                self.assertEqual(allowed_challenge_plan, {})
                 denied_arbitrary_artifact = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write", "tool_input": {

@@ -6,9 +6,9 @@
 
 ## 配布物
 
-<!-- socratic-distribution-file-count: 25 -->
-<!-- socratic-plugin-file-count: 45 -->
-Standalone Skill配布物は3つのSkill Directoryにある25個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperで、分析Draft SchemaとそのLocal Mutation Report v9依存も含みます。監査対象のv0.3.0 Multi-Host Plugin Component Setは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Broker、Plugin管理Python Runtime Bootstrapを加えた合計45個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Marketplace Checkoutには`demo/`、`docs/`、`site/`など、この監査対象Runtime Component Set外のRepository Fileも実体化されます。45 Fileという記述は監査対象Plugin BundleとRelease Assetを指し、Source Checkoutに実体化される全File数ではありません。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否は監査対象Component SetについてPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+<!-- socratic-distribution-file-count: 26 -->
+<!-- socratic-plugin-file-count: 46 -->
+Standalone Skill配布物は3つのSkill Directoryにある26個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperで、Challenge Plan・分析Draft SchemaとそのLocal Mutation Report v9依存も含みます。監査対象のv0.3.0 Multi-Host Plugin Component Setは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Broker、Plugin管理Python Runtime Bootstrapを加えた合計46個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Marketplace Checkoutには`demo/`、`docs/`、`site/`など、この監査対象Runtime Component Set外のRepository Fileも実体化されます。46 Fileという記述は監査対象Plugin BundleとRelease Assetを指し、Source Checkoutに実体化される全File数ではありません。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否は監査対象Component SetについてPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 
@@ -27,6 +27,8 @@ Mutationでは最終状態一致だけでは不十分です。必須Host Adapter
 Schema v9はv7で導入したJSON Field名`verified`を維持します。Protection Evidenceの`verified: true`は、信頼するHost Adapterが発行したAttestationをRunnerが受理したことを表し、Runner自身がOS Protection境界を独立検証したという意味ではありません。Schema v9ではHost由来のRaw Execution Evidenceと推論側のOutcome Interpretationも分離します。Nonzero Exitだけで`killed`とはできず、Behavioral Assertion Failureを特定できないInfrastructure Failure、Crash、Timeout、Unparseable Outputは`inconclusive`のままです。
 
 依存準備とMutation実行ではFilesystem Roleを分離します。Baseline CommandはHost管理Prepared Snapshotを1つだけ準備し、Mutation前にContent Hash付きでLedgerへSealします。各Mutation IDはそのSnapshotから新しいSandboxへ分岐します。RunnerはHostが対応する場合にAPFS CloneまたはLinux ReflinkのCopy-on-writeを優先し、非対応時は`full-copy`を記録します。HOME、Temp、CacheはCloneごとに再作成します。`finish`はPrepared Snapshotの変更を拒否するため、依存導入を一度にしながらMutant間の状態共有を防ぎます。
+
+`challenge-batch`は順序保証を弱めずTool往復を削減します。Agentが書けるのは固定されSchema検証される`challenge-plan.json`だけで、Mutation定義とCommandを含みますが予測結果は含みません。RunnerはCloneを決定的に準備し、上限付き並列度で独立Test Processを実行し、Host観測OutcomeをPlan順にHash-chain Ledgerへ追記します。TimeoutやRunner Failureは該当Mutation IDだけへ隔離され、Behavioral Killへ変換できません。
 
 ## Agent開始前のHost Gate
 

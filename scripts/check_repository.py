@@ -21,6 +21,9 @@ DISTRIBUTION_COUNT_DOCUMENTS = (
 )
 
 SCHEMA_MIRRORS = {
+    "schemas/challenge-plan.schema.json": (
+        "skills/socratic/references/challenge-plan.schema.json",
+    ),
     "schemas/intent-contract.schema.json": (
         "skills/maieutic/references/intent-contract.schema.json",
         "skills/elenchus/references/intent-contract.schema.json",

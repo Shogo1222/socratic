@@ -61,6 +61,17 @@ class CursorHostTest(unittest.TestCase):
                     },
                 })
                 self.assertEqual(allowed_artifact["permission"], "allow")
+                allowed_challenge_plan = self.gate.evaluate({
+                    "hook_event_name": "preToolUse",
+                    "conversation_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {
+                        "file_path": str(
+                            Path(state["artifact_root"]) / "challenge-plan.json"
+                        )
+                    },
+                })
+                self.assertEqual(allowed_challenge_plan["permission"], "allow")
                 denied_arbitrary_temp = self.gate.evaluate({
                     "hook_event_name": "preToolUse",
                     "conversation_id": session_id,

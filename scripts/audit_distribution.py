@@ -33,6 +33,7 @@ EXPECTED_FILES = (
     "socratic/SKILL.md",
     "socratic/agents/openai.yaml",
     "socratic/references/canonical-review.schema.json",
+    "socratic/references/challenge-plan.schema.json",
     "socratic/references/mutation-report.schema.json",
     "socratic/references/mutation-report-draft.schema.json",
     "socratic/references/mutation-result.schema.json",
