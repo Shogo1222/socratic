@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.11"
+SOCRATIC_VERSION = "0.4.0-alpha.12"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -209,6 +209,22 @@ def _review_files(root: Path):
             path = Path(directory) / filename
             if path.is_file() and not path.is_symlink():
                 yield path
+
+
+def _resolve_inspect_kind(
+    kind_flag: str | None, kind_positional: str | None
+) -> str:
+    """Accept both `inspect diff` and `inspect --kind diff` invocation forms."""
+    if kind_flag and kind_positional and kind_flag != kind_positional:
+        raise RunGateError(
+            f"inspect received two different kinds: --kind {kind_flag} and {kind_positional}"
+        )
+    kind = kind_flag or kind_positional
+    if not kind:
+        raise RunGateError(
+            "inspect requires a kind: use `inspect diff|file|search|tests` or `inspect --kind diff`"
+        )
+    return kind
 
 
 def inspect_review(
@@ -854,7 +870,9 @@ def mutate(
     manifest = _ready_manifest(manifest_path)
     _authorize_contract_challenge(manifest, contract_ids)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
-        raise RunGateError(f"invalid mutation id: {mutation_id}")
+        raise RunGateError(
+            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
+        )
     sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     if Path(relative_target).is_absolute() or ".." in Path(relative_target).parts:
         shutil.rmtree(sandbox, ignore_errors=True)
@@ -900,7 +918,9 @@ def mutate_anchored(
     manifest = _ready_manifest(manifest_path)
     _authorize_contract_challenge(manifest, contract_ids)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
-        raise RunGateError(f"invalid mutation id: {mutation_id}")
+        raise RunGateError(
+            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
+        )
     relative_target, content = _anchored_postimage(
         Path(manifest["prepared_root"]), mutation
     )
@@ -944,7 +964,9 @@ def register_prebuilt(
     manifest = _ready_manifest(manifest_path)
     _authorize_contract_challenge(manifest, contract_ids)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
-        raise RunGateError(f"invalid mutation id: {mutation_id}")
+        raise RunGateError(
+            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
+        )
     relative = Path(relative_path)
     sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     unresolved = sandbox / relative
@@ -1077,7 +1099,9 @@ def probe_command(
     """Validate a focused test command in a fresh clone before issuing Mutation IDs."""
     manifest = _ready_manifest(manifest_path)
     if not re.fullmatch(r"CMD-[0-9]{3,}", command_id):
-        raise RunGateError(f"invalid command id: {command_id}")
+        raise RunGateError(
+            f"invalid command id: {command_id}; expected CMD-<three or more digits>, e.g. --command-id CMD-001"
+        )
     if not command:
         raise RunGateError("probe command must not be empty")
     events = _ledger_events(manifest)
@@ -1366,6 +1390,8 @@ def challenge_batch(
                 }
 
     public_results: list[dict[str, Any]] = []
+    detailed_results: list[dict[str, Any]] = []
+    tail_limit = 2000
     for challenge in plan["challenges"]:
         result = results_by_id[challenge["id"]]
         ledger_event = {
@@ -1380,29 +1406,53 @@ def challenge_batch(
             "batch_plan_sha256": plan_sha256,
         })
         _append_event(manifest, ledger_event)
-        public_results.append({
+        outcome = (
+            "runner-error"
+            if result["result"] == "runner-error"
+            else
+            "timeout"
+            if result["result"] == "timeout"
+            else "passed"
+            if result["result"] == "completed" and result["returncode"] == 0
+            else "failed"
+        )
+        detailed_results.append({
             "mutation_id": result["mutation_id"],
-            "outcome": (
-                "runner-error"
-                if result["result"] == "runner-error"
-                else
-                "timeout"
-                if result["result"] == "timeout"
-                else "passed"
-                if result["result"] == "completed" and result["returncode"] == 0
-                else "failed"
-            ),
+            "outcome": outcome,
             "returncode": result["returncode"],
+            "duration_ms": result.get("duration_ms"),
+            "cwd": result.get("cwd"),
             "stdout": result["stdout"],
             "stderr": result["stderr"],
             "output_truncated": result["output_truncated"],
         })
+        # The compact view keeps stdout readable in one screen: full output goes
+        # to the details artifact, and only non-green outcomes carry a tail here
+        # so detecting tests and failure causes stay diagnosable inline.
+        entry: dict[str, Any] = {
+            "mutation_id": result["mutation_id"],
+            "outcome": outcome,
+            "returncode": result["returncode"],
+            "duration_ms": result.get("duration_ms"),
+        }
+        if outcome != "passed":
+            entry["stdout_tail"] = result["stdout"][-tail_limit:]
+            entry["stderr_tail"] = result["stderr"][-tail_limit:]
+        public_results.append(entry)
+    details_path = Path(manifest["artifact_root"]) / "challenge-results.json"
+    _write_exclusive(details_path, {
+        "run_id": manifest["run_id"],
+        "plan_sha256": plan_sha256,
+        "command_id": plan["command_id"],
+        "results": detailed_results,
+    })
     return {
         "status": "completed",
         "plan_sha256": plan_sha256,
         "command_id": plan["command_id"],
         "max_parallel": plan["max_parallel"],
         "results": public_results,
+        "details_path": str(details_path),
     }
 
 
@@ -2270,7 +2320,12 @@ def main() -> int:
     inspect_parser = commands.add_parser("inspect")
     inspect_parser.add_argument("--manifest", required=True, type=Path)
     inspect_parser.add_argument(
-        "--kind", required=True, choices=("diff", "file", "search", "tests")
+        "--kind", choices=("diff", "file", "search", "tests")
+    )
+    inspect_parser.add_argument(
+        "kind_positional", nargs="?", choices=("diff", "file", "search", "tests"),
+        metavar="kind",
+        help="inspect kind; `inspect diff` and `inspect --kind diff` are equivalent",
     )
     inspect_parser.add_argument("--relative-path")
     inspect_parser.add_argument("--query")
@@ -2384,7 +2439,7 @@ def main() -> int:
         if args.command == "inspect":
             print(json.dumps(inspect_review(
                 args.manifest,
-                args.kind,
+                _resolve_inspect_kind(args.kind, args.kind_positional),
                 relative_path=args.relative_path,
                 query=args.query,
                 start_line=args.start_line,
