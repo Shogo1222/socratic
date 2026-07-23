@@ -91,6 +91,8 @@ Native Host IntegrationがTrusted Preflightを完了した後だけ、このWork
 
 ユーザーが起動PromptへGitHub Pull Request URLまたは`PR #<number>`を指定した場合、注入CommandのHost Materialized Review Rootだけを使用する。AgentではなくHostが正確なBase・Head Commitを解決・FetchしてSHAを検証し、`change_context`へ記録する。PRを再Fetchしたり、呼び出し元の現在Checkoutで置換したり、異なるPR Provenanceを主張してはならない。Host Materializationが失敗した場合、GateはTerminal Blockedとなる。
 
+Local-workspace Runの開始後にユーザーがPRを選択した場合、または別のPRへ変更した場合、Hostは旧Runを終了し、新しくMaterializeしたReview Rootを注入しなければならない。置換されたRunのScope判断、Finding、Plan、Artifact、委譲結果をすべて破棄する。Target取得のFallbackとして`gh`、`git fetch`、Subagentを使用しない。Hostが新Targetを注入しない場合、旧Scopeのまま続行せず停止する。
+
 すべてのReview-only Mutation Runは、信頼されたHost Adapterによる`preflight_with_host`、Baseline `execute`、1回以上の検証済み`challenge-batch`（または同等の個別Mutation・Execution）、3つの検証済み`stage-artifact`、`finish`、`cleanup`を必ず使用する。Standalone CLIはReady Runを作れず、自己申告Attestation JSONを受理しない。Host Adapter、Schema、またはHostがAttestしたRead-only/Write-monitor CapabilityがなければMutation前に`blocked`で停止する。Schema v10の`verified: true`は、Runnerが信頼するHostのAttestationを受理したことを意味し、Runner自身がOS境界を独立検証したという意味ではない。手作業の近似、Primary変更後の復元、`execute`外のCommand、Attestation Fieldや完全Reportや4ブロックの手書きを正規Runとして提示しない。
 
 Standalone Preflightが`status=blocked`を返した場合は、次の固定終了手順だけを実行し、代替Workflowへ進まない。

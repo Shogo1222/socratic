@@ -41,7 +41,7 @@ gh skill publish --dry-run
 
 Fixture validation needs `jsonschema` and `referencing` (`python3 -m pip install jsonschema referencing`); everything else uses the standard library.
 
-The distribution audit intentionally fixes the shipped standalone Skill file set at 21 UTF-8 text files and the Codex Plugin bundle at 24 UTF-8 text files. Any added Skill, Plugin manifest, Host hook, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
+The distribution audit intentionally fixes the shipped standalone Skill file set at 30 UTF-8 text files and the Plugin bundle at 50 UTF-8 text files. Any added Skill, Plugin manifest, Host hook, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
 
 ## v0.2 scope
 

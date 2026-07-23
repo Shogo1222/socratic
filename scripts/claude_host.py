@@ -26,7 +26,7 @@ BROKER_PROCESSES: dict[str, subprocess.Popen] = {}
 GITHUB_PR_URL = re.compile(
     r"https://github\.com/([^/\s]+)/([^/\s]+)/pull/([0-9]+)\b", re.IGNORECASE
 )
-PR_NUMBER = re.compile(r"\bPR\s*#([0-9]+)\b", re.IGNORECASE)
+PR_NUMBER = re.compile(r"\bPR\s*#?\s*([0-9]+)\b", re.IGNORECASE)
 GITHUB_REMOTE = re.compile(
     r"(?:https://github\.com/|git@github\.com:)([^/\s:]+/[^/\s]+?)(?:\.git)?$",
     re.IGNORECASE,
@@ -39,6 +39,69 @@ def requested_pull_request(prompt: str) -> str | int | None:
         return url.group(0)
     number = PR_NUMBER.search(prompt)
     return int(number.group(1)) if number else None
+
+
+def session_target_matches(state: dict[str, Any], requested: str | int) -> bool:
+    """Return whether an active Host session already represents the requested PR."""
+    change = state.get("change_context")
+    if not isinstance(change, dict) or change.get("source") != "github-pull-request":
+        return False
+    try:
+        requested_number = (
+            int(requested.rsplit("/", 1)[1]) if isinstance(requested, str) else requested
+        )
+        current_number = int(change["number"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if current_number != requested_number:
+        return False
+    if isinstance(requested, str):
+        current_url = change.get("url")
+        return (
+            isinstance(current_url, str)
+            and current_url.rstrip("/") == requested.rstrip("/")
+        )
+    return True
+
+
+def prepare_or_retarget_session(
+    session_id: str,
+    primary: Path,
+    prompt: str,
+    *,
+    adapter_id: str = "claude-code-hook-host-v1",
+    host_name: str = "Claude Code",
+) -> tuple[dict[str, Any], bool]:
+    """Start a Host session or replace it when a later prompt selects another PR."""
+    state = load_live_session(session_id)
+    if state is not None and request(
+        Path(state.get("socket_path", "")), str(state.get("token", ""))
+    ) != {"status": "ready"}:
+        raise RuntimeError("existing trusted Host session is unavailable")
+    requested = requested_pull_request(prompt)
+    if state is not None and requested is not None and not session_target_matches(
+        state, requested
+    ):
+        state = prepare_session(
+            session_id,
+            primary,
+            adapter_id=adapter_id,
+            host_name=host_name,
+            prompt=prompt,
+        )
+        return state, True
+    if state is not None:
+        return state, False
+    return (
+        prepare_session(
+            session_id,
+            primary,
+            adapter_id=adapter_id,
+            host_name=host_name,
+            prompt=prompt,
+        ),
+        False,
+    )
 
 
 def materialize_pull_request(

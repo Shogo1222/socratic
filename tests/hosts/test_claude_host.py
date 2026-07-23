@@ -202,7 +202,53 @@ class ClaudeHostTest(unittest.TestCase):
             "https://github.com/Shogo1222/socratic/pull/438",
         )
         self.assertEqual(self.host.requested_pull_request("review PR #438"), 438)
+        self.assertEqual(self.host.requested_pull_request("PR438 日本語で"), 438)
         self.assertIsNone(self.host.requested_pull_request("review local changes"))
+
+    def test_late_pull_request_selection_replaces_local_session(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            session_id = "late-pr-selection"
+            try:
+                first = self.host.prepare_session(session_id, repository)
+                sentinel = self.host.session_root(session_id) / "old-run.txt"
+                sentinel.write_text("must be removed", encoding="utf-8")
+
+                def fake_materialize(primary, storage, requested):
+                    head = storage / "change" / "head"
+                    head.mkdir(parents=True)
+                    return {
+                        "source": "github-pull-request",
+                        "number": requested,
+                        "url": f"https://github.com/Shogo1222/socratic/pull/{requested}",
+                        "base_ref": "main",
+                        "base_sha": "1" * 40,
+                        "head_ref": "feature",
+                        "head_sha": "2" * 40,
+                        "base_root": str(storage / "change" / "base"),
+                        "head_root": str(head),
+                    }
+
+                with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
+                    self.host, "materialize_pull_request", side_effect=fake_materialize
+                ):
+                    decision = self.hook.evaluate({
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "PR438 日本語で",
+                        "session_id": session_id,
+                        "cwd": str(repository),
+                    })
+                state = self.host.load_session(session_id)
+                self.assertNotEqual(state["run_id"], first["run_id"])
+                self.assertEqual(state["change_context"]["number"], 438)
+                self.assertFalse(sentinel.exists())
+                context = decision["hookSpecificOutput"]["additionalContext"]
+                self.assertIn("Discard all scope, findings, plans", context)
+                self.assertIn("Do not use git fetch, gh, or a subagent", context)
+                self.assertIn(state["review_root"], context)
+            finally:
+                self.host.cleanup_session(session_id)
 
     def test_host_materializes_and_attests_exact_pull_request_commits(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

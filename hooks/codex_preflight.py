@@ -60,20 +60,26 @@ def evaluate(payload: Any) -> dict[str, Any]:
     if SOCRATIC_INVOCATION.search(prompt) is None and not active:
         return {"continue": True}
     try:
-        if not active:
-            state = host.prepare_session(
-                session_id,
-                Path(cwd),
-                adapter_id="codex-plugin-hook-host-v1",
-                host_name="Codex",
-                prompt=prompt,
-            )
+        state, retargeted = host.prepare_or_retarget_session(
+            session_id,
+            Path(cwd),
+            prompt,
+            adapter_id="codex-plugin-hook-host-v1",
+            host_name="Codex",
+        )
         runtime_python = _runtime_python()
     except (OSError, RuntimeError):
         return _blocked()
     assert state is not None
     runner = Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"
-    context = (
+    retarget_context = (
+        "The user selected a new pull-request target. The Host terminated the "
+        "previous run and materialized a fresh review root. Discard all scope, "
+        "findings, plans, and agent results from the previous run. Do not use "
+        "git fetch, gh, or a subagent to obtain the pull request.\n"
+        if retargeted else ""
+    )
+    context = retarget_context + (
         "Trusted Socratic Host is ready. Run mandatory preflight with: "
         f"{shlex.quote(str(runtime_python))} {shlex.quote(str(runner))} preflight "
         f"--primary {shlex.quote(state['review_root'])} "
