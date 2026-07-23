@@ -9,7 +9,12 @@
       "type": "object",
       "required": ["sha256"],
       "properties": {
-        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "sha256": {
+          "oneOf": [
+            { "const": "runner-computed" },
+            { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          ]
+        }
       },
       "additionalProperties": false
     },
@@ -53,6 +58,26 @@
           "additionalProperties": false
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "selection": {
+                "properties": { "methods": { "minItems": 1 } },
+                "required": ["methods"]
+              }
+            },
+            "required": ["selection"]
+          },
+          "then": {
+            "properties": {
+              "selection": {
+                "properties": { "classes": { "minItems": 1 } }
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "round": {
@@ -98,8 +123,10 @@
                   "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
                 },
                 "preimage_sha256": {
-                  "type": "string",
-                  "pattern": "^[a-f0-9]{64}$"
+                  "oneOf": [
+                    { "const": "runner-computed" },
+                    { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                  ]
                 },
                 "operations": {
                   "type": "array",

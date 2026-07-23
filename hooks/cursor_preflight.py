@@ -101,7 +101,9 @@ def evaluate(payload: Any) -> dict[str, Any]:
         "Write only challenge-plan.json, intent-contract.draft.json, "
         "mutation-report.draft.json, and "
         f"canonical-review.draft.json directly under {shlex.quote(state['artifact_root'])}; "
-        "run challenge-batch for each plan, stage the three Drafts, then call finish. "
+        "the v0.4 prototype may instead write experiment-plan.json there, "
+        "but only the Runner may create evidence-bundle.json. "
+        "For canonical runs, run challenge-batch, stage the three Drafts, then call finish. "
         "Do not hand-write run identity, Host evidence, postflight, or renderer hashes."
     )
     return {"continue": True, "agent_message": context}

@@ -20,7 +20,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.1"
+SOCRATIC_VERSION = "0.4.0-alpha.2"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -1403,6 +1403,19 @@ def abort(manifest_path: Path) -> None:
         manifest_path.unlink(missing_ok=True)
 
 
+def assess_experiment(source_root: Path, plan: Path, evidence: Path) -> dict[str, Any]:
+    """Delegate the untrusted prototype path to the typed local-copy Runner."""
+    script_root = str(Path(__file__).resolve().parent)
+    if script_root not in sys.path:
+        sys.path.insert(0, script_root)
+    try:
+        from run_experiment import assess
+
+        return assess(source_root, plan, evidence)
+    except (OSError, ValueError, RuntimeError) as error:
+        raise RunGateError(str(error)) from error
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -1439,6 +1452,12 @@ def main() -> int:
     finish_parser.add_argument("--schema-root", type=Path)
     cleanup_parser = commands.add_parser("cleanup")
     cleanup_parser.add_argument("--manifest", required=True, type=Path)
+    assess_parser = commands.add_parser(
+        "assess", help="run the unsigned v0.4 local-copy prototype"
+    )
+    assess_parser.add_argument("--source-root", required=True, type=Path)
+    assess_parser.add_argument("--plan", required=True, type=Path)
+    assess_parser.add_argument("--evidence", required=True, type=Path)
     args = parser.parse_args()
     if args.command == "preflight":
         try:
@@ -1489,6 +1508,11 @@ def main() -> int:
             sys.stdout.write(finish(args.manifest, args.schema_root))
         elif args.command == "cleanup":
             cleanup(args.manifest)
+        elif args.command == "assess":
+            print(json.dumps(
+                assess_experiment(args.source_root, args.plan, args.evidence),
+                sort_keys=True,
+            ))
         return 0
     except (OSError, RunGateError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

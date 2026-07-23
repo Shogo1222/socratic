@@ -73,7 +73,7 @@ def evidence() -> dict:
         "round": "ROUND-001",
         "source": {"sha256": "b" * 64},
         "plan_sha256": "c" * 64,
-        "runner": {"version": "0.4.0-alpha.1", "sha256": "d" * 64},
+        "runner": {"version": "0.4.0-alpha.2", "sha256": "d" * 64},
         "profile": {"name": "python-unittest", "digest": "e" * 64},
         "backend": {"kind": "local-copy", "attested": False},
         "baseline": execution(),
@@ -136,6 +136,9 @@ class NarrowRunnerSchemaTest(unittest.TestCase):
 
     def test_accepts_typed_python_unittest_plan(self) -> None:
         self.validate(plan(), "experiment-plan.schema.json")
+        computed = plan()
+        computed["source"]["sha256"] = "runner-computed"
+        self.validate(computed, "experiment-plan.schema.json")
 
     def test_plan_rejects_shell_commands_and_unsafe_paths(self) -> None:
         command_plan = plan()
@@ -146,8 +149,27 @@ class NarrowRunnerSchemaTest(unittest.TestCase):
         traversal_plan["mutations"][0]["targets"][0]["path"] = "../primary.py"
         self.assert_invalid(traversal_plan, "experiment-plan.schema.json")
 
+    def test_method_selection_requires_a_class(self) -> None:
+        method_plan = plan()
+        method_plan["profile"]["selection"]["methods"] = ["test_contract"]
+        self.assert_invalid(method_plan, "experiment-plan.schema.json")
+
     def test_accepts_unsigned_local_copy_evidence(self) -> None:
         self.validate(evidence(), "evidence-bundle.schema.json")
+
+    def test_accepts_baseline_failure_without_mutation_results(self) -> None:
+        stopped = evidence()
+        stopped["baseline"] = execution(
+            outcome="failed", failed_tests=["tests.test_module.BaselineTest.test_red"]
+        )
+        stopped["mutations"] = []
+        self.validate(stopped, "evidence-bundle.schema.json")
+
+    def test_execution_outcome_must_match_exit_code(self) -> None:
+        inconsistent = evidence()
+        inconsistent["baseline"]["outcome"] = "passed"
+        inconsistent["baseline"]["exit_code"] = 1
+        self.assert_invalid(inconsistent, "evidence-bundle.schema.json")
 
     def test_local_copy_cannot_claim_attestation_or_signature(self) -> None:
         claimed = evidence()
@@ -167,6 +189,9 @@ class NarrowRunnerSchemaTest(unittest.TestCase):
 
     def test_accepts_semantic_interpretation(self) -> None:
         self.validate(interpretation(), "interpretation.schema.json")
+        prototype = interpretation()
+        del prototype["canonical_review"]
+        self.validate(prototype, "interpretation.schema.json")
 
     def test_interpretation_rejects_transport_evidence(self) -> None:
         claimed = interpretation()

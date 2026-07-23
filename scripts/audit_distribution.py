@@ -42,6 +42,7 @@ EXPECTED_FILES = (
     "socratic/references/mutation-result.schema.json",
     "socratic/references/run-manifest.schema.json",
     "socratic/references/test-handoff.schema.json",
+    "socratic/scripts/run_experiment.py",
     "socratic/scripts/run_review.py",
     "socratic/scripts/validate_and_render.py",
 )
