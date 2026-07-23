@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.12"
+SOCRATIC_VERSION = "0.4.0"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
