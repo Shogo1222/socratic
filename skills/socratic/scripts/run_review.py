@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.9"
+SOCRATIC_VERSION = "0.4.0-alpha.10"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -977,6 +977,7 @@ def execute(
     mutation_id: str | None,
     command: list[str],
     timeout_seconds: int,
+    cwd_relative: str | None = None,
 ) -> int:
     manifest = _ready_manifest(manifest_path)
     if phase not in {"prepare", "baseline", "mutation"}:
@@ -1022,13 +1023,14 @@ def execute(
     try:
         started = time.monotonic()
         completed = subprocess.run(
-            command, cwd=execution_root, env=environment,
-            timeout=timeout_seconds, check=False,
+            command, cwd=_execution_cwd(execution_root, cwd_relative),
+            env=environment, timeout=timeout_seconds, check=False,
         )
     except subprocess.TimeoutExpired as error:
         _append_event(manifest, {
             "run_id": manifest["run_id"], "kind": "command", "phase": phase,
-            "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
+            "mutation_id": mutation_id, "argv": command, "cwd": cwd_relative,
+            "timeout_seconds": timeout_seconds,
             "result": "timeout", "returncode": None,
             "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
             "environment": runtime_environment, "sandbox_root": str(execution_root),
@@ -1036,7 +1038,8 @@ def execute(
         raise RunGateError(f"sandbox command timed out after {timeout_seconds}s") from error
     _append_event(manifest, {
         "run_id": manifest["run_id"], "kind": "command", "phase": phase,
-        "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
+        "mutation_id": mutation_id, "argv": command, "cwd": cwd_relative,
+        "timeout_seconds": timeout_seconds,
         "result": "completed", "returncode": completed.returncode,
         "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
         "environment": runtime_environment, "sandbox_root": str(execution_root),
@@ -1044,11 +1047,31 @@ def execute(
     return completed.returncode
 
 
+def _execution_cwd(root: Path, cwd_relative: str | None) -> Path:
+    """Resolve a validated working directory for sandbox command execution.
+
+    Package-manager wrappers re-resolve workspace paths in clones and
+    reinstall dependencies; running the direct test binary from the package
+    directory avoids that, so probes and batch executions accept a
+    sandbox-relative cwd.
+    """
+    if cwd_relative is None:
+        return root
+    relative = _safe_relative_path(cwd_relative)
+    cwd = root / relative
+    if not cwd.is_dir() or cwd.is_symlink():
+        raise RunGateError(f"execution cwd must be a directory inside the sandbox: {cwd_relative}")
+    if not cwd.resolve().is_relative_to(root.resolve()):
+        raise RunGateError(f"execution cwd escapes the sandbox: {cwd_relative}")
+    return cwd
+
+
 def probe_command(
     manifest_path: Path,
     command_id: str,
     command: list[str],
     timeout_seconds: int,
+    cwd_relative: str | None = None,
 ) -> dict[str, Any]:
     """Validate a focused test command in a fresh clone before issuing Mutation IDs."""
     manifest = _ready_manifest(manifest_path)
@@ -1067,6 +1090,7 @@ def probe_command(
         raise RunGateError("command probe must run before the prepared snapshot is sealed")
 
     prepared = Path(manifest["prepared_root"])
+    _execution_cwd(prepared, cwd_relative)
     prepared_sha256 = _prepared_hash(prepared)
     probe_root = Path(manifest["sandbox_root"]) / "command-probes" / command_id
     strategy = _copy_prepared(prepared, probe_root)
@@ -1081,7 +1105,7 @@ def probe_command(
     try:
         completed = subprocess.run(
             command,
-            cwd=probe_root,
+            cwd=_execution_cwd(probe_root, cwd_relative),
             env=environment,
             timeout=timeout_seconds,
             check=False,
@@ -1110,6 +1134,7 @@ def probe_command(
         "kind": "command-probe",
         "command_id": command_id,
         "argv": command,
+        "cwd": cwd_relative,
         "timeout_seconds": timeout_seconds,
         "result": result,
         "returncode": returncode,
@@ -1144,6 +1169,7 @@ def probe_command(
             "kind": "validated-command",
             "command_id": command_id,
             "argv": command,
+            "cwd": cwd_relative,
             "timeout_seconds": timeout_seconds,
             "probe_duration_ms": duration_ms,
             "clone_strategy": strategy,
@@ -1155,6 +1181,7 @@ def probe_command(
             "phase": "baseline",
             "mutation_id": None,
             "argv": command,
+            "cwd": cwd_relative,
             "timeout_seconds": timeout_seconds,
             "result": "completed",
             "returncode": 0,
@@ -1204,7 +1231,7 @@ def _batch_command(
     try:
         completed = subprocess.run(
             command,
-            cwd=sandbox,
+            cwd=_execution_cwd(sandbox, challenge.get("cwd")),
             env=environment,
             timeout=timeout_seconds,
             check=False,
@@ -1224,6 +1251,7 @@ def _batch_command(
     return {
         "mutation_id": challenge["id"],
         "argv": command,
+        "cwd": challenge.get("cwd"),
         "timeout_seconds": timeout_seconds,
         "result": result,
         "returncode": returncode,
@@ -1279,6 +1307,7 @@ def challenge_batch(
     for challenge in plan["challenges"]:
         runtime_challenge = dict(challenge)
         runtime_challenge["command"] = command_record["argv"]
+        runtime_challenge["cwd"] = command_record.get("cwd")
         runtime_challenge["timeout_seconds"] = command_record["timeout_seconds"]
         challenge["_runtime"] = runtime_challenge
         registration = mutate_anchored(
@@ -2152,11 +2181,19 @@ def main() -> int:
     )
     execute_parser.add_argument("--mutation-id")
     execute_parser.add_argument("--timeout", type=int, default=120)
+    execute_parser.add_argument(
+        "--cwd", default=None,
+        help="sandbox-relative working directory, e.g. the focused package",
+    )
     execute_parser.add_argument("argv", nargs=argparse.REMAINDER)
     probe_parser = commands.add_parser("probe-command")
     probe_parser.add_argument("--manifest", required=True, type=Path)
     probe_parser.add_argument("--command-id", required=True)
     probe_parser.add_argument("--timeout", type=int, default=120)
+    probe_parser.add_argument(
+        "--cwd", default=None,
+        help="sandbox-relative working directory, e.g. the focused package",
+    )
     probe_parser.add_argument("argv", nargs=argparse.REMAINDER)
     batch_parser = commands.add_parser("challenge-batch")
     batch_parser.add_argument("--manifest", required=True, type=Path)
@@ -2244,13 +2281,17 @@ def main() -> int:
             if not args.argv:
                 raise RunGateError("execute requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
-            return execute(args.manifest, args.phase, args.mutation_id, argv, args.timeout)
+            return execute(
+                args.manifest, args.phase, args.mutation_id, argv, args.timeout,
+                cwd_relative=args.cwd,
+            )
         elif args.command == "probe-command":
             if not args.argv:
                 raise RunGateError("probe-command requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
             result = probe_command(
-                args.manifest, args.command_id, argv, args.timeout
+                args.manifest, args.command_id, argv, args.timeout,
+                cwd_relative=args.cwd
             )
             print(json.dumps(result, ensure_ascii=False, sort_keys=True))
             return 0 if result["status"] == "ready" else 2

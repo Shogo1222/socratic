@@ -338,6 +338,62 @@ class RunReviewTest(unittest.TestCase):
                     for item in command_events)
             )
 
+    def test_probe_cwd_is_recorded_and_reused_by_challenge_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            code = (
+                "import os, pathlib; "
+                "pathlib.Path('command-cwd.txt').write_text(os.getcwd())"
+            )
+            probe = self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", code], 10,
+                cwd_relative="packages/app",
+            )
+            self.assertEqual(probe["status"], "ready")
+            validated = [
+                item for item in self.runner._ledger_events(manifest)
+                if item.get("kind") == "validated-command"
+            ]
+            self.assertEqual(validated[0]["cwd"], "packages/app")
+            self.stage_contract(manifest)
+            plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
+            plan_path.write_text(json.dumps({
+                "version": 2,
+                "command_id": "CMD-001",
+                "max_parallel": 1,
+                "challenges": [self.anchored_challenge("MUT-001", "changed 1\n")],
+            }))
+            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            self.assertEqual(result["results"][0]["outcome"], "passed")
+            command_events = [
+                item for item in self.runner._ledger_events(manifest)
+                if item.get("kind") == "command" and item.get("phase") == "mutation"
+            ]
+            self.assertEqual(command_events[0]["cwd"], "packages/app")
+            mutant_root = Path(command_events[0]["sandbox_root"])
+            self.assertEqual(
+                (mutant_root / "packages/app/command-cwd.txt").read_text(),
+                str((mutant_root / "packages/app").resolve()),
+            )
+
+    def test_probe_command_rejects_invalid_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.probe_command(
+                    manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10,
+                    cwd_relative="../escape",
+                )
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.probe_command(
+                    manifest_path, "CMD-002", [sys.executable, "-c", "pass"], 10,
+                    cwd_relative="missing-directory",
+                )
+
     def test_unresolved_intent_blocks_mapped_challenge_before_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

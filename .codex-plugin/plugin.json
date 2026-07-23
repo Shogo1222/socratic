@@ -1,6 +1,6 @@
 {
   "name": "socratic",
-  "version": "0.4.0-alpha.9",
+  "version": "0.4.0-alpha.10",
   "description": "Host-gated intent review and mutation testing with a pre-agent fail-closed boundary.",
   "author": {
     "name": "Shogo1222",
