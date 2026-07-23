@@ -14,13 +14,14 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.5"
+SOCRATIC_VERSION = "0.4.0-alpha.6"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -635,8 +636,39 @@ def _clone_prepared(
     return destination, strategy, snapshot["sha256"]
 
 
-def mutate(manifest_path: Path, mutation_id: str, relative_target: str, content: bytes) -> dict[str, Any]:
+def _authorize_contract_challenge(
+    manifest: dict[str, Any], contract_ids: list[str]
+) -> None:
+    index = _artifact_index(manifest)
+    record = index["artifacts"].get("contract")
+    path = Path(manifest["artifact_root"]) / ARTIFACT_FILES["contract"]
+    if (
+        not record
+        or record.get("path") != str(path)
+        or record.get("sha256") != _sha256_path(path)
+    ):
+        raise RunGateError(
+            "Intent Contract must be validated and staged before mutation"
+        )
+    contract = _load_json(path)
+    if not isinstance(contract, dict):
+        raise RunGateError("staged Intent Contract is invalid")
+    validator = _validator_module()
+    try:
+        validator.assert_elenchus_allowed(contract, contract_ids)
+    except validator.ArtifactError as error:
+        raise RunGateError(str(error)) from error
+
+
+def mutate(
+    manifest_path: Path,
+    mutation_id: str,
+    contract_ids: list[str],
+    relative_target: str,
+    content: bytes,
+) -> dict[str, Any]:
     manifest = _ready_manifest(manifest_path)
+    _authorize_contract_challenge(manifest, contract_ids)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
         raise RunGateError(f"invalid mutation id: {mutation_id}")
     sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
@@ -660,8 +692,14 @@ def mutate(manifest_path: Path, mutation_id: str, relative_target: str, content:
     })
 
 
-def register_prebuilt(manifest_path: Path, mutation_id: str, relative_path: str) -> dict[str, Any]:
+def register_prebuilt(
+    manifest_path: Path,
+    mutation_id: str,
+    contract_ids: list[str],
+    relative_path: str,
+) -> dict[str, Any]:
     manifest = _ready_manifest(manifest_path)
+    _authorize_contract_challenge(manifest, contract_ids)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
         raise RunGateError(f"invalid mutation id: {mutation_id}")
     relative = Path(relative_path)
@@ -736,6 +774,7 @@ def execute(
     )
     environment.update(runtime_environment)
     try:
+        started = time.monotonic()
         completed = subprocess.run(
             command, cwd=execution_root, env=environment,
             timeout=timeout_seconds, check=False,
@@ -745,6 +784,7 @@ def execute(
             "run_id": manifest["run_id"], "kind": "command", "phase": phase,
             "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
             "result": "timeout", "returncode": None,
+            "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
             "environment": runtime_environment, "sandbox_root": str(execution_root),
         })
         raise RunGateError(f"sandbox command timed out after {timeout_seconds}s") from error
@@ -752,6 +792,7 @@ def execute(
         "run_id": manifest["run_id"], "kind": "command", "phase": phase,
         "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
         "result": "completed", "returncode": completed.returncode,
+        "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
         "environment": runtime_environment, "sandbox_root": str(execution_root),
     })
     return completed.returncode
@@ -768,6 +809,7 @@ def _batch_command(
     environment.update(runtime_environment)
     command = challenge["command"]
     timeout_seconds = challenge["timeout_seconds"]
+    started = time.monotonic()
     try:
         completed = subprocess.run(
             command,
@@ -794,6 +836,7 @@ def _batch_command(
         "timeout_seconds": timeout_seconds,
         "result": result,
         "returncode": returncode,
+        "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
         "environment": runtime_environment,
         "sandbox_root": str(sandbox),
         "stdout_sha256": _sha256_bytes(stdout),
@@ -844,12 +887,16 @@ def challenge_batch(
             registration = mutate(
                 manifest_path,
                 challenge["id"],
+                challenge["contract_ids"],
                 mutation["relative_target"],
                 mutation["content_utf8"].encode("utf-8"),
             )
         else:
             registration = register_prebuilt(
-                manifest_path, challenge["id"], mutation["relative_path"]
+                manifest_path,
+                challenge["id"],
+                challenge["contract_ids"],
+                mutation["relative_path"],
             )
         registrations[challenge["id"]] = registration
 
@@ -983,6 +1030,19 @@ def _attested_report(
             return "timeout"
         return "passed" if item.get("returncode") == 0 else "failed"
 
+    batch_timings: dict[str, list[int]] = {}
+    individual_mutation_ms = 0
+    for item in mutation_executions:
+        duration = item.get("duration_ms", 0)
+        batch = item.get("batch_plan_sha256")
+        if batch:
+            batch_timings.setdefault(batch, []).append(duration)
+        else:
+            individual_mutation_ms += duration
+    mutation_wall_ms = individual_mutation_ms + sum(
+        max(durations, default=0) for durations in batch_timings.values()
+    )
+
     report = {
         "version": 10,
         "mode": draft["mode"],
@@ -1030,6 +1090,7 @@ def _attested_report(
                     "attempt": attempt,
                     "outcome": raw_outcome(item),
                     "exit_code": item.get("returncode"),
+                    "duration_ms": item.get("duration_ms", 0),
                 }
                 for attempt, item in enumerate(baselines, 1)
             ],
@@ -1039,6 +1100,7 @@ def _attested_report(
                     "attempt": attempt,
                     "outcome": raw_outcome(item),
                     "exit_code": item.get("returncode"),
+                    "duration_ms": item.get("duration_ms", 0),
                 }
                 for mutation_id in sorted({
                     item["mutation_id"] for item in mutation_executions
@@ -1051,6 +1113,10 @@ def _attested_report(
                     1,
                 )
             ],
+        },
+        "phase_timings_ms": {
+            "baseline": sum(item.get("duration_ms", 0) for item in baselines),
+            "mutations": mutation_wall_ms,
         },
         "isolation": {
             "execution_strategy": strategy,
@@ -1313,6 +1379,10 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
     sandbox = Path(manifest["sandbox_root"])
     try:
         documents = _staged_artifacts(manifest)
+        if documents["contract"].get("unresolved"):
+            raise RunGateError(
+                "finish is blocked until every unresolved Intent decision is answered"
+            )
         ledger = _ledger_events(manifest)
         current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
         if current_primary_hash != manifest["primary_sha256"]:
@@ -1351,7 +1421,9 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
             validator.validate_document(
                 documents["review"], "canonical-review.schema.json", schema_root
             )
-            validator.validate_cross_artifact(documents["contract"], report)
+            validator.validate_cross_artifact(
+                documents["contract"], report, documents["review"]
+            )
             rendered = validator.render_review(documents["review"])
             report["canonical_output"]["sha256"] = _sha256_bytes(
                 rendered.encode("utf-8")
@@ -1426,11 +1498,13 @@ def main() -> int:
     mutate_parser = commands.add_parser("mutate")
     mutate_parser.add_argument("--manifest", required=True, type=Path)
     mutate_parser.add_argument("--mutation-id", required=True)
+    mutate_parser.add_argument("--contract-id", action="append", required=True)
     mutate_parser.add_argument("--relative-path", required=True)
     mutate_parser.add_argument("--content-file", required=True, type=Path)
     register_parser = commands.add_parser("register-prebuilt")
     register_parser.add_argument("--manifest", required=True, type=Path)
     register_parser.add_argument("--mutation-id", required=True)
+    register_parser.add_argument("--contract-id", action="append", required=True)
     register_parser.add_argument("--relative-path", required=True)
     execute_parser = commands.add_parser("execute")
     execute_parser.add_argument("--manifest", required=True, type=Path)
@@ -1478,7 +1552,10 @@ def main() -> int:
             "sandbox_root": manifest["sandbox_root"],
             "prepared_root": manifest["prepared_root"],
             "artifact_root": manifest["artifact_root"],
-            "next": "stage contract, report, and review drafts after guarded executions",
+            "next": (
+                "stage the Intent Contract first; resolve mapped uncertainty before "
+                "baseline and challenge-batch; stage report and review only after outcomes"
+            ),
             "allowed_operations": [
                 "mutate", "register-prebuilt", "execute", "stage-artifact",
                 "challenge-batch", "finish", "cleanup",
@@ -1487,9 +1564,14 @@ def main() -> int:
         return 0
     try:
         if args.command == "mutate":
-            mutate(args.manifest, args.mutation_id, args.relative_path, args.content_file.read_bytes())
+            mutate(
+                args.manifest, args.mutation_id, args.contract_id,
+                args.relative_path, args.content_file.read_bytes(),
+            )
         elif args.command == "register-prebuilt":
-            register_prebuilt(args.manifest, args.mutation_id, args.relative_path)
+            register_prebuilt(
+                args.manifest, args.mutation_id, args.contract_id, args.relative_path
+            )
         elif args.command == "execute":
             if not args.argv:
                 raise RunGateError("execute requires a command after --")

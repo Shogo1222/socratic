@@ -81,7 +81,12 @@
             "head_ref": { "type": "string", "minLength": 1 },
             "head_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
             "base_root": { "type": "string", "minLength": 1 },
-            "head_root": { "type": "string", "minLength": 1 }
+            "head_root": { "type": "string", "minLength": 1 },
+            "changed_files": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
           },
           "additionalProperties": false
         }

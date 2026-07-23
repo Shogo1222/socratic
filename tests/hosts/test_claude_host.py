@@ -45,6 +45,10 @@ class ClaudeHostTest(unittest.TestCase):
                 })
                 context = decision["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("Trusted Socratic Host is ready", context)
+                self.assertIn("Host review context:", context)
+                self.assertIn(
+                    "Do not launch subagents for deterministic diff", context
+                )
                 state = self.host.load_session(session_id)
                 self.assertIsNotNone(state)
                 adapter = self.runner.ClaudeSocketHostAdapter(
@@ -326,6 +330,7 @@ class ClaudeHostTest(unittest.TestCase):
                 )
             self.assertEqual(provenance["base_sha"], base_sha)
             self.assertEqual(provenance["head_sha"], head_sha)
+            self.assertEqual(provenance["changed_files"], ["value.txt"])
             self.assertEqual(
                 (Path(provenance["base_root"]) / "value.txt").read_text(), "base\n"
             )

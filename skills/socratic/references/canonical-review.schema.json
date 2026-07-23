@@ -6,7 +6,23 @@
   "properties": {
     "review_this": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "object",
+        "required": ["kind", "body", "contract_ids"],
+        "properties": {
+          "kind": {
+            "enum": ["confirmed-behavior", "behavior-difference", "test-gap", "needs-decision"]
+          },
+          "body": { "type": "string", "minLength": 1 },
+          "contract_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(DEC|INV|FX|UNR)-[0-9]{3,}$" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "we_verified": {
       "type": "array",

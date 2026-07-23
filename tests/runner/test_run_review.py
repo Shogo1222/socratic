@@ -98,7 +98,10 @@ class RunReviewTest(unittest.TestCase):
             "report": report if report is not None else self.report_draft(),
             "review": review,
         }
+        staged = self.runner._artifact_index(manifest)["artifacts"]
         for kind, document in documents.items():
+            if kind in staged:
+                continue
             (artifact_root / self.runner.ARTIFACT_FILES[kind]).write_text(
                 json.dumps(document), encoding="utf-8"
             )
@@ -108,6 +111,19 @@ class RunReviewTest(unittest.TestCase):
                 ROOT / "schemas",
             )
         return contract, review
+
+    def stage_contract(self, manifest: dict, contract=None) -> dict:
+        document = contract or json.loads(
+            (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+        )
+        artifact = Path(manifest["artifact_root"]) / self.runner.ARTIFACT_FILES["contract"]
+        artifact.write_text(json.dumps(document), encoding="utf-8")
+        self.runner.stage_artifact(
+            Path(manifest["host"]["storage_root"]) / "run-manifest.json",
+            "contract",
+            ROOT / "schemas",
+        )
+        return document
 
     def test_standalone_preflight_is_blocked_and_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -187,7 +203,10 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
             )
-            self.runner.register_prebuilt(manifest_path, "MUT-001", "packages/app/mutant-1.ts")
+            self.stage_contract(manifest)
+            self.runner.register_prebuilt(
+                manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
+            )
             self.assertEqual(
                 self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "raise SystemExit(1)"], 10),
                 1,
@@ -206,11 +225,12 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", install], 10
             )
+            self.stage_contract(manifest)
             first = self.runner.register_prebuilt(
-                manifest_path, "MUT-001", "packages/app/mutant-1.ts"
+                manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
             )
             second = self.runner.register_prebuilt(
-                manifest_path, "MUT-002", "packages/app/mutant-2.ts"
+                manifest_path, "MUT-002", ["DEC-001"], "packages/app/mutant-2.ts"
             )
             with self.assertRaisesRegex(
                 self.runner.RunGateError, "prepared snapshot is sealed"
@@ -253,10 +273,12 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
             )
+            self.stage_contract(manifest)
             challenges = []
             for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
                 challenges.append({
                     "id": mutation_id,
+                    "contract_ids": ["DEC-001"],
                     "mutation": {
                         "kind": "prebuilt",
                         "relative_path": f"packages/app/mutant-{index}.ts",
@@ -305,6 +327,53 @@ class RunReviewTest(unittest.TestCase):
                     for item in command_events)
             )
 
+    def test_unresolved_intent_blocks_mapped_challenge_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            contract = json.loads(
+                (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+            )
+            contract["status"] = "needs-decision"
+            contract["unresolved"] = [{
+                "id": "UNR-001",
+                "statement": "Whether the observable event should exist",
+                "test_impact": "Changes the DEC-001 oracle",
+                "blocked_contract_ids": ["DEC-001"],
+            }]
+            self.stage_contract(manifest, contract)
+            plan = {
+                "version": 1,
+                "max_parallel": 1,
+                "challenges": [{
+                    "id": "MUT-001",
+                    "contract_ids": ["DEC-001"],
+                    "mutation": {
+                        "kind": "prebuilt",
+                        "relative_path": "packages/app/mutant-1.ts",
+                    },
+                    "command": [sys.executable, "-c", "pass"],
+                    "timeout_seconds": 10,
+                }],
+            }
+            (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(
+                json.dumps(plan)
+            )
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "blocked for unresolved Contract IDs"
+            ):
+                self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            self.assertFalse(
+                any(
+                    item.get("kind") in {"guarded-write", "prebuilt"}
+                    for item in self.runner._ledger_events(manifest)
+                )
+            )
+
     def test_challenge_batch_isolates_timeout_from_other_mutants(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -313,12 +382,14 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
             )
+            self.stage_contract(manifest)
             plan = {
                 "version": 1,
                 "max_parallel": 2,
                 "challenges": [
                     {
                         "id": "MUT-001",
+                        "contract_ids": ["DEC-001"],
                         "mutation": {
                             "kind": "prebuilt",
                             "relative_path": "packages/app/mutant-1.ts",
@@ -330,6 +401,7 @@ class RunReviewTest(unittest.TestCase):
                     },
                     {
                         "id": "MUT-002",
+                        "contract_ids": ["DEC-001"],
                         "mutation": {
                             "kind": "prebuilt",
                             "relative_path": "packages/app/mutant-2.ts",
@@ -516,9 +588,11 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
             )
+            self.stage_contract(manifest)
             with self.assertRaises(Exception):
                 self.runner.mutate(
-                    manifest_path, "MUT-001", "late-link/app/source.ts", b"mutant\n"
+                    manifest_path, "MUT-001", ["DEC-001"],
+                    "late-link/app/source.ts", b"mutant\n"
                 )
 
     def test_ledger_chain_detects_rewritten_event(self) -> None:
@@ -539,7 +613,10 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
-            self.runner.register_prebuilt(manifest_path, "MUT-001", "packages/app/mutant-1.ts")
+            self.stage_contract(manifest)
+            self.runner.register_prebuilt(
+                manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
+            )
             report = json.loads((ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text())
             report["mutations"] = report["mutations"][:1]
             with self.assertRaises(self.runner.RunGateError):
@@ -557,8 +634,9 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
             )
+            self.stage_contract(manifest)
             self.runner.register_prebuilt(
-                manifest_path, "MUT-001", "packages/app/mutant-1.ts"
+                manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
             )
             self.runner.execute(
                 manifest_path,
@@ -615,9 +693,11 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
+            self.stage_contract(manifest)
             for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
                 self.runner.register_prebuilt(
-                    manifest_path, mutation_id, f"packages/app/mutant-{index}.ts"
+                    manifest_path, mutation_id, ["DEC-001"],
+                    f"packages/app/mutant-{index}.ts"
                 )
                 self.runner.execute(
                     manifest_path, "mutation", mutation_id,
@@ -668,9 +748,19 @@ class RunReviewTest(unittest.TestCase):
             )
             self.assertEqual(attested["execution_evidence"]["source"], "host-ledger")
             self.assertEqual(
-                attested["execution_evidence"]["baseline"],
+                [
+                    {
+                        key: item[key]
+                        for key in ("attempt", "outcome", "exit_code")
+                    }
+                    for item in attested["execution_evidence"]["baseline"]
+                ],
                 [{"attempt": 1, "outcome": "passed", "exit_code": 0}],
             )
+            self.assertGreaterEqual(
+                attested["execution_evidence"]["baseline"][0]["duration_ms"], 0
+            )
+            self.assertIn("phase_timings_ms", attested)
             self.assertEqual(
                 [
                     item["outcome"]
@@ -748,9 +838,11 @@ class RunReviewTest(unittest.TestCase):
             self.runner.execute(
                 manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
             )
+            self.stage_contract(manifest)
             for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
                 self.runner.register_prebuilt(
-                    manifest_path, mutation_id, f"packages/app/mutant-{index}.ts"
+                    manifest_path, mutation_id, ["DEC-001"],
+                    f"packages/app/mutant-{index}.ts"
                 )
                 self.runner.execute(
                     manifest_path, "mutation", mutation_id,
