@@ -56,7 +56,7 @@ class CursorHostTest(unittest.TestCase):
                     "tool_name": "Write",
                     "tool_input": {
                         "file_path": str(
-                            Path(state["artifact_root"]) / "canonical-review.draft.json"
+                            Path(state["artifact_root"]) / "review-analysis.json"
                         )
                     },
                 })

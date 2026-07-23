@@ -26,6 +26,7 @@ ARTIFACT_SCHEMAS = (
     "mutation-result.schema.json",
     "mutation-report.schema.json",
     "mutation-report-draft.schema.json",
+    "review-analysis.schema.json",
     "test-handoff.schema.json",
     "canonical-review.schema.json",
 )
@@ -228,6 +229,9 @@ def _schema_paths(schema_root: Path | None) -> dict[str, Path]:
         "mutation-report-draft.schema.json": (
             skills_root / "socratic" / "references" / "mutation-report-draft.schema.json"
         ),
+        "review-analysis.schema.json": (
+            skills_root / "socratic" / "references" / "review-analysis.schema.json"
+        ),
         "test-handoff.schema.json": (
             skills_root / "elenchus" / "references" / "test-handoff.schema.json"
         ),
@@ -322,7 +326,7 @@ def render_artifact_json(artifact: dict[str, Any]) -> str:
 def main(argv: list[str] | None = None) -> int:
     argparse.ArgumentParser(description=__doc__).parse_args(argv)
     print(
-        "ERROR: direct rendering is disabled; use socratic/scripts/run_review.py finish "
+        "ERROR: direct rendering is disabled; use socratic/scripts/run_review.py complete "
         "with a valid preflight manifest and guarded mutation ledger",
         file=sys.stderr,
     )

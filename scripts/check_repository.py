@@ -48,6 +48,9 @@ SCHEMA_MIRRORS = {
     "schemas/mutation-report-draft.schema.json": (
         "skills/socratic/references/mutation-report-draft.schema.json",
     ),
+    "schemas/review-analysis.schema.json": (
+        "skills/socratic/references/review-analysis.schema.json",
+    ),
     "schemas/test-handoff.schema.json": (
         "skills/elenchus/references/test-handoff.schema.json",
         "skills/socratic/references/test-handoff.schema.json",

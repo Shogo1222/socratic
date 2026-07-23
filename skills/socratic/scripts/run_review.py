@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import difflib
 import hashlib
 import importlib.util
 import json
 import os
+import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -21,7 +24,9 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.7"
+SOCRATIC_VERSION = "0.4.0-alpha.8"
+MAX_INSPECT_BYTES = 64 * 1024
+MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -155,6 +160,159 @@ def _load_json(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise RunGateError(f"strict JSON load failed for {path}: {error}") from error
+
+
+def _safe_relative_path(raw: str) -> Path:
+    relative = Path(raw)
+    if relative.is_absolute() or ".." in relative.parts or "\\" in raw:
+        raise RunGateError("path must be a safe repository-relative path")
+    if any(
+        part == ".env"
+        or part.startswith(".env.")
+        or part in {".git", ".hg", ".svn", "node_modules"}
+        for part in relative.parts
+    ):
+        raise RunGateError("path is excluded from Socratic inspection")
+    return relative
+
+
+def _bounded_text(path: Path, *, limit: int = MAX_INSPECT_BYTES) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise RunGateError(f"inspection target is not a regular file: {path}")
+    payload = path.read_bytes()
+    if len(payload) > limit:
+        raise RunGateError(f"inspection target exceeds {limit} bytes: {path}")
+    try:
+        return payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RunGateError(f"inspection target is not UTF-8 text: {path}") from error
+
+
+def _review_files(root: Path):
+    for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
+        names[:] = sorted(
+            name
+            for name in names
+            if name not in IGNORED_NAMES and not name.startswith(".env")
+        )
+        for filename in sorted(filenames):
+            if filename in IGNORED_NAMES or filename.startswith(".env"):
+                continue
+            path = Path(directory) / filename
+            if path.is_file() and not path.is_symlink():
+                yield path
+
+
+def inspect_review(
+    manifest_path: Path,
+    kind: str,
+    *,
+    relative_path: str | None = None,
+    query: str | None = None,
+    start_line: int = 1,
+    end_line: int = 200,
+) -> dict[str, Any]:
+    """Return bounded, read-only evidence without exposing a general shell."""
+    manifest = _ready_manifest(manifest_path)
+    change = manifest["change_context"]
+    head = Path(change["head_root"]).resolve(strict=True)
+    if kind == "diff":
+        if change["source"] != "github-pull-request":
+            return {
+                "kind": "diff",
+                "available": False,
+                "reason": "local-workspace has no Host-materialized Base snapshot",
+                "changed_files": [],
+            }
+        base = Path(change["base_root"]).resolve(strict=True)
+        selected = (
+            [_safe_relative_path(relative_path).as_posix()]
+            if relative_path
+            else list(change.get("changed_files", []))
+        )
+        chunks: list[str] = []
+        truncated = False
+        for raw in selected:
+            relative = _safe_relative_path(raw)
+            before_path = base / relative
+            after_path = head / relative
+            before = _bounded_text(before_path) if before_path.exists() else ""
+            after = _bounded_text(after_path) if after_path.exists() else ""
+            diff = "".join(difflib.unified_diff(
+                before.splitlines(keepends=True),
+                after.splitlines(keepends=True),
+                fromfile=f"a/{relative.as_posix()}",
+                tofile=f"b/{relative.as_posix()}",
+            ))
+            if sum(len(item.encode("utf-8")) for item in chunks) + len(
+                diff.encode("utf-8")
+            ) > MAX_INSPECT_BYTES:
+                truncated = True
+                break
+            chunks.append(diff)
+        return {
+            "kind": "diff",
+            "available": True,
+            "changed_files": selected,
+            "text": "".join(chunks),
+            "truncated": truncated,
+        }
+    if kind == "file":
+        if not relative_path:
+            raise RunGateError("file inspection requires --relative-path")
+        relative = _safe_relative_path(relative_path)
+        if start_line < 1 or end_line < start_line or end_line - start_line > 400:
+            raise RunGateError("file inspection line range is invalid or too large")
+        lines = _bounded_text(head / relative).splitlines()
+        return {
+            "kind": "file",
+            "path": relative.as_posix(),
+            "start_line": start_line,
+            "end_line": min(end_line, len(lines)),
+            "text": "\n".join(lines[start_line - 1:end_line]),
+        }
+    if kind == "tests":
+        tests: list[str] = []
+        for path in _review_files(head):
+            if len(tests) >= MAX_INSPECT_MATCHES:
+                break
+            relative = path.relative_to(head)
+            name = path.name.casefold()
+            if (
+                "test" in relative.parts
+                or "tests" in relative.parts
+                or re.search(r"(?:^|[._-])(?:test|spec)(?:[._-]|$)", name)
+            ):
+                tests.append(relative.as_posix())
+        return {"kind": "tests", "paths": tests, "truncated": len(tests) == MAX_INSPECT_MATCHES}
+    if kind == "search":
+        if not query or len(query) > 200:
+            raise RunGateError("search requires a query of at most 200 characters")
+        matches: list[dict[str, Any]] = []
+        for path in _review_files(head):
+            if len(matches) >= MAX_INSPECT_MATCHES:
+                break
+            relative = path.relative_to(head)
+            try:
+                text = _bounded_text(path, limit=1024 * 1024)
+            except RunGateError:
+                continue
+            for number, line in enumerate(text.splitlines(), 1):
+                if query in line:
+                    matches.append({
+                        "path": relative.as_posix(),
+                        "line": number,
+                        "text": line[:1000],
+                    })
+                    if len(matches) >= MAX_INSPECT_MATCHES:
+                        break
+        return {
+            "kind": "search",
+            "query": query,
+            "matches": matches,
+            "truncated": len(matches) == MAX_INSPECT_MATCHES,
+        }
+    raise RunGateError(f"unsupported inspection kind: {kind}")
 
 
 def _tree_hash(root: Path) -> str:
@@ -591,22 +749,11 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
     return _append_event(manifest, event)
 
 
-def _clone_prepared(
-    manifest: dict[str, Any], mutation_id: str
-) -> tuple[Path, str, str]:
-    events = _ledger_events(manifest)
-    if any(
-        item.get("mutation_id") == mutation_id
-        and item.get("kind") in {"guarded-write", "prebuilt"}
-        for item in events
-    ):
-        raise RunGateError(f"mutation already has a sandbox: {mutation_id}")
-    snapshot = _prepared_snapshot(manifest)
-    prepared = Path(manifest["prepared_root"])
-    destination = Path(manifest["sandbox_root"]) / "mutants" / mutation_id
+def _copy_prepared(prepared: Path, destination: Path) -> str:
+    """Create one disposable branch, preferring filesystem copy-on-write."""
     destination.parent.mkdir(mode=0o700, exist_ok=True)
     if destination.exists():
-        raise RunGateError(f"mutation sandbox already exists: {mutation_id}")
+        raise RunGateError(f"disposable clone already exists: {destination.name}")
 
     strategy = "full-copy"
     commands: list[list[str]] = []
@@ -626,6 +773,23 @@ def _clone_prepared(
         shutil.rmtree(destination, ignore_errors=True)
     else:
         shutil.copytree(prepared, destination, symlinks=True)
+    return strategy
+
+
+def _clone_prepared(
+    manifest: dict[str, Any], mutation_id: str
+) -> tuple[Path, str, str]:
+    events = _ledger_events(manifest)
+    if any(
+        item.get("mutation_id") == mutation_id
+        and item.get("kind") in {"guarded-write", "prebuilt"}
+        for item in events
+    ):
+        raise RunGateError(f"mutation already has a sandbox: {mutation_id}")
+    snapshot = _prepared_snapshot(manifest)
+    prepared = Path(manifest["prepared_root"])
+    destination = Path(manifest["sandbox_root"]) / "mutants" / mutation_id
+    strategy = _copy_prepared(prepared, destination)
 
     (destination / ".socratic-disposable").write_text(
         f"{manifest['run_id']}:{mutation_id}\n", encoding="utf-8"
@@ -692,6 +856,65 @@ def mutate(
     })
 
 
+def _anchored_postimage(root: Path, mutation: dict[str, Any]) -> tuple[str, bytes]:
+    relative = _safe_relative_path(mutation["relative_path"])
+    target = root / relative
+    original = _bounded_text(target, limit=2 * 1024 * 1024)
+    before = mutation["before"]
+    if original.count(before) != 1:
+        raise RunGateError(
+            f"{mutation['kind']} requires exactly one anchor match: {relative}"
+        )
+    after = mutation.get("after", "")
+    changed = original.replace(before, after, 1)
+    return relative.as_posix(), changed.encode("utf-8")
+
+
+def mutate_anchored(
+    manifest_path: Path,
+    mutation_id: str,
+    contract_ids: list[str],
+    mutation: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply a bounded exact edit without accepting a caller-built full file."""
+    manifest = _ready_manifest(manifest_path)
+    _authorize_contract_challenge(manifest, contract_ids)
+    if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
+        raise RunGateError(f"invalid mutation id: {mutation_id}")
+    relative_target, content = _anchored_postimage(
+        Path(manifest["prepared_root"]), mutation
+    )
+    sandbox, clone_strategy, prepared_sha256 = _clone_prepared(
+        manifest, mutation_id
+    )
+    isolation = _load_module(
+        "socratic_isolation_gate",
+        _skills_root() / "elenchus/scripts/isolation_gate.py",
+    )
+    try:
+        evidence = isolation.IsolationGate(
+            Path(manifest["primary_root"]), sandbox
+        ).write_bytes(sandbox / relative_target, content)
+    except BaseException:
+        shutil.rmtree(sandbox, ignore_errors=True)
+        raise
+    return _append_event(manifest, {
+        "run_id": manifest["run_id"],
+        "mutation_id": mutation_id,
+        "kind": "guarded-write",
+        "requested_path": relative_target,
+        "resolved_path": evidence.resolved_target,
+        "content_sha256": _sha256_bytes(content),
+        "bytes": len(content),
+        "within_sandbox": True,
+        "sandbox_root": str(sandbox),
+        "clone_strategy": clone_strategy,
+        "prepared_sha256": prepared_sha256,
+        "operation": mutation["kind"],
+        "anchor_sha256": _sha256_bytes(mutation["before"].encode("utf-8")),
+    })
+
+
 def register_prebuilt(
     manifest_path: Path,
     mutation_id: str,
@@ -737,19 +960,23 @@ def execute(
     timeout_seconds: int,
 ) -> int:
     manifest = _ready_manifest(manifest_path)
-    if phase not in {"baseline", "mutation"}:
-        raise RunGateError("execute phase must be baseline or mutation")
-    if phase == "baseline" and mutation_id is not None:
-        raise RunGateError("baseline execution must not have a mutation id")
+    if phase not in {"prepare", "baseline", "mutation"}:
+        raise RunGateError("execute phase must be prepare, baseline, or mutation")
+    if phase in {"prepare", "baseline"} and mutation_id is not None:
+        raise RunGateError(f"{phase} execution must not have a mutation id")
     if phase == "mutation" and mutation_id is None:
         raise RunGateError("mutation execution requires --mutation-id")
     if not command:
         raise RunGateError("sandbox command must not be empty")
     ledger = _ledger_events(manifest)
-    if phase == "baseline" and any(
+    if phase in {"prepare", "baseline"} and any(
         item.get("kind") == "prepared-snapshot" for item in ledger
     ):
-        raise RunGateError("baseline cannot run after the prepared snapshot is sealed")
+        raise RunGateError(f"{phase} cannot run after the prepared snapshot is sealed")
+    if phase == "prepare" and any(
+        item.get("kind") == "validated-command" for item in ledger
+    ):
+        raise RunGateError("prepare cannot run after a command has been validated")
     registrations = {
         item.get("mutation_id"): item for item in ledger
         if item.get("kind") in {"guarded-write", "prebuilt"}
@@ -764,7 +991,7 @@ def execute(
     }
     execution_root = (
         Path(manifest["prepared_root"])
-        if phase == "baseline"
+        if phase in {"prepare", "baseline"}
         else Path(registrations[mutation_id]["sandbox_root"])
     )
     runtime_environment = (
@@ -796,6 +1023,151 @@ def execute(
         "environment": runtime_environment, "sandbox_root": str(execution_root),
     })
     return completed.returncode
+
+
+def probe_command(
+    manifest_path: Path,
+    command_id: str,
+    command: list[str],
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    """Validate a focused test command in a fresh clone before issuing Mutation IDs."""
+    manifest = _ready_manifest(manifest_path)
+    if not re.fullmatch(r"CMD-[0-9]{3,}", command_id):
+        raise RunGateError(f"invalid command id: {command_id}")
+    if not command:
+        raise RunGateError("probe command must not be empty")
+    events = _ledger_events(manifest)
+    if any(
+        item.get("kind") == "validated-command"
+        and item.get("command_id") == command_id
+        for item in events
+    ):
+        raise RunGateError(f"command id is already validated: {command_id}")
+    if any(item.get("kind") == "prepared-snapshot" for item in events):
+        raise RunGateError("command probe must run before the prepared snapshot is sealed")
+
+    prepared = Path(manifest["prepared_root"])
+    prepared_sha256 = _prepared_hash(prepared)
+    probe_root = Path(manifest["sandbox_root"]) / "command-probes" / command_id
+    strategy = _copy_prepared(prepared, probe_root)
+    runtime_environment = _runtime_environment(probe_root)
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "LANG"} or key.startswith("LC_")
+    }
+    environment.update(runtime_environment)
+    started = time.monotonic()
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=probe_root,
+            env=environment,
+            timeout=timeout_seconds,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        result = "completed"
+        returncode: int | None = completed.returncode
+        stdout = completed.stdout
+        stderr = completed.stderr
+    except subprocess.TimeoutExpired as error:
+        result = "timeout"
+        returncode = None
+        stdout = error.stdout or b""
+        stderr = error.stderr or b""
+    except OSError as error:
+        result = "runner-error"
+        returncode = None
+        stdout = b""
+        stderr = str(error).encode("utf-8")
+    finally:
+        duration_ms = max(0, round((time.monotonic() - started) * 1000))
+
+    event = {
+        "run_id": manifest["run_id"],
+        "kind": "command-probe",
+        "command_id": command_id,
+        "argv": command,
+        "timeout_seconds": timeout_seconds,
+        "result": result,
+        "returncode": returncode,
+        "duration_ms": duration_ms,
+        "environment": runtime_environment,
+        "sandbox_root": str(probe_root),
+        "clone_strategy": strategy,
+        "stdout_sha256": _sha256_bytes(stdout),
+        "stderr_sha256": _sha256_bytes(stderr),
+    }
+    _append_event(manifest, event)
+    limit = 16 * 1024
+    public = {
+        "status": "ready" if result == "completed" and returncode == 0 else "blocked",
+        "command_id": command_id,
+        "outcome": (
+            "passed"
+            if result == "completed" and returncode == 0
+            else "timeout"
+            if result == "timeout"
+            else "infrastructure-failure"
+        ),
+        "returncode": returncode,
+        "duration_ms": duration_ms,
+        "stdout": stdout[-limit:].decode("utf-8", errors="replace"),
+        "stderr": stderr[-limit:].decode("utf-8", errors="replace"),
+        "output_truncated": len(stdout) > limit or len(stderr) > limit,
+    }
+    if public["status"] == "ready":
+        _append_event(manifest, {
+            "run_id": manifest["run_id"],
+            "kind": "validated-command",
+            "command_id": command_id,
+            "argv": command,
+            "timeout_seconds": timeout_seconds,
+            "probe_duration_ms": duration_ms,
+            "clone_strategy": strategy,
+            "prepared_sha256": prepared_sha256,
+        })
+        _append_event(manifest, {
+            "run_id": manifest["run_id"],
+            "kind": "command",
+            "phase": "baseline",
+            "mutation_id": None,
+            "argv": command,
+            "timeout_seconds": timeout_seconds,
+            "result": "completed",
+            "returncode": 0,
+            "duration_ms": duration_ms,
+            "environment": runtime_environment,
+            "sandbox_root": str(probe_root),
+            "command_id": command_id,
+        })
+    shutil.rmtree(probe_root, ignore_errors=True)
+    return public
+
+
+def _validated_command(
+    manifest: dict[str, Any], command_id: str
+) -> dict[str, Any]:
+    matches = [
+        item for item in _ledger_events(manifest)
+        if item.get("kind") == "validated-command"
+        and item.get("command_id") == command_id
+    ]
+    if len(matches) != 1:
+        raise RunGateError(
+            f"challenge plan requires one successful command probe: {command_id}"
+        )
+    record = matches[0]
+    if record.get("prepared_sha256") != _prepared_hash(
+        Path(manifest["prepared_root"])
+    ):
+        raise RunGateError(
+            f"validated command is stale for the prepared snapshot: {command_id}"
+        )
+    return record
 
 
 def _batch_command(
@@ -879,25 +1251,23 @@ def challenge_batch(
     duplicates = sorted(set(ids) & existing)
     if duplicates:
         raise RunGateError(f"challenge plan reuses mutation IDs: {duplicates}")
+    command_record = _validated_command(manifest, plan["command_id"])
+    for challenge in plan["challenges"]:
+        _authorize_contract_challenge(manifest, challenge["contract_ids"])
+        _anchored_postimage(Path(manifest["prepared_root"]), challenge["mutation"])
     plan_sha256 = _sha256_path(plan_path)
     registrations: dict[str, dict[str, Any]] = {}
     for challenge in plan["challenges"]:
-        mutation = challenge["mutation"]
-        if mutation["kind"] == "write":
-            registration = mutate(
-                manifest_path,
-                challenge["id"],
-                challenge["contract_ids"],
-                mutation["relative_target"],
-                mutation["content_utf8"].encode("utf-8"),
-            )
-        else:
-            registration = register_prebuilt(
-                manifest_path,
-                challenge["id"],
-                challenge["contract_ids"],
-                mutation["relative_path"],
-            )
+        runtime_challenge = dict(challenge)
+        runtime_challenge["command"] = command_record["argv"]
+        runtime_challenge["timeout_seconds"] = command_record["timeout_seconds"]
+        challenge["_runtime"] = runtime_challenge
+        registration = mutate_anchored(
+            manifest_path,
+            challenge["id"],
+            challenge["contract_ids"],
+            challenge["mutation"],
+        )
         registrations[challenge["id"]] = registration
 
     inherited_environment = {
@@ -912,7 +1282,7 @@ def challenge_batch(
         futures = {
             executor.submit(
                 _batch_command,
-                challenge,
+                challenge["_runtime"],
                 registrations[challenge["id"]],
                 inherited_environment,
             ): challenge["id"]
@@ -926,12 +1296,12 @@ def challenge_batch(
                 results_by_id[mutation_id] = {
                     "mutation_id": mutation_id,
                     "argv": next(
-                        item["command"]
+                        item["_runtime"]["command"]
                         for item in plan["challenges"]
                         if item["id"] == mutation_id
                     ),
                     "timeout_seconds": next(
-                        item["timeout_seconds"]
+                        item["_runtime"]["timeout_seconds"]
                         for item in plan["challenges"]
                         if item["id"] == mutation_id
                     ),
@@ -964,6 +1334,9 @@ def challenge_batch(
         public_results.append({
             "mutation_id": result["mutation_id"],
             "outcome": (
+                "runner-error"
+                if result["result"] == "runner-error"
+                else
                 "timeout"
                 if result["result"] == "timeout"
                 else "passed"
@@ -978,6 +1351,7 @@ def challenge_batch(
     return {
         "status": "completed",
         "plan_sha256": plan_sha256,
+        "command_id": plan["command_id"],
         "max_parallel": plan["max_parallel"],
         "results": public_results,
     }
@@ -1374,6 +1748,243 @@ def cleanup(manifest_path: Path) -> None:
         raise RunGateError("; ".join(errors))
 
 
+def _analysis_drafts(
+    manifest: dict[str, Any],
+    analysis: dict[str, Any],
+    plan: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    events = _ledger_events(manifest)
+    baselines = [
+        item for item in events
+        if item.get("kind") == "command" and item.get("phase") == "baseline"
+    ]
+    if not baselines:
+        raise RunGateError("complete requires one probed baseline command")
+    command = _validated_command(manifest, plan["command_id"])
+    challenges = {item["id"]: item for item in plan["challenges"]}
+    classifications = {
+        item["mutation_id"]: item for item in analysis["classifications"]
+    }
+    if len(classifications) != len(analysis["classifications"]):
+        raise RunGateError("analysis classification IDs must be unique")
+    if set(classifications) != set(challenges):
+        raise RunGateError(
+            "analysis must classify every planned challenge exactly once"
+        )
+    mutations: list[dict[str, Any]] = []
+    for mutation_id in sorted(challenges):
+        challenge = challenges[mutation_id]
+        classification = classifications[mutation_id]
+        operation = challenge["mutation"]
+        item = {
+            "id": mutation_id,
+            "mode": analysis["mode"],
+            "contract_ids": challenge["contract_ids"],
+            "source_intent": classification["source_intent"],
+            "changed_intent": classification["changed_intent"],
+            "represented_risk": challenge["accident"],
+            "severity": challenge["severity"],
+            "likelihood": challenge["likelihood"],
+            "code_change": (
+                f"{operation['kind']} at exact anchor in "
+                f"{operation['relative_path']}"
+            ),
+            "code_location": challenge["code_location"],
+            "expected_detection": challenge["expected_detection"],
+            "result": classification["result"],
+            "detecting_tests": classification["detecting_tests"],
+            "observed_failure_reason": classification["observed_failure_reason"],
+            "contract_violation_observed": classification[
+                "contract_violation_observed"
+            ],
+            "follow_up": classification["follow_up"],
+            "outcome_interpretation": classification["outcome_interpretation"],
+        }
+        for optional in ("equivalence_evidence", "catch"):
+            if optional in classification:
+                item[optional] = classification[optional]
+        mutations.append(item)
+    report = {
+        "version": 1,
+        "mode": analysis["mode"],
+        "baseline": {
+            "command": shlex.join(command["argv"]),
+            "status": "green",
+            "attempts": len(baselines),
+            "stable_tests": analysis["stable_tests"],
+            "excluded_tests": analysis["excluded_tests"],
+        },
+        "assessment": analysis["assessment"],
+        "mutations": mutations,
+        "not_challenged": analysis["not_challenged"],
+        "test_changes": analysis["test_changes"],
+        "test_handoff": analysis["test_handoff"],
+        "authorized_workspace_changes": [],
+        "persistent_side_effects": analysis["persistent_side_effects"],
+    }
+    return report, analysis["review"]
+
+
+def scaffold_analysis(
+    manifest_path: Path,
+    mode: str,
+    schema_root: Path | None = None,
+) -> dict[str, Any]:
+    """Create a valid semantic-only analysis scaffold from Plan and raw outcomes."""
+    if mode not in {"assessment", "harden", "catch"}:
+        raise RunGateError("analysis mode must be assessment, harden, or catch")
+    manifest = _ready_manifest(manifest_path)
+    artifact_root = Path(manifest["artifact_root"])
+    plan = _load_json(artifact_root / "challenge-plan.json")
+    if not isinstance(plan, dict):
+        raise RunGateError("challenge plan root must be an object")
+    validator = _validator_module()
+    try:
+        validator.validate_document(
+            plan, "challenge-plan.schema.json", schema_root
+        )
+    except validator.ArtifactError as error:
+        raise RunGateError(str(error)) from error
+    executions = {
+        item["mutation_id"]: item
+        for item in _ledger_events(manifest)
+        if item.get("kind") == "command" and item.get("phase") == "mutation"
+    }
+    planned_ids = [item["id"] for item in plan["challenges"]]
+    if set(executions) != set(planned_ids):
+        raise RunGateError(
+            "analysis scaffold requires raw execution for every planned challenge"
+        )
+    classifications = []
+    for mutation_id in planned_ids:
+        event = executions[mutation_id]
+        if event.get("result") == "timeout":
+            result = "timeout"
+            kind = "timeout"
+            reason = "The Runner recorded a timeout; confirm the residual risk"
+        elif event.get("result") == "runner-error":
+            result = "inconclusive"
+            kind = "infrastructure-failure"
+            reason = "The Runner failed before a behavioral result was available"
+        elif event.get("returncode") == 0:
+            result = "survived"
+            kind = "passed"
+            reason = "The focused tests remained green for this accident"
+        else:
+            result = "inconclusive"
+            kind = "unparseable"
+            reason = (
+                "The process failed; classify whether the failure is behavioral "
+                "or infrastructure from the raw outcome"
+            )
+        classification: dict[str, Any] = {
+            "mutation_id": mutation_id,
+            "source_intent": f"Describe the protected intent for {mutation_id}",
+            "changed_intent": f"Describe the accidental behavior for {mutation_id}",
+            "result": result,
+            "detecting_tests": [],
+            "observed_failure_reason": reason,
+            "contract_violation_observed": False,
+            "follow_up": "none",
+            "outcome_interpretation": {"kind": kind, "reason": reason},
+        }
+        if mode == "catch":
+            classification["catch"] = {
+                "parent_outcome": "not-runnable",
+                "mutant_outcome": "not-runnable",
+                "change_outcome": "not-runnable",
+                "human_verdict": "unanswered",
+            }
+        classifications.append(classification)
+    document = {
+        "version": 1,
+        "mode": mode,
+        "stable_tests": [],
+        "excluded_tests": [],
+        "assessment": None,
+        "classifications": classifications,
+        "not_challenged": [],
+        "test_changes": [],
+        "test_handoff": None,
+        "persistent_side_effects": {
+            "authorization": "not-requested",
+            "writes": [],
+        },
+        "review": {
+            "review_this": [],
+            "we_verified": [],
+            "still_at_risk": [],
+            "copy_ready_comments": [],
+        },
+    }
+    try:
+        validator.validate_document(
+            document, "review-analysis.schema.json", schema_root
+        )
+    except validator.ArtifactError as error:
+        raise RunGateError(str(error)) from error
+    path = artifact_root / "review-analysis.json"
+    _write_exclusive(path, document)
+    return {
+        "status": "created",
+        "path": str(path),
+        "classifications": len(classifications),
+        "next": (
+            "edit semantic intent, classification, detecting tests, and review claims; "
+            "do not add run identity, hashes, commands, or evidence mechanics"
+        ),
+    }
+
+
+def complete(
+    manifest_path: Path,
+    *,
+    retention: str = "discard",
+    schema_root: Path | None = None,
+) -> str:
+    """Generate mechanical Drafts, finish, and clean up in one Runner-owned step."""
+    if retention not in {"discard", "keep"}:
+        raise RunGateError("retention must be discard or keep")
+    manifest = _ready_manifest(manifest_path)
+    artifact_root = Path(manifest["artifact_root"])
+    analysis_path = artifact_root / "review-analysis.json"
+    plan_path = artifact_root / "challenge-plan.json"
+    analysis = _load_json(analysis_path)
+    plan = _load_json(plan_path)
+    if not isinstance(analysis, dict) or not isinstance(plan, dict):
+        raise RunGateError("complete inputs must be JSON objects")
+    validator = _validator_module()
+    try:
+        validator.validate_document(
+            analysis, "review-analysis.schema.json", schema_root
+        )
+        validator.validate_document(
+            plan, "challenge-plan.schema.json", schema_root
+        )
+    except validator.ArtifactError as error:
+        _record_validation_error(manifest, "complete-input", str(error))
+        raise RunGateError(str(error)) from error
+    report, review = _analysis_drafts(manifest, analysis, plan)
+    try:
+        validator.validate_document(
+            report, "mutation-report-draft.schema.json", schema_root
+        )
+        validator.validate_document(
+            review, "canonical-review.schema.json", schema_root
+        )
+    except validator.ArtifactError as error:
+        _record_validation_error(manifest, "complete-generated", str(error))
+        raise RunGateError(str(error)) from error
+    for kind, document in (("report", report), ("review", review)):
+        path = artifact_root / ARTIFACT_FILES[kind]
+        _write_exclusive(path, document)
+        stage_artifact(manifest_path, kind, schema_root)
+    rendered = finish(manifest_path, schema_root)
+    if retention == "discard":
+        cleanup(manifest_path)
+    return rendered
+
+
 def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
     manifest = _ready_manifest(manifest_path)
     sandbox = Path(manifest["sandbox_root"])
@@ -1495,6 +2106,15 @@ def main() -> int:
     pre.add_argument("--primary", required=True, type=Path)
     pre.add_argument("--host-socket", type=Path)
     pre.add_argument("--host-token")
+    inspect_parser = commands.add_parser("inspect")
+    inspect_parser.add_argument("--manifest", required=True, type=Path)
+    inspect_parser.add_argument(
+        "--kind", required=True, choices=("diff", "file", "search", "tests")
+    )
+    inspect_parser.add_argument("--relative-path")
+    inspect_parser.add_argument("--query")
+    inspect_parser.add_argument("--start-line", type=int, default=1)
+    inspect_parser.add_argument("--end-line", type=int, default=200)
     mutate_parser = commands.add_parser("mutate")
     mutate_parser.add_argument("--manifest", required=True, type=Path)
     mutate_parser.add_argument("--mutation-id", required=True)
@@ -1508,13 +2128,26 @@ def main() -> int:
     register_parser.add_argument("--relative-path", required=True)
     execute_parser = commands.add_parser("execute")
     execute_parser.add_argument("--manifest", required=True, type=Path)
-    execute_parser.add_argument("--phase", required=True, choices=("baseline", "mutation"))
+    execute_parser.add_argument(
+        "--phase", required=True, choices=("prepare", "baseline", "mutation")
+    )
     execute_parser.add_argument("--mutation-id")
     execute_parser.add_argument("--timeout", type=int, default=120)
     execute_parser.add_argument("argv", nargs=argparse.REMAINDER)
+    probe_parser = commands.add_parser("probe-command")
+    probe_parser.add_argument("--manifest", required=True, type=Path)
+    probe_parser.add_argument("--command-id", required=True)
+    probe_parser.add_argument("--timeout", type=int, default=120)
+    probe_parser.add_argument("argv", nargs=argparse.REMAINDER)
     batch_parser = commands.add_parser("challenge-batch")
     batch_parser.add_argument("--manifest", required=True, type=Path)
     batch_parser.add_argument("--schema-root", type=Path)
+    scaffold_parser = commands.add_parser("scaffold-analysis")
+    scaffold_parser.add_argument("--manifest", required=True, type=Path)
+    scaffold_parser.add_argument(
+        "--mode", required=True, choices=("assessment", "harden", "catch")
+    )
+    scaffold_parser.add_argument("--schema-root", type=Path)
     stage_parser = commands.add_parser("stage-artifact")
     stage_parser.add_argument("--manifest", required=True, type=Path)
     stage_parser.add_argument(
@@ -1526,6 +2159,12 @@ def main() -> int:
     finish_parser.add_argument("--schema-root", type=Path)
     cleanup_parser = commands.add_parser("cleanup")
     cleanup_parser.add_argument("--manifest", required=True, type=Path)
+    complete_parser = commands.add_parser("complete")
+    complete_parser.add_argument("--manifest", required=True, type=Path)
+    complete_parser.add_argument(
+        "--retention", choices=("discard", "keep"), default="discard"
+    )
+    complete_parser.add_argument("--schema-root", type=Path)
     assess_parser = commands.add_parser(
         "assess", help="run the unsigned v0.4 local-copy prototype"
     )
@@ -1553,17 +2192,27 @@ def main() -> int:
             "prepared_root": manifest["prepared_root"],
             "artifact_root": manifest["artifact_root"],
             "next": (
-                "stage the Intent Contract first; resolve mapped uncertainty before "
-                "baseline and challenge-batch; stage report and review only after outcomes"
+                "inspect and confirm the diff; stage the Intent Contract; prepare once; "
+                "probe the focused command before one anchored challenge-batch; scaffold "
+                "review-analysis.json; edit only semantic judgments; call complete"
             ),
             "allowed_operations": [
-                "mutate", "register-prebuilt", "execute", "stage-artifact",
-                "challenge-batch", "finish", "cleanup",
+                "inspect", "execute", "probe-command", "stage-artifact",
+                "challenge-batch", "scaffold-analysis", "complete", "cleanup",
             ],
         }, sort_keys=True))
         return 0
     try:
-        if args.command == "mutate":
+        if args.command == "inspect":
+            print(json.dumps(inspect_review(
+                args.manifest,
+                args.kind,
+                relative_path=args.relative_path,
+                query=args.query,
+                start_line=args.start_line,
+                end_line=args.end_line,
+            ), ensure_ascii=False, sort_keys=True))
+        elif args.command == "mutate":
             mutate(
                 args.manifest, args.mutation_id, args.contract_id,
                 args.relative_path, args.content_file.read_bytes(),
@@ -1577,9 +2226,24 @@ def main() -> int:
                 raise RunGateError("execute requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
             return execute(args.manifest, args.phase, args.mutation_id, argv, args.timeout)
+        elif args.command == "probe-command":
+            if not args.argv:
+                raise RunGateError("probe-command requires a command after --")
+            argv = args.argv[1:] if args.argv[0] == "--" else args.argv
+            result = probe_command(
+                args.manifest, args.command_id, argv, args.timeout
+            )
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+            return 0 if result["status"] == "ready" else 2
         elif args.command == "challenge-batch":
             print(json.dumps(
                 challenge_batch(args.manifest, args.schema_root), sort_keys=True
+            ))
+        elif args.command == "scaffold-analysis":
+            print(json.dumps(
+                scaffold_analysis(args.manifest, args.mode, args.schema_root),
+                ensure_ascii=False,
+                sort_keys=True,
             ))
         elif args.command == "stage-artifact":
             print(json.dumps(
@@ -1590,6 +2254,12 @@ def main() -> int:
             sys.stdout.write(finish(args.manifest, args.schema_root))
         elif args.command == "cleanup":
             cleanup(args.manifest)
+        elif args.command == "complete":
+            sys.stdout.write(complete(
+                args.manifest,
+                retention=args.retention,
+                schema_root=args.schema_root,
+            ))
         elif args.command == "assess":
             print(json.dumps(
                 assess_experiment(args.source_root, args.plan, args.evidence),

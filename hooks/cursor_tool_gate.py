@@ -15,8 +15,7 @@ DRAFT_FILENAMES = {
     "challenge-plan.json",
     "experiment-plan.json",
     "intent-contract.draft.json",
-    "mutation-report.draft.json",
-    "canonical-review.draft.json",
+    "review-analysis.json",
 }
 
 

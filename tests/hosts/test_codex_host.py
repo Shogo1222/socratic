@@ -50,7 +50,7 @@ class CodexHostTest(unittest.TestCase):
                 self.assertEqual(manifest["status"], "ready")
                 self.assertEqual(manifest["host"]["adapter_id"], "codex-plugin-hook-host-v1")
                 artifact = (
-                    Path(state["artifact_root"]) / "mutation-report.draft.json"
+                    Path(state["artifact_root"]) / "review-analysis.json"
                 )
                 allowed_artifact = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse",
