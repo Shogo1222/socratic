@@ -39,7 +39,21 @@ Socratic lets a reviewer grasp four things quickly:
 
 ## Installation
 
-For the v0.3.0 integration preview, install the Claude Code Plugin, start Claude normally in a trusted Git repository, and invoke `/socratic:socratic`. The Plugin automatically starts a session-scoped Host broker before Claude processes the request, denies direct Primary writes and unguarded Bash through `PreToolUse`, and cleans the Host state on `Stop`. No separate launcher command is required.
+For the v0.3.0 integration preview, add the repository as a Claude Code Marketplace and install the Plugin:
+
+```text
+/plugin marketplace add Shogo1222/socratic
+/plugin install socratic@socratic-marketplace
+```
+
+To receive a published version bump, refresh the catalog and update the Plugin:
+
+```text
+/plugin marketplace update socratic-marketplace
+/plugin update socratic@socratic-marketplace
+```
+
+Then start Claude normally in a trusted Git repository and invoke `/socratic:socratic`. The Plugin automatically starts a session-scoped Host broker before Claude processes the request, denies direct Primary writes and unguarded Bash through `PreToolUse`, and cleans the Host state on `Stop`. No separate launcher command is required.
 
 Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
 
@@ -53,7 +67,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.3
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
 ```
 
 Or with the open Agent Skills CLI:
