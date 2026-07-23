@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tests for the launcher-owned Claude Host broker."""
 
-import importlib.util
 import io
 import json
 import os
@@ -16,27 +15,21 @@ from pathlib import Path
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-def load(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+from tests.support import ROOT, load_module
 
 
 class ClaudeHostTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.host = load("socratic_claude_host", ROOT / "scripts/claude_host.py")
-        cls.hook = load("socratic_claude_hook", ROOT / "hooks/claude_preflight.py")
-        cls.tool_gate = load("socratic_tool_gate", ROOT / "hooks/claude_tool_gate.py")
-        cls.cleanup_hook = load("socratic_claude_cleanup", ROOT / "hooks/claude_cleanup.py")
-        cls.runner = load("socratic_runner_host", ROOT / "skills/socratic/scripts/run_review.py")
+        cls.host = load_module("socratic_claude_host", ROOT / "scripts/claude_host.py")
+        cls.hook = load_module("socratic_claude_hook", ROOT / "hooks/claude_preflight.py")
+        cls.tool_gate = load_module("socratic_tool_gate", ROOT / "hooks/claude_tool_gate.py")
+        cls.cleanup_hook = load_module(
+            "socratic_claude_cleanup", ROOT / "hooks/claude_cleanup.py"
+        )
+        cls.runner = load_module(
+            "socratic_runner_host", ROOT / "skills/socratic/scripts/run_review.py"
+        )
 
     def test_live_broker_allows_hook_and_issues_runner_grant(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

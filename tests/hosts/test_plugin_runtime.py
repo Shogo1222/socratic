@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
 """Tests for automatic Plugin-managed Python dependency resolution."""
 
-import importlib.util
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from tests.support import ROOT, load_module
 
-ROOT = Path(__file__).resolve().parent.parent
-SPEC = importlib.util.spec_from_file_location(
-    "socratic_plugin_runtime_tested", ROOT / "scripts/plugin_runtime.py"
-)
-assert SPEC and SPEC.loader
-runtime = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(runtime)
+
+runtime = load_module("socratic_plugin_runtime_tested", ROOT / "scripts/plugin_runtime.py")
 
 
 class PluginRuntimeTest(unittest.TestCase):

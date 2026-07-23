@@ -469,6 +469,13 @@ schemas/
   mutation-result.schema.json
   mutation-report.schema.json
   test-handoff.schema.json
+tests/
+  schema/        Schema Contract
+  distribution/ ReleaseとBundleの整合性
+  hosts/         Claude Code・Codex・Cursor統合
+  runner/        Guarded実行とRendering
+  security/      Isolation境界
+  workflow/      IntentとLifecycle Gate
 .github/workflows/
   ci.yml         リポジトリ検証
   release.yml    TagとGitHub Releaseの作成

@@ -469,6 +469,13 @@ schemas/
   mutation-result.schema.json
   mutation-report.schema.json
   test-handoff.schema.json
+tests/
+  schema/        Schema contracts
+  distribution/ Release and bundle integrity
+  hosts/         Claude Code, Codex, and Cursor integration
+  runner/        Guarded execution and rendering
+  security/      Isolation boundaries
+  workflow/      Intent and lifecycle gates
 .github/workflows/
   ci.yml         Repository validation
   release.yml    Tag and GitHub Release creation

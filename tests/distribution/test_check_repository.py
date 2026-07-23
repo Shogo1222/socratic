@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Optional
 from unittest.mock import patch
 
+from tests.support import SCRIPTS
 import check_repository
 
 

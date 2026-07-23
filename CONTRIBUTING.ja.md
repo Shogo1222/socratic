@@ -28,7 +28,7 @@ Socraticは、現在初期設計段階です。コントリビューションで
 
 ```bash
 python3 scripts/check_repository.py
-python3 -m unittest discover -s scripts -p 'test_*.py'
+python3 -B -m unittest discover -s tests -t . -p 'test_*.py'
 python3 -m demo.subscription_renewal.run_demo
 python3 -m demo.refactor_guard.run_demo
 python3 -m demo.test_assessment.run_demo
@@ -36,6 +36,8 @@ python3 scripts/validate_fixtures.py
 python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
+
+`-B`によって、ローカルの`__pycache__`が配布Checkへ混入することを防ぎます。Testは`tests/`配下で関心ごとに分類し、`-t .`によって各GroupからのRepository Root Importを安定させます。
 
 Fixture検証には`jsonschema`と`referencing`が必要です(`python3 -m pip install jsonschema referencing`)。それ以外は標準ライブラリだけで動作します。
 
