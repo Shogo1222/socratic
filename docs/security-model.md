@@ -7,7 +7,8 @@ This document explains the intended security boundaries of Socratic, Maieutic, a
 ## Distribution
 
 <!-- socratic-distribution-file-count: 21 -->
-The release distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
+<!-- socratic-plugin-file-count: 24 -->
+The standalone Skill distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The v0.3.0 Codex Plugin bundle contains those files plus its manifest and two Host-hook files, for exactly 24 UTF-8 text files. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
 
 The repository contains documentation, CI scripts, and executable demos in addition to the skill distribution. Installing a skill does not install those repository-level files.
 
@@ -24,6 +25,12 @@ Review-only is the default. In this mode, probes, comparison tests, mutations, c
 For mutation execution, final-state equality is necessary but not sufficient. The mandatory Host Adapter issues a nonce and protected storage capability before the runner creates a repository-external sandbox. Manifest, ledger, and sandbox paths are validated outside Primary; the manifest is create-once and ledger events form an append-only hash chain. Every reported mutation requires a phase-bound test execution. A Primary write invalidates the run even when restoration returns the tree to identical bytes. Without Host integration, the standalone runner remains `blocked`.
 
 Schema v7 retains the JSON field name `verified` for compatibility. In protection evidence, `verified: true` means that the Runner accepted an attestation issued by the trusted Host Adapter; it does not mean that the Runner independently verified an operating-system protection boundary.
+
+## Pre-agent Host gate
+
+The v0.3.0 Codex Plugin bundles a `UserPromptSubmit` lifecycle hook. Explicit `$socratic` or `/socratic` requests are stopped before the model starts when no native trusted Host Adapter is available. The hook reads only the Host event on standard input; it does not inspect the repository. Implicit Socratic invocation is disabled so every supported invocation is identifiable at this boundary.
+
+This plugin hook closes the no-Host path only after the user has reviewed and trusted it. A user can disable a normal plugin hook, and specialized hosted tools may not pass through local tool hooks. Organizations that require a non-bypassable policy must deploy a managed hook with hooks forced on through `requirements.toml`, keep the hook implementation in an OS-managed directory, and deny unmanaged hook sources. A Skill instruction, an MCP tool, or a user-trusted Plugin hook alone is not a complete Host security boundary.
 
 Apply tests is available only after an explicit user request. It may write only tests that represent a confirmed intent and must report every changed path. It does not authorize production-code changes or version-control operations.
 

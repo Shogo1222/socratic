@@ -37,6 +37,12 @@ EXPECTED_FILES = (
     "socratic/scripts/run_review.py",
     "socratic/scripts/validate_and_render.py",
 )
+EXPECTED_PLUGIN_FILES = (
+    ".codex-plugin/plugin.json",
+    "hooks/hooks.json",
+    "hooks/socratic_preflight.py",
+    *(f"skills/{relative}" for relative in EXPECTED_FILES),
+)
 ALLOWED_EXTENSIONS = {".json", ".md", ".py", ".yaml"}
 ALLOWED_URL_HOSTS = {"json-schema.org"}
 URL_PATTERN = re.compile(r"https?://[^\s<>()\[\]{}\"']+")
@@ -180,6 +186,44 @@ def inspect_tree(root: Path, *, require_safety_text: bool) -> tuple[list[dict[st
     return entries, errors
 
 
+def inspect_plugin_tree(root: Path) -> tuple[list[dict[str, object]], list[str]]:
+    errors: list[str] = []
+    actual: dict[str, Path] = {}
+    for directory in (root / ".codex-plugin", root / "hooks", root / "skills"):
+        if not directory.is_dir():
+            errors.append(f"plugin directory is missing: {directory.relative_to(root)}")
+            continue
+        for path in sorted(directory.rglob("*")):
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                errors.append(f"plugin symbolic link is not allowed: {relative}")
+            elif path.is_file():
+                actual[relative] = path
+            elif not path.is_dir():
+                errors.append(f"plugin non-regular file is not allowed: {relative}")
+
+    expected = set(EXPECTED_PLUGIN_FILES)
+    for missing in sorted(expected - set(actual)):
+        errors.append(f"expected plugin file is missing: {missing}")
+    for unexpected in sorted(set(actual) - expected):
+        errors.append(f"unexpected plugin file: {unexpected}")
+
+    entries: list[dict[str, object]] = []
+    for relative, path in sorted(actual.items()):
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if mode & 0o111:
+            errors.append(f"plugin executable file is not allowed: {relative} ({mode:04o})")
+        raw = path.read_bytes()
+        try:
+            raw.decode("utf-8")
+        except UnicodeDecodeError:
+            errors.append(f"plugin file is not valid UTF-8 text: {relative}")
+        entries.append(
+            {"path": relative, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw), "mode": f"{mode:04o}"}
+        )
+    return entries, errors
+
+
 def write_manifest(path: Path, entries: list[dict[str, object]]) -> None:
     manifest = {
         "schema_version": 1,
@@ -205,12 +249,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--manifest-output", type=Path, help="write a JSON file manifest")
     parser.add_argument("--skill-sums-output", type=Path, help="write SHA-256 sums for all skill files")
+    parser.add_argument("--plugin-manifest-output", type=Path, help="write the Plugin JSON file manifest")
+    parser.add_argument("--plugin-sums-output", type=Path, help="write SHA-256 sums for all Plugin files")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     entries, errors = inspect_tree(ROOT / "skills", require_safety_text=True)
+    plugin_entries, plugin_errors = inspect_plugin_tree(ROOT)
+    errors.extend(plugin_errors)
 
     if args.installed_dir is not None:
         _, installed_errors = inspect_tree(args.installed_dir, require_safety_text=True)
@@ -225,8 +273,15 @@ def main() -> int:
         write_manifest(args.manifest_output, entries)
     if args.skill_sums_output is not None:
         write_skill_sums(args.skill_sums_output, entries)
+    if args.plugin_manifest_output is not None:
+        write_manifest(args.plugin_manifest_output, plugin_entries)
+    if args.plugin_sums_output is not None:
+        write_skill_sums(args.plugin_sums_output, plugin_entries)
 
-    print(f"Distribution audit passed: {len(entries)} UTF-8 text files")
+    print(
+        f"Distribution audit passed: {len(entries)} standalone Skill files and "
+        f"{len(plugin_entries)} Plugin files, all UTF-8 text"
+    )
     return 0
 
 

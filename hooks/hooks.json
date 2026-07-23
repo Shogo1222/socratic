@@ -1,0 +1,17 @@
+{
+  "description": "Stop Socratic requests before the agent starts when no native trusted Host Adapter is available.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/socratic_preflight.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking the trusted Socratic Host capability"
+          }
+        ]
+      }
+    ]
+  }
+}

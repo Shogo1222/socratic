@@ -87,6 +87,8 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 
 ### Review-onlyの必須Entry Point
 
+Native Host IntegrationがTrusted Preflightを完了した後だけ、このWorkflowへ入る。Codex PluginのPre-agent Hookは通常のNo-Host RequestをこのSkillの読み込み前に終了させる。Standalone Skill Installは準拠したSocratic Entry Pointではない。
+
 すべてのReview-only Mutation Runは、信頼されたHost Adapterによる`preflight_with_host`、各`mutate`または`register_prebuilt`、BaselineとMutation ID付き`execute`、`finish`を必ず使用する。Standalone CLIはReady Runを作れず、自己申告Attestation JSONを受理しない。Host Adapter、Schema、またはHostがAttestしたRead-only/Write-monitor CapabilityがなければMutation前に`blocked`で停止する。Schema v7の`verified: true`は、Runnerが信頼するHostのAttestationを受理したことを意味し、Runner自身がOS境界を独立検証したという意味ではない。手作業の近似、Primary変更後の復元、`execute`外のCommand、手書きArtifactや4ブロックを正規Runとして提示しない。
 
 Standalone Preflightが`status=blocked`を返した場合は、次の固定終了手順だけを実行し、代替Workflowへ進まない。

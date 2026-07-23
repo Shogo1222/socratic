@@ -75,6 +75,11 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Python
         if: steps.release.outputs.release_needed == 'true'
@@ -117,7 +122,9 @@ jobs:
           mkdir -p dist
           python3 scripts/audit_distribution.py \
             --manifest-output dist/distribution-manifest.json \
-            --skill-sums-output dist/SKILL_SHA256SUMS
+            --skill-sums-output dist/SKILL_SHA256SUMS \
+            --plugin-manifest-output dist/plugin-distribution-manifest.json \
+            --plugin-sums-output dist/PLUGIN_SHA256SUMS
           for skill in socratic maieutic elenchus; do
             git archive \
               --format=zip \
@@ -130,6 +137,11 @@ jobs:
             --prefix="socratic-suite-$TAG/" \
             --output="dist/socratic-suite-$TAG.zip" \
             HEAD skills
+          git archive \
+            --format=zip \
+            --prefix="socratic-plugin-$TAG/" \
+            --output="dist/socratic-plugin-$TAG.zip" \
+            HEAD .codex-plugin hooks skills
           (
             cd dist
             sha256sum -- *.zip > SHA256SUMS
@@ -155,10 +167,15 @@ jobs:
         run: |
           set -euo pipefail
           args=("$TAG" --verify-tag --title "$TAG" --generate-notes --target "$RELEASE_SHA" --fail-on-no-commits)
+          if [[ "${{ steps.release.outputs.prerelease }}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
           gh release create "${args[@]}" \
             dist/*.zip \
             dist/SHA256SUMS \
             dist/SKILL_SHA256SUMS \
+            dist/PLUGIN_SHA256SUMS \
+            dist/plugin-distribution-manifest.json \
             dist/distribution-manifest.json
 
       - name: Verify immutable release and assets

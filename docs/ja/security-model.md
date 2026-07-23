@@ -7,7 +7,8 @@
 ## 配布物
 
 <!-- socratic-distribution-file-count: 21 -->
-Releaseの配布物は、3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+<!-- socratic-plugin-file-count: 24 -->
+Standalone Skill配布物は3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。v0.3.0 Codex Plugin Bundleは、それらにPlugin Manifestと2個のHost Hook Fileを加えた合計24個のUTF-8 Text Fileです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 
@@ -24,6 +25,12 @@ Skillは、依頼された変更を理解するために必要な範囲で、変
 Mutationでは最終状態一致だけでは不十分です。必須Host AdapterはRepository外Sandbox作成前にNonceと保護Storage Capabilityを発行する。Manifest、Ledger、Sandboxの全PathをPrimary外と検証し、ManifestをCreate-once、LedgerをAppend-only Hash Chainにする。各Report MutationにはPhase付きTest実行を要求する。復元後に同一Byteへ戻ってもPrimary Writeがあれば無効で、Host連携がなければStandalone Runnerは`blocked`となる。
 
 Schema v7との互換性のため、JSON Field名`verified`は維持します。Protection Evidenceの`verified: true`は、信頼するHost Adapterが発行したAttestationをRunnerが受理したことを表し、Runner自身がOS Protection境界を独立検証したという意味ではありません。
+
+## Agent開始前のHost Gate
+
+v0.3.0 Codex Pluginは`UserPromptSubmit` Lifecycle Hookを同梱します。NativeなTrusted Host Adapterがない場合、明示的な`$socratic`または`/socratic` RequestをModel開始前に停止します。Hookが読むのは標準入力のHost Eventだけで、Repositoryは調査しません。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。
+
+このPlugin HookがNo-Host経路を閉じるのは、ユーザーがHookをReview・Trustした後だけです。通常のPlugin Hookはユーザーが無効化でき、特殊なHosted ToolはLocal Tool Hookを通らない可能性があります。迂回不能なPolicyが必要な組織は、`requirements.toml`でHookを強制有効化したManaged Hookを使い、Hook実装をOS管理Directoryへ配置し、Unmanaged Hook Sourceを拒否する必要があります。Skill指示、MCP Tool、User-trusted Plugin Hookだけでは完全なHost Security Boundaryになりません。
 
 Apply testsは、ユーザーが明示的に依頼した後だけ利用できます。確認済みIntentを表すTestだけを書き込み、変更したすべてのPathを報告します。本番Codeの変更やVersion Control操作は許可しません。
 
