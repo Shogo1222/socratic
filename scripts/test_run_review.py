@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import tempfile
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -205,6 +206,46 @@ class RunReviewTest(unittest.TestCase):
                 "NODE_OPTIONS", "--require=/secret/hook.js",
             ):
                 self.assertNotIn(secret, ledger_text)
+
+    def test_execute_records_timeout_before_failing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            timeout = subprocess.TimeoutExpired(["test-command"], 5)
+            with patch.object(self.runner.subprocess, "run", side_effect=timeout):
+                with self.assertRaisesRegex(self.runner.RunGateError, "timed out"):
+                    self.runner.execute(manifest_path, "baseline", None, ["test-command"], 5)
+            event = self.runner._ledger_events(manifest)[-1]
+            self.assertEqual(event["result"], "timeout")
+            self.assertIsNone(event["returncode"])
+            self.assertEqual(event["phase"], "baseline")
+
+    def test_finish_rejects_green_baseline_with_failing_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None,
+                [sys.executable, "-c", "raise SystemExit(1)"], 10,
+            )
+            report = json.loads(
+                (ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text()
+            )
+            report["run"] = {
+                "id": manifest["run_id"], "entrypoint": self.runner.ENTRYPOINT,
+                "host_adapter": manifest["host"]["adapter_id"],
+                "run_nonce": manifest["host"]["run_nonce"],
+                "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                "ledger_head": self.runner._ledger_head(manifest),
+            }
+            with self.assertRaisesRegex(self.runner.RunGateError, "green baseline"):
+                self.runner.finish_document(
+                    manifest, report, {}, self.runner._ledger_events(manifest),
+                    manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                    ledger_head=self.runner._ledger_head(manifest),
+                )
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlinks unavailable")
     def test_mutation_rechecks_primary_directed_symlinks_created_after_preflight(self) -> None:

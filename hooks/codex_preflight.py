@@ -13,7 +13,9 @@ from typing import Any
 
 
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(r"(?<![0-9A-Za-z_-])(?:\$|/)socratic\b", re.IGNORECASE)
+SOCRATIC_INVOCATION = re.compile(
+    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+)
 
 
 def _host_module():
@@ -51,7 +53,7 @@ def evaluate(payload: Any) -> dict[str, Any]:
     if not isinstance(session_id, str) or not isinstance(cwd, str):
         return _blocked() if SOCRATIC_INVOCATION.search(prompt) else {"continue": True}
     host = _host_module()
-    state = host.load_session(session_id)
+    state = host.load_live_session(session_id)
     active = bool(
         state and host.request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}
     )

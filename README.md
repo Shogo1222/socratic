@@ -57,7 +57,7 @@ To receive a published version bump, refresh the catalog and update the Plugin:
 /plugin update socratic@socratic-marketplace
 ```
 
-Then start Claude normally in a trusted Git repository and invoke `/socratic:socratic`. The Plugin automatically starts a session-scoped Host broker before Claude processes the request and denies direct Primary writes and unguarded Bash through `PreToolUse`. A `Stop` event preserves the broker while a run manifest exists so human decisions can span turns, then cleans it after finish or abort; an idle TTL collects abandoned brokers. No separate launcher command is required.
+Then start Claude normally in a trusted Git repository and invoke the Marketplace command shown as `/socratic`. The Plugin automatically starts a session-scoped Host broker before Claude processes the request and denies direct Primary writes and unguarded Bash through `PreToolUse`. Direct Maieutic and Elenchus invocation uses the same gate. A `Stop` event preserves the broker while a run manifest exists so human decisions can span turns, then cleans it after finish or abort; an idle TTL and later Host events collect abandoned or stale brokers. No separate launcher command is required.
 
 Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
 
@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.5
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.6
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:

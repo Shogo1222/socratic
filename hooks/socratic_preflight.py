@@ -10,7 +10,9 @@ from typing import Any
 
 
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(r"(?<![0-9A-Za-z_-])(?:\$|/)socratic\b", re.IGNORECASE)
+SOCRATIC_INVOCATION = re.compile(
+    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+)
 
 
 def _blocked() -> dict[str, Any]:

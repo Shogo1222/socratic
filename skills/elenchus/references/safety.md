@@ -25,7 +25,7 @@ Treat every mutation as destructive temporary state.
 
 ## Git boundary
 
-Local Git use is limited to read-only evidence and snapshot export through `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`.
+Local Git use is limited to read-only evidence and snapshot export through `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`.
 
 Never run `git add`, `commit`, `amend`, `push`, `pull`, `fetch`, `checkout`, `switch`, `reset`, `stash`, `merge`, `rebase`, `cherry-pick`, `branch`, `tag`, or `worktree`. Never invoke `gh`, create a pull request, post a review comment, or call a code-host write API. If a Base or Head object is not available locally, report it as unavailable instead of fetching it.
 

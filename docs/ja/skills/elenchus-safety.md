@@ -29,7 +29,7 @@
 
 ## Git境界
 
-ローカルGitの利用は、`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`による読み取り専用の根拠収集とSnapshot出力に限定する。
+ローカルGitの利用は、`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`による読み取り専用の根拠収集とSnapshot出力に限定する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。
 
 `git add`、`commit`、`amend`、`push`、`pull`、`fetch`、`checkout`、`switch`、`reset`、`stash`、`merge`、`rebase`、`cherry-pick`、`branch`、`tag`、`worktree`を実行しない。`gh`を呼び出さず、Pull Requestを作成せず、レビューコメントを投稿せず、Code HostのWrite APIを呼び出さない。BaseまたはHeadのObjectがローカルにない場合、Fetchせず利用不能として報告する。
 

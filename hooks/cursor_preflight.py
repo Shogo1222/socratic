@@ -13,7 +13,9 @@ from typing import Any
 
 
 BLOCKED_REASON = "blocked: trusted Cursor Desktop Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(r"(?<![0-9A-Za-z_-])(?:\$|/)socratic\b", re.IGNORECASE)
+SOCRATIC_INVOCATION = re.compile(
+    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+)
 
 
 def _host_module():
@@ -69,7 +71,7 @@ def evaluate(payload: Any) -> dict[str, Any]:
     if session_id is None or primary is None:
         return _blocked() if SOCRATIC_INVOCATION.search(prompt) else {"continue": True}
     host = _host_module()
-    state = host.load_session(session_id)
+    state = host.load_live_session(session_id)
     active = bool(
         state and host.request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}
     )
