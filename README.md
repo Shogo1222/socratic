@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.8
+gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.9
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:

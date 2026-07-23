@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.8"
+SOCRATIC_VERSION = "0.4.0-alpha.9"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -40,6 +40,14 @@ ARTIFACT_SCHEMAS = {
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
+}
+SANDBOX_ENV_DEFAULTS = {
+    # Sandbox executions are non-interactive, and dependency state is sealed by
+    # the prepared snapshot: package managers must neither prompt nor reinstall.
+    # pnpm otherwise detects the cloned path change, purges node_modules, and
+    # rebuilds dependencies once per mutant clone.
+    "CI": "true",
+    "npm_config_verify_deps_before_run": "false",
 }
 
 
@@ -719,7 +727,9 @@ def _runtime_environment(root: Path) -> dict[str, str]:
     }
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
-    return {key: str(path.resolve()) for key, path in paths.items()}
+    resolved = {key: str(path.resolve()) for key, path in paths.items()}
+    resolved.update(SANDBOX_ENV_DEFAULTS)
+    return resolved
 
 
 def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -750,7 +760,13 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def _copy_prepared(prepared: Path, destination: Path) -> str:
-    """Create one disposable branch, preferring filesystem copy-on-write."""
+    """Create one disposable branch, preferring filesystem copy-on-write.
+
+    The whole prepared tree is carried into the branch, including installed
+    dependencies and the .socratic-runtime package-manager store: pnpm resolves
+    through the store at execution time, so a branch without it cannot run the
+    focused test command without reinstalling.
+    """
     destination.parent.mkdir(mode=0o700, exist_ok=True)
     if destination.exists():
         raise RunGateError(f"disposable clone already exists: {destination.name}")
@@ -794,8 +810,11 @@ def _clone_prepared(
     (destination / ".socratic-disposable").write_text(
         f"{manifest['run_id']}:{mutation_id}\n", encoding="utf-8"
     )
-    runtime = destination / ".socratic-runtime"
-    shutil.rmtree(runtime, ignore_errors=True)
+    # Keep the cloned .socratic-runtime: it carries the package-manager store
+    # populated during prepare, and pnpm resolves through it at execution time,
+    # so wiping it forces every mutant clone to rebuild dependencies. Each
+    # clone is a private copy-on-write branch, so mutants cannot contaminate
+    # each other through it.
     _runtime_environment(destination)
     return destination, strategy, snapshot["sha256"]
 
@@ -995,7 +1014,7 @@ def execute(
         else Path(registrations[mutation_id]["sandbox_root"])
     )
     runtime_environment = (
-        manifest["environment"]
+        {**manifest["environment"], **SANDBOX_ENV_DEFAULTS}
         if phase == "baseline"
         else _runtime_environment(execution_root)
     )
