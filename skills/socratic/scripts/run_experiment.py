@@ -23,7 +23,7 @@ from typing import Any
 from validate_and_render import ArtifactError, load_strict_json, validate_document
 
 
-RUNNER_VERSION = "0.5.0-alpha.1"
+RUNNER_VERSION = "0.5.0-alpha.2"
 OUTPUT_TAIL_BYTES = 16_384
 DIFF_TAIL_BYTES = 16_384
 MAX_CHANGED_BYTES = 65_536
