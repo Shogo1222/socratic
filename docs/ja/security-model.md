@@ -7,7 +7,7 @@
 ## 配布物
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 27 -->
+<!-- socratic-plugin-file-count: 28 -->
 Standalone Skill配布物は3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。v0.3.0 Codex Plugin Bundleは、それらにPlugin Manifestと2個のHost Hook Fileを加えた合計24個のUTF-8 Text Fileです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。

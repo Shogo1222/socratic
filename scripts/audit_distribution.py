@@ -44,6 +44,7 @@ EXPECTED_PLUGIN_FILES = (
     "hooks/codex-hooks.json",
     "hooks/hooks.json",
     "hooks/socratic_preflight.py",
+    "scripts/claude_host.py",
     *(f"skills/{relative}" for relative in EXPECTED_FILES),
 )
 ALLOWED_EXTENSIONS = {".json", ".md", ".py", ".yaml"}
@@ -197,7 +198,11 @@ def inspect_plugin_tree(root: Path) -> tuple[list[dict[str, object]], list[str]]
         root / ".codex-plugin",
         root / "hooks",
         root / "skills",
+        root / "scripts/claude_host.py",
     ):
+        if directory.is_file():
+            actual[directory.relative_to(root).as_posix()] = directory
+            continue
         if not directory.is_dir():
             errors.append(f"plugin directory is missing: {directory.relative_to(root)}")
             continue

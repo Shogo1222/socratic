@@ -39,7 +39,7 @@ Socratic lets a reviewer grasp four things quickly:
 
 ## Installation
 
-For the v0.3.0 integration preview, Claude Code Terminal is the primary Host. Download the Plugin archive and run `claude --plugin-dir ./socratic-plugin-v0.3.0-alpha.2.zip`. Its `UserPromptSubmit` hook stops an explicit Socratic request before Claude processes it when the trusted mutation boundary is unavailable. The archive also retains the experimental Codex manifest.
+For the v0.3.0 integration preview, Claude Code Terminal is the primary Host. Extract the Plugin archive, then launch through the bundled Host instead of invoking Claude directly: `python3 ./socratic-plugin-v0.3.0-alpha.2/scripts/claude_host.py --primary /path/to/repository`. The launcher copies the repository to an external disposable workspace, starts a live Unix-socket Host broker, and loads the Plugin. Direct `claude --plugin-dir` remains fail-closed.
 
 Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
 
