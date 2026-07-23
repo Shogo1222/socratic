@@ -4,6 +4,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support import ROOT, load_module
 
@@ -71,6 +72,37 @@ class CodexHostTest(unittest.TestCase):
             "hook_event_name": "UserPromptSubmit",
             "prompt": "Explain this function",
         }), {"continue": True})
+
+    def test_late_pull_request_selection_is_host_retargeted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            session_id = "codex-late-pr"
+            try:
+                first = self.host.prepare_session(session_id, repository)
+
+                def fake_materialize(primary, storage, requested):
+                    head = storage / "change" / "head"
+                    head.mkdir(parents=True)
+                    return {
+                        "source": "github-pull-request", "number": requested,
+                        "url": f"https://github.com/example/repo/pull/{requested}",
+                        "head_root": str(head),
+                    }
+
+                with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
+                    self.host, "materialize_pull_request", side_effect=fake_materialize
+                ):
+                    decision = self.hook.evaluate({
+                        "hook_event_name": "UserPromptSubmit", "prompt": "PR438 日本語で",
+                        "session_id": session_id, "cwd": str(repository),
+                    })
+                state = self.host.load_session(session_id)
+                self.assertNotEqual(state["run_id"], first["run_id"])
+                self.assertEqual(state["change_context"]["number"], 438)
+                self.assertIn("Discard all scope, findings, plans", decision["systemMessage"])
+            finally:
+                self.host.cleanup_session(session_id)
 
     def test_direct_maieutic_and_elenchus_require_host_context(self) -> None:
         for prompt in ("$maieutic confirm intent", "$elenchus assess tests"):
