@@ -394,6 +394,76 @@ class RunReviewTest(unittest.TestCase):
                     cwd_relative="missing-directory",
                 )
 
+    def test_challenge_batch_returns_compact_results_and_details_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            check = (
+                "import pathlib, sys; "
+                "text = pathlib.Path('packages/app/source.ts').read_text(); "
+                "sys.stdout.write('checked ' + text); "
+                "sys.exit(0 if text == 'original\\n' else 1)"
+            )
+            self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", check], 10
+            )
+            self.stage_contract(manifest)
+            survived_challenge = self.anchored_challenge("MUT-002", "changed\n")
+            survived_challenge["mutation"] = {
+                "kind": "replace-exact",
+                "relative_path": "packages/app/mutant-1.ts",
+                "before": "mutant 1\n",
+                "after": "unrelated change\n",
+            }
+            plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
+            plan_path.write_text(json.dumps({
+                "version": 2,
+                "command_id": "CMD-001",
+                "max_parallel": 2,
+                "challenges": [
+                    self.anchored_challenge("MUT-001", "broken\n"),
+                    survived_challenge,
+                ],
+            }))
+            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            killed, survived = result["results"]
+            self.assertEqual(killed["outcome"], "failed")
+            self.assertIn("checked broken", killed["stdout_tail"])
+            self.assertEqual(survived["outcome"], "passed")
+            self.assertNotIn("stdout_tail", survived)
+            for entry in result["results"]:
+                self.assertNotIn("stdout", entry)
+                self.assertNotIn("stderr", entry)
+                self.assertGreaterEqual(entry["duration_ms"], 0)
+            details = json.loads(Path(result["details_path"]).read_text())
+            self.assertEqual(
+                [item["mutation_id"] for item in details["results"]],
+                ["MUT-001", "MUT-002"],
+            )
+            self.assertIn("checked broken", details["results"][0]["stdout"])
+            self.assertIn("checked original", details["results"][1]["stdout"])
+
+    def test_resolve_inspect_kind_accepts_both_invocation_forms(self) -> None:
+        resolve = self.runner._resolve_inspect_kind
+        self.assertEqual(resolve(None, "diff"), "diff")
+        self.assertEqual(resolve("file", None), "file")
+        self.assertEqual(resolve("tests", "tests"), "tests")
+        with self.assertRaisesRegex(self.runner.RunGateError, "two different kinds"):
+            resolve("diff", "file")
+        with self.assertRaisesRegex(self.runner.RunGateError, "inspect --kind diff"):
+            resolve(None, None)
+
+    def test_probe_command_rejects_malformed_id_with_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            with self.assertRaisesRegex(self.runner.RunGateError, "expected CMD-"):
+                self.runner.probe_command(
+                    manifest_path, "CMD1", [sys.executable, "-c", "pass"], 10
+                )
+
     def test_scaffold_contract_writes_schema_valid_template_once(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
