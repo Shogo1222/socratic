@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Socratic Narrow Runner Evidence Bundle",
+  "type": "object",
+  "required": [
+    "version", "run", "round", "source", "plan_sha256", "runner",
+    "profile", "backend", "baseline", "mutations", "cleanup", "signature"
+  ],
+  "$defs": {
+    "output": {
+      "type": "object",
+      "required": ["tail", "truncated", "sha256"],
+      "properties": {
+        "tail": { "type": "string", "maxLength": 16384 },
+        "truncated": { "type": "boolean" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "outcome", "exit_code", "failed_tests", "duration_ms", "stdout", "stderr"
+      ],
+      "properties": {
+        "outcome": { "enum": ["passed", "failed", "timeout", "runner-error"] },
+        "exit_code": { "type": ["integer", "null"] },
+        "failed_tests": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            { "type": "null" }
+          ]
+        },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "stdout": { "$ref": "#/$defs/output" },
+        "stderr": { "$ref": "#/$defs/output" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "version": { "const": 1 },
+    "run": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "round": { "type": "string", "pattern": "^ROUND-[0-9]{3,}$" },
+    "source": {
+      "type": "object",
+      "required": ["sha256"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "plan_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "runner": {
+      "type": "object",
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "profile": {
+      "type": "object",
+      "required": ["name", "digest"],
+      "properties": {
+        "name": { "const": "python-unittest" },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "backend": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "attested"],
+          "properties": {
+            "kind": { "const": "local-copy" },
+            "attested": { "const": false }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "attested", "isolation"],
+          "properties": {
+            "kind": { "const": "isolated-host" },
+            "attested": { "const": true },
+            "isolation": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "baseline": { "$ref": "#/$defs/execution" },
+    "mutations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "changes", "execution"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+          "changes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "path", "preimage_sha256", "postimage_sha256", "diff_tail",
+                "diff_truncated", "diff_sha256"
+              ],
+              "properties": {
+                "path": { "type": "string", "minLength": 1 },
+                "preimage_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                "postimage_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                "diff_tail": { "type": "string", "maxLength": 16384 },
+                "diff_truncated": { "type": "boolean" },
+                "diff_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "execution": { "$ref": "#/$defs/execution" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["completed", "remaining_paths"],
+      "properties": {
+        "completed": { "type": "boolean" },
+        "remaining_paths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "signature": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "algorithm": { "const": "host-hmac-sha256" },
+            "host_adapter": { "type": "string", "minLength": 1 },
+            "evidence_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "issued_at": { "type": "string", "format": "date-time" },
+            "expires_at": { "type": "string", "format": "date-time" },
+            "value": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+          },
+          "required": [
+            "algorithm", "host_adapter", "evidence_sha256", "issued_at",
+            "expires_at", "value"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "backend": {
+            "properties": { "attested": { "const": false } },
+            "required": ["attested"]
+          }
+        },
+        "required": ["backend"]
+      },
+      "then": { "properties": { "signature": { "type": "null" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "backend": {
+            "properties": { "attested": { "const": true } },
+            "required": ["attested"]
+          }
+        },
+        "required": ["backend"]
+      },
+      "then": { "properties": { "signature": { "type": "object" } } }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -108,6 +108,12 @@ The Host Adapter issues the run ID, nonce, protected storage root, artifact inde
 
 The Host context also provides one session-specific `artifact_root`. Write only the fixed Draft files `intent-contract.draft.json`, `mutation-report.draft.json`, and `canonical-review.draft.json` directly under that directory. The Mutation Report Draft contains analysis fields only and must not contain run identity, attestation, isolation, postflight, or renderer hash fields. Call `stage-artifact` once for each Draft; it performs strict schema validation and records a create-once hash in the Host-managed artifact index. The tool gate rejects every other filename, Primary, Sandbox, Manifest, Ledger, arbitrary temporary paths, traversal, and symlinks. After `finish`, resolve artifact and proven-test disposition through structured UI, then call `cleanup`.
 
+### Experimental Narrow Runner contract
+
+The bundled `experiment-plan`, `evidence-bundle`, and `interpretation` schemas define the v0.4 prototype boundary: the agent supplies intent-linked accident models, typed test selection, typed mutations, and Evidence interpretation; a future deterministic Runner owns copying, mutation, execution, hashing, and cleanup. These schemas do not activate a new execution path in this release. Continue using the mandatory Host flow above.
+
+Prototype Evidence from the `local-copy` backend is always `attested: false`, has no Host signature, and must never be rendered as a canonical Socratic review. Do not invent an `assess` command before the bundled Runner implements it. A conforming future backend must keep Primary unavailable or read-only, omit credentials and Host secrets, disable test-time network, bound resources, and own unconditional cleanup.
+
 ### 1. Establish scope
 
 Identify the diff, immutable Base and Head snapshot identities, repository instructions, affected behavior, focused test command, and risk partitions. Obtain them from host-provided change context, already-materialized directories, or the read-only Git allowlist. Never create or switch branches or worktrees. If both snapshots cannot be materialized without a prohibited operation, report Refactor Guard as blocked instead of weakening the comparison. State any excluded partition. Determine the review purpose and choose the workflow branch:

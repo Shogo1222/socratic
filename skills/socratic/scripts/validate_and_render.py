@@ -19,6 +19,9 @@ class ArtifactError(ValueError):
 CONTRACT_ID_PATTERN = re.compile(r"\b(?:DEC|INV|FX)-[0-9]{3,}\b")
 ARTIFACT_SCHEMAS = (
     "challenge-plan.schema.json",
+    "evidence-bundle.schema.json",
+    "experiment-plan.schema.json",
+    "interpretation.schema.json",
     "intent-contract.schema.json",
     "mutation-result.schema.json",
     "mutation-report.schema.json",
@@ -181,6 +184,15 @@ def _schema_paths(schema_root: Path | None) -> dict[str, Path]:
     return {
         "challenge-plan.schema.json": (
             skills_root / "socratic" / "references" / "challenge-plan.schema.json"
+        ),
+        "evidence-bundle.schema.json": (
+            skills_root / "socratic" / "references" / "evidence-bundle.schema.json"
+        ),
+        "experiment-plan.schema.json": (
+            skills_root / "socratic" / "references" / "experiment-plan.schema.json"
+        ),
+        "interpretation.schema.json": (
+            skills_root / "socratic" / "references" / "interpretation.schema.json"
         ),
         "intent-contract.schema.json": (
             skills_root / "elenchus" / "references" / "intent-contract.schema.json"

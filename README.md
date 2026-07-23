@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.11
+gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.1
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
@@ -482,6 +482,8 @@ tests/
 ```
 
 Each directory under `skills/` is an Agent Skill compatible with Codex and Claude Code. Install all three to use the integrated `$socratic` workflow. `$maieutic` and `$elenchus` can also be invoked independently when only one stage is needed.
+
+The v0.4 prototype moves mechanical mutation execution out of agent instructions and into a Narrow Runner. Its accepted decisions and typed test-profile boundary are documented in [Narrow Runner Architecture Decisions](docs/runner-architecture.md) and [Narrow Runner Test Profiles](docs/test-profiles.md). The bundled prototype schemas are contracts only; the current Host-gated runtime remains authoritative until the Runner exists.
 
 ## Non-goals
 

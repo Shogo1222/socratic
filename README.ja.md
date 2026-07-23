@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.11
+gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.1
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。
@@ -482,6 +482,8 @@ tests/
 ```
 
 `skills/`配下の各ディレクトリは、CodexとClaude Codeで利用できるAgent Skillです。統合された`$socratic` Workflowには3つすべてをインストールします。一方のStageだけが必要な場合は`$maieutic`または`$elenchus`を独立して実行できます。
+
+v0.4 Prototypeでは、機械的なMutation実行をAgent InstructionからNarrow Runnerへ移す。確定したDecisionと型付きTest Profile境界は[Narrow Runner Architecture Decision](docs/ja/runner-architecture.md)と[Narrow Runner Test Profile](docs/ja/test-profiles.md)に記載する。同梱Prototype SchemaはContractだけであり、Runner実装までは現行Host-gated Runtimeを正とする。
 
 ## 非ゴール
 
