@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.support import SCRIPTS
 from audit_distribution import (
     EXPECTED_FILES,
     EXPECTED_PLUGIN_FILES,

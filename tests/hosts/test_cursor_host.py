@@ -1,33 +1,25 @@
 #!/usr/bin/env python3
 """Contract tests for the local Cursor Desktop Plugin Host integration."""
 
-import importlib.util
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-def load(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+from tests.support import ROOT, load_module
 
 
 class CursorHostTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.host = load("socratic_cursor_shared_host", ROOT / "scripts/claude_host.py")
-        cls.hook = load("socratic_cursor_preflight", ROOT / "hooks/cursor_preflight.py")
-        cls.gate = load("socratic_cursor_gate", ROOT / "hooks/cursor_tool_gate.py")
-        cls.runner = load("socratic_cursor_runner", ROOT / "skills/socratic/scripts/run_review.py")
+        cls.host = load_module("socratic_cursor_shared_host", ROOT / "scripts/claude_host.py")
+        cls.hook = load_module(
+            "socratic_cursor_preflight", ROOT / "hooks/cursor_preflight.py"
+        )
+        cls.gate = load_module("socratic_cursor_gate", ROOT / "hooks/cursor_tool_gate.py")
+        cls.runner = load_module(
+            "socratic_cursor_runner", ROOT / "skills/socratic/scripts/run_review.py"
+        )
 
     def test_local_desktop_run_issues_grant_and_denies_primary_tools(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
 """Regression requirements from the v0.2.4 realistic-use workflow review."""
 
-import importlib.util
 import json
-import sys
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-def load_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+from tests.support import ROOT, load_module
 
 
 artifacts = load_module(

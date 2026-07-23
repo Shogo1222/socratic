@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
 """Regression tests for the pre-agent Socratic plugin gate."""
 
-import importlib.util
 import json
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parent.parent
+from tests.support import ROOT, load_module
 HOOK = ROOT / "hooks/socratic_preflight.py"
 CLAUDE_HOOK = ROOT / "hooks/claude_preflight.py"
 FIXTURE = ROOT / "fixtures/pr438-blocked-bypass.json"
 
 
 def load_hook():
-    spec = importlib.util.spec_from_file_location("socratic_preflight_hook", HOOK)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_module("socratic_preflight_hook", HOOK)
 
 
 class PluginHostGateTest(unittest.TestCase):
@@ -122,10 +115,7 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertIn("Stop", hooks["hooks"])
 
     def test_claude_plugin_uses_native_block_schema(self) -> None:
-        spec = importlib.util.spec_from_file_location("claude_preflight_hook", CLAUDE_HOOK)
-        assert spec and spec.loader
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = load_module("claude_preflight_hook", CLAUDE_HOOK)
         expected = {
             "decision": "block",
             "reason": "blocked: trusted Host Adapter capability is unavailable",

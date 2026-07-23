@@ -1,32 +1,22 @@
 #!/usr/bin/env python3
 """End-to-end tests for the Codex Plugin Host broker and lifecycle hooks."""
 
-import importlib.util
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-def load(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+from tests.support import ROOT, load_module
 
 
 class CodexHostTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.host = load("socratic_codex_shared_host", ROOT / "scripts/claude_host.py")
-        cls.hook = load("socratic_codex_preflight", ROOT / "hooks/codex_preflight.py")
-        cls.tool_gate = load("socratic_codex_gate", ROOT / "hooks/claude_tool_gate.py")
-        cls.runner = load("socratic_codex_runner", ROOT / "skills/socratic/scripts/run_review.py")
+        cls.host = load_module("socratic_codex_shared_host", ROOT / "scripts/claude_host.py")
+        cls.hook = load_module("socratic_codex_preflight", ROOT / "hooks/codex_preflight.py")
+        cls.tool_gate = load_module("socratic_codex_gate", ROOT / "hooks/claude_tool_gate.py")
+        cls.runner = load_module(
+            "socratic_codex_runner", ROOT / "skills/socratic/scripts/run_review.py"
+        )
 
     def test_live_codex_hooks_issue_grant_and_enforce_review_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

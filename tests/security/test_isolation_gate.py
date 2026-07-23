@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
-import importlib.util
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from tests.support import ROOT, load_module
 
-ROOT = Path(__file__).resolve().parent.parent
+
 MODULE_PATH = ROOT / "skills" / "elenchus" / "scripts" / "isolation_gate.py"
-SPEC = importlib.util.spec_from_file_location("isolation_gate", MODULE_PATH)
-assert SPEC and SPEC.loader
-isolation_gate = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = isolation_gate
-SPEC.loader.exec_module(isolation_gate)
+isolation_gate = load_module("isolation_gate", MODULE_PATH)
 IsolationGate = isolation_gate.IsolationGate
 IsolationViolation = isolation_gate.IsolationViolation
 

@@ -2,7 +2,6 @@
 """Fail-closed regression tests for the mandatory Socratic run entrypoint."""
 
 import hashlib
-import importlib.util
 import io
 import json
 import os
@@ -15,18 +14,14 @@ from pathlib import Path
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from tests.support import ROOT, load_module
 
-ROOT = Path(__file__).resolve().parent.parent
+
 MODULE = ROOT / "skills/socratic/scripts/run_review.py"
 
 
 def load_runner():
-    spec = importlib.util.spec_from_file_location("socratic_run_review", MODULE)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_module("socratic_run_review", MODULE)
 
 
 class RunReviewTest(unittest.TestCase):

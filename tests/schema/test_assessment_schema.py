@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import json
 import unittest
-from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parent.parent
+from tests.support import ROOT
 
 
 class AssessmentSchemaTest(unittest.TestCase):

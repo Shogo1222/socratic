@@ -2,19 +2,15 @@
 import importlib.util
 import hashlib
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from tests.support import ROOT, load_module
 
-ROOT = Path(__file__).resolve().parent.parent
+
 MODULE_PATH = ROOT / "skills" / "socratic" / "scripts" / "validate_and_render.py"
-SPEC = importlib.util.spec_from_file_location("validate_and_render", MODULE_PATH)
-assert SPEC and SPEC.loader
-validate_and_render = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = validate_and_render
-SPEC.loader.exec_module(validate_and_render)
+validate_and_render = load_module("validate_and_render", MODULE_PATH)
 
 
 class ValidateAndRenderTest(unittest.TestCase):
