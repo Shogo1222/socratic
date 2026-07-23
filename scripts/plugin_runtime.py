@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import os
 import subprocess
 import sys
@@ -18,18 +17,34 @@ REQUIREMENTS = ("jsonschema==4.25.1", "referencing==0.36.2")
 
 
 def _ready(python: Path) -> bool:
-    try:
-        completed = subprocess.run(
-            [str(python), "-c", "import jsonschema, referencing"],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=10,
-        )
-        return completed.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+    with tempfile.TemporaryDirectory(prefix="socratic-runtime-probe-") as directory:
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() in {
+                "COMSPEC", "LANG", "LC_ALL", "LC_CTYPE", "PATH", "PATHEXT",
+                "SYSTEMDRIVE", "SYSTEMROOT", "TZ", "WINDIR",
+            }
+        }
+        environment.update({
+            "HOME": directory,
+            "TMPDIR": directory,
+            "XDG_CACHE_HOME": directory,
+            "PYTHONDONTWRITEBYTECODE": "1",
+        })
+        try:
+            completed = subprocess.run(
+                [str(python), "-I", "-c", "import jsonschema, referencing"],
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=10,
+            )
+            return completed.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
 
 
 def _data_root(plugin_root: Path) -> Path:
@@ -43,7 +58,7 @@ def _data_root(plugin_root: Path) -> Path:
 
 def ensure_runtime(plugin_root: Path) -> Path:
     current = Path(sys.executable).resolve()
-    if importlib.util.find_spec("jsonschema") and importlib.util.find_spec("referencing"):
+    if _ready(current):
         return current
 
     root = _data_root(plugin_root)

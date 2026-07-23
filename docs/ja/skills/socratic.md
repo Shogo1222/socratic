@@ -115,6 +115,8 @@ Host ContextはSession固有の`artifact_root`も1つ提供する。正準Runで
 
 `local-copy` BackendのPrototype Evidenceは常に`attested: false`でHost署名を持たず、正準Socratic ReviewとしてRenderしたり、正準4 Blockで説明したりしてはならない。結果を未署名Prototype Assessmentと明示する。CredentialとHost Secretを除外し、無条件CleanupをRunnerが所有するが、Test実行時Networkの無効化やOS Isolation境界は確立できない。将来の準拠BackendはさらにPrimaryを利用不能またはRead-onlyにし、Networkを無効化し、Resourceを制限し、Host非公開鍵でEvidenceへ署名しなければならない。
 
+Baselineを解釈する前に`runtime.probe`を確認する。`failed`の場合は構造化`runner-error`と`missing_dependencies`を報告し、Mutation前に停止してPlugin管理Runtimeを修復する。Probeを通すために`HOME`、`PYTHONPATH`、Credential、Host Secretを戻してはならない。
+
 ### 1. Scopeを確定する
 
 Diff、ImmutableなBase・Head Snapshotの識別子、リポジトリ指示、影響する振る舞い、対象テストコマンド、Risk Partitionを特定する。Host提供の変更Context、展開済みDirectory、または読み取り専用GitのAllowlistから取得する。BranchやWorktreeを作成・切替しない。禁止操作なしで両Snapshotを展開できない場合、比較を弱めずRefactor GuardをBlockedとして報告する。対象外Partitionを明示し、レビュー目的を判定してWorkflow Branchを選ぶ。

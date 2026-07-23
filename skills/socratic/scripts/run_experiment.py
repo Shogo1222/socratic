@@ -8,6 +8,7 @@ import difflib
 import hashlib
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -22,7 +23,7 @@ from typing import Any
 from validate_and_render import ArtifactError, load_strict_json, validate_document
 
 
-RUNNER_VERSION = "0.4.0-alpha.2"
+RUNNER_VERSION = "0.4.0-alpha.3"
 OUTPUT_TAIL_BYTES = 16_384
 DIFF_TAIL_BYTES = 16_384
 MAX_CHANGED_BYTES = 65_536
@@ -195,6 +196,69 @@ def _failed_tests(stdout: bytes, stderr: bytes) -> list[str] | None:
     return []
 
 
+def _probe_runtime(runtime_root: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    modules = ("jsonschema", "referencing")
+    script = (
+        "import importlib, json\n"
+        "missing = []\n"
+        f"for name in {modules!r}:\n"
+        "    try:\n"
+        "        importlib.import_module(name)\n"
+        "    except Exception:\n"
+        "        missing.append(name)\n"
+        "print(json.dumps(missing))\n"
+    )
+    started = time.monotonic()
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-B", "-c", script],
+            env=_clean_environment(runtime_root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=10,
+        )
+        stdout = completed.stdout
+        stderr = completed.stderr
+        try:
+            missing = json.loads(stdout.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            missing = list(modules)
+        if (
+            completed.returncode != 0
+            or not isinstance(missing, list)
+            or any(name not in modules for name in missing)
+        ):
+            missing = list(modules)
+    except subprocess.TimeoutExpired as error:
+        stdout = error.stdout or b""
+        stderr = error.stderr or b""
+        missing = list(modules)
+    duration_ms = max(0, round((time.monotonic() - started) * 1000))
+    runtime = {
+        "implementation": sys.implementation.name,
+        "version": platform.python_version(),
+        "executable_sha256": sha256_file(Path(sys.executable).resolve()),
+        "environment": (
+            "virtual-environment" if sys.prefix != sys.base_prefix else "system"
+        ),
+        "probe": "failed" if missing else "passed",
+        "missing_dependencies": missing,
+    }
+    if not missing:
+        return runtime, None
+    return runtime, {
+        "outcome": "runner-error",
+        "exit_code": None,
+        "failed_tests": None,
+        "duration_ms": duration_ms,
+        "reason": "profile runtime dependency unavailable",
+        "missing_dependencies": missing,
+        "stdout": _bounded_output(stdout),
+        "stderr": _bounded_output(stderr),
+    }
+
+
 def _execute_tests(
     workspace: Path,
     runtime_root: Path,
@@ -322,42 +386,49 @@ def assess(source_root: Path, plan_path: Path, evidence_path: Path) -> dict[str,
     remaining_paths: list[str] = []
     evidence: dict[str, Any] | None = None
     try:
-        prepared = run_root / "prepared"
-        _copy_source(source, prepared)
-        if source_digest(prepared) != actual_source_digest:
-            raise ExperimentError("prepared copy digest does not match source")
-
-        baseline_workspace = run_root / "baseline"
-        _copy_source(prepared, baseline_workspace)
-        baseline = _execute_tests(
-            baseline_workspace, run_root / "runtime-baseline", selection, timeout_seconds
-        )
-
+        runtime, runtime_error = _probe_runtime(run_root / "runtime-probe")
         mutations = []
-        if baseline["outcome"] == "passed":
-            for mutation_plan in plan["mutations"]:
-                workspace = run_root / mutation_plan["id"]
-                _copy_source(prepared, workspace)
-                changes = [
-                    _apply_target(workspace, target)
-                    for target in mutation_plan["targets"]
-                ]
-                execution = _execute_tests(
-                    workspace,
-                    run_root / f"runtime-{mutation_plan['id']}",
-                    selection,
-                    timeout_seconds,
-                )
-                mutations.append(
-                    {
-                        "id": mutation_plan["id"],
-                        "changes": changes,
-                        "execution": execution,
-                    }
-                )
+        if runtime_error is not None:
+            baseline = runtime_error
+        else:
+            prepared = run_root / "prepared"
+            _copy_source(source, prepared)
+            if source_digest(prepared) != actual_source_digest:
+                raise ExperimentError("prepared copy digest does not match source")
 
-        if source_digest(prepared) != actual_source_digest:
-            raise ExperimentError("prepared copy changed during execution")
+            baseline_workspace = run_root / "baseline"
+            _copy_source(prepared, baseline_workspace)
+            baseline = _execute_tests(
+                baseline_workspace,
+                run_root / "runtime-baseline",
+                selection,
+                timeout_seconds,
+            )
+
+            if baseline["outcome"] == "passed":
+                for mutation_plan in plan["mutations"]:
+                    workspace = run_root / mutation_plan["id"]
+                    _copy_source(prepared, workspace)
+                    changes = [
+                        _apply_target(workspace, target)
+                        for target in mutation_plan["targets"]
+                    ]
+                    execution = _execute_tests(
+                        workspace,
+                        run_root / f"runtime-{mutation_plan['id']}",
+                        selection,
+                        timeout_seconds,
+                    )
+                    mutations.append(
+                        {
+                            "id": mutation_plan["id"],
+                            "changes": changes,
+                            "execution": execution,
+                        }
+                    )
+
+            if source_digest(prepared) != actual_source_digest:
+                raise ExperimentError("prepared copy changed during execution")
         evidence = {
             "version": 1,
             "run": secrets.token_hex(16),
@@ -372,6 +443,7 @@ def assess(source_root: Path, plan_path: Path, evidence_path: Path) -> dict[str,
                 "name": "python-unittest",
                 "digest": sha256_bytes(canonical_bytes(plan["profile"])),
             },
+            "runtime": runtime,
             "backend": {"kind": "local-copy", "attested": False},
             "baseline": baseline,
             "mutations": mutations,

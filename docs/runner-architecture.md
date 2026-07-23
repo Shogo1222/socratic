@@ -54,4 +54,6 @@ Dependency downloads, when later supported, occur only in a separate Host-approv
 
 `run_review.py assess` now performs one complete local experiment: it computes Source identity, creates a prepared copy, runs a full Python unittest baseline in a separate copy, applies each typed mutation to another fresh copy, returns raw Evidence in Plan order, and removes all disposable workspaces in a `finally` path. Baseline failure stops mutation execution. Environment credentials and `SOCRATIC_*` values are omitted from test processes.
 
+Before Baseline, the Runner probes `jsonschema` and `referencing` from the same sanitized environment used by tests. Missing dependencies produce one structured `runner-error` with no Mutation execution instead of a cascade of test failures. Evidence records the Python implementation, version, executable hash, virtual-environment status, and probe result. The Plugin runtime accepts the current interpreter only when an isolated `-I` probe succeeds; user-site-only dependencies trigger provisioning of the Plugin-managed virtual environment.
+
 This path is deliberately not an isolation or authenticity claim: `local-copy` cannot disable network or establish an OS boundary. Its Evidence is always unsigned and must never be rendered as a canonical Socratic review.

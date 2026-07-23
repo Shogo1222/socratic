@@ -116,6 +116,8 @@ Use this path only when the user asks to try or dogfood the v0.4 prototype. Writ
 
 Prototype Evidence from the `local-copy` backend is always `attested: false`, has no Host signature, and must never be rendered as a canonical Socratic review or described with the canonical four blocks. Clearly label the result as an unsigned prototype assessment. It omits credentials and Host secrets and owns unconditional cleanup, but it cannot disable test-time network or establish an OS isolation boundary. A conforming future backend must also keep Primary unavailable or read-only, disable network, bound resources, and sign Evidence with a Host-private key.
 
+Check `runtime.probe` before interpreting Baseline. When it is `failed`, report the structured `runner-error` and `missing_dependencies`, stop before Mutation, and repair the Plugin-managed runtime. Never restore `HOME`, `PYTHONPATH`, credentials, or Host secrets merely to make the probe pass.
+
 ### 1. Establish scope
 
 Identify the diff, immutable Base and Head snapshot identities, repository instructions, affected behavior, focused test command, and risk partitions. Obtain them from host-provided change context, already-materialized directories, or the read-only Git allowlist. Never create or switch branches or worktrees. If both snapshots cannot be materialized without a prohibited operation, report Refactor Guard as blocked instead of weakening the comparison. State any excluded partition. Determine the review purpose and choose the workflow branch:

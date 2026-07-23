@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "version", "run", "round", "source", "plan_sha256", "runner",
-    "profile", "backend", "baseline", "mutations", "cleanup", "signature"
+    "profile", "runtime", "backend", "baseline", "mutations", "cleanup", "signature"
   ],
   "$defs": {
     "output": {
@@ -36,6 +36,12 @@
           ]
         },
         "duration_ms": { "type": "integer", "minimum": 0 },
+        "reason": { "type": "string", "minLength": 1 },
+        "missing_dependencies": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
         "stdout": { "$ref": "#/$defs/output" },
         "stderr": { "$ref": "#/$defs/output" }
       },
@@ -71,6 +77,15 @@
             "required": ["outcome"]
           },
           "then": { "properties": { "exit_code": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "properties": { "outcome": { "const": "runner-error" } },
+            "required": ["outcome"]
+          },
+          "then": {
+            "required": ["reason", "missing_dependencies"]
+          }
         }
       ],
       "additionalProperties": false
@@ -105,6 +120,46 @@
         "name": { "const": "python-unittest" },
         "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
       },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "implementation", "version", "executable_sha256", "environment",
+        "probe", "missing_dependencies"
+      ],
+      "properties": {
+        "implementation": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "executable_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "environment": { "enum": ["system", "virtual-environment"] },
+        "probe": { "enum": ["passed", "failed"] },
+        "missing_dependencies": {
+          "type": "array",
+          "items": { "enum": ["jsonschema", "referencing"] },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "probe": { "const": "passed" } },
+            "required": ["probe"]
+          },
+          "then": {
+            "properties": { "missing_dependencies": { "maxItems": 0 } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "probe": { "const": "failed" } },
+            "required": ["probe"]
+          },
+          "then": {
+            "properties": { "missing_dependencies": { "minItems": 1 } }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "backend": {
