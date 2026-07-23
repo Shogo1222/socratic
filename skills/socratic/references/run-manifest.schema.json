@@ -6,7 +6,7 @@
     "version", "run_id", "status", "write_mode", "socratic_version",
     "entrypoint", "skill_root", "primary_root", "sandbox_root", "prepared_root", "host",
     "protection", "environment", "ledger_path", "artifact_root",
-    "artifact_index_path", "primary_sha256"
+    "artifact_index_path", "primary_sha256", "change_context"
   ],
   "properties": {
     "version": { "const": 1 },
@@ -54,7 +54,39 @@
     "ledger_path": { "type": "string", "minLength": 1 },
     "artifact_root": { "type": "string", "minLength": 1 },
     "artifact_index_path": { "type": "string", "minLength": 1 },
-    "primary_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+    "primary_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "change_context": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["source", "head_root"],
+          "properties": {
+            "source": { "const": "local-workspace" },
+            "head_root": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "source", "number", "url", "base_ref", "base_sha", "head_ref",
+            "head_sha", "base_root", "head_root"
+          ],
+          "properties": {
+            "source": { "const": "github-pull-request" },
+            "number": { "type": "integer", "minimum": 1 },
+            "url": { "type": "string", "pattern": "^https:\\/\\/github\\.com/" },
+            "base_ref": { "type": "string", "minLength": 1 },
+            "base_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "head_ref": { "type": "string", "minLength": 1 },
+            "head_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "base_root": { "type": "string", "minLength": 1 },
+            "head_root": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
   },
   "allOf": [
     {

@@ -20,7 +20,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.10"
+SOCRATIC_VERSION = "0.3.0-alpha.11"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -51,6 +51,7 @@ class HostGrant:
     storage_root: Path
     protection_mode: str
     protection_details: str
+    change_context: dict[str, Any] | None = None
 
 
 class HostAdapter(Protocol):
@@ -89,6 +90,7 @@ class ClaudeSocketHostAdapter:
             run_nonce=grant["run_nonce"], storage_root=Path(grant["storage_root"]),
             protection_mode=grant["protection_mode"],
             protection_details=grant["protection_details"],
+            change_context=grant.get("change_context"),
         )
 
 
@@ -122,6 +124,17 @@ def _outside(path: Path, primary_root: Path, label: str, *, strict: bool = False
     except ValueError:
         return resolved
     raise RunGateError(f"{label} must be outside the primary repository: {resolved}")
+
+
+def _inside(path: Path, root: Path, label: str, *, strict: bool = False) -> Path:
+    resolved = path.resolve(strict=strict)
+    try:
+        resolved.relative_to(root)
+    except ValueError as error:
+        raise RunGateError(f"{label} must be inside trusted Host storage: {resolved}") from error
+    if resolved == root:
+        raise RunGateError(f"{label} cannot be the Host storage root")
+    return resolved
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -233,6 +246,20 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
     storage_root = _outside(grant.storage_root, primary_root, "host storage", strict=True)
     if not storage_root.is_dir():
         raise RunGateError("host storage root must already exist")
+    change_context = grant.change_context or {
+        "source": "local-workspace",
+        "head_root": str(primary_root),
+    }
+    if Path(change_context["head_root"]).resolve(strict=True) != primary_root:
+        raise RunGateError("change context head root differs from the reviewed Primary")
+    if change_context["source"] == "github-pull-request":
+        _inside(primary_root, storage_root, "materialized head snapshot", strict=True)
+        _inside(
+            Path(change_context["base_root"]),
+            storage_root,
+            "materialized base snapshot",
+            strict=True,
+        )
     manifest_path = _outside(storage_root / "run-manifest.json", primary_root, "manifest")
     ledger_path = _outside(storage_root / "mutation-ledger.jsonl", primary_root, "ledger")
     artifact_root = _outside(storage_root / "artifacts", primary_root, "artifact root")
@@ -294,6 +321,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             "artifact_root": str(artifact_root),
             "artifact_index_path": str(artifact_index_path),
             "primary_sha256": _tree_hash(primary_root),
+            "change_context": change_context,
         }
         _write_exclusive(ledger_path, {"header": {"run_id": grant.run_id, "run_nonce": grant.run_nonce}})
         ledger_created = True
@@ -348,7 +376,9 @@ def _ready_manifest(
         "prepared snapshot",
         strict=not allow_missing_sandbox,
     )
-    _outside(Path(manifest["host"]["storage_root"]), primary_root, "host storage", strict=True)
+    storage_root = _outside(
+        Path(manifest["host"]["storage_root"]), primary_root, "host storage", strict=True
+    )
     _outside(Path(manifest["artifact_root"]), primary_root, "artifact root", strict=True)
     _outside(
         Path(manifest["artifact_index_path"]), primary_root, "artifact index", strict=True
@@ -357,6 +387,17 @@ def _ready_manifest(
         raise RunGateError("run manifest is blocked or was not created by the mandatory entrypoint")
     if manifest.get("protection", {}).get("verified") is not True:
         raise RunGateError("a trusted Host protection attestation is required")
+    change = manifest["change_context"]
+    if Path(change["head_root"]).resolve(strict=True) != primary_root:
+        raise RunGateError("change context head root differs from the reviewed Primary")
+    if change["source"] == "github-pull-request":
+        _inside(primary_root, storage_root, "materialized head snapshot", strict=True)
+        _inside(
+            Path(change["base_root"]),
+            storage_root,
+            "materialized base snapshot",
+            strict=True,
+        )
     return manifest
 
 
@@ -943,7 +984,7 @@ def _attested_report(
         return "passed" if item.get("returncode") == 0 else "failed"
 
     report = {
-        "version": 9,
+        "version": 10,
         "mode": draft["mode"],
         "write_mode": "review-only",
         "run": {
@@ -966,6 +1007,7 @@ def _attested_report(
         "test_changes": draft["test_changes"],
         "test_handoff": draft["test_handoff"],
         "authorized_workspace_changes": draft["authorized_workspace_changes"],
+        "change_context": manifest["change_context"],
         "prepared_snapshot": {
             "root": prepared["root"],
             "sha256": prepared["sha256"],
