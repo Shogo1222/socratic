@@ -40,9 +40,9 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.2.0
 GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
-<!-- socratic-distribution-file-count: 30 -->
-<!-- socratic-plugin-file-count: 50 -->
-The standalone Skill distribution contains 30 UTF-8 text files, including four Python source helpers, the current run schemas, and the experimental Plan, Evidence, and Interpretation schemas. The audited multi-Host Plugin component set contains 50 UTF-8 text files across Claude Code, Codex, and local Cursor Desktop integration, including the Plugin-managed Python runtime bootstrap. A Claude Marketplace source checkout can contain additional repository-level files because its source is the repository root; those files are not part of the 50-file audited Plugin release asset. Those helpers have no POSIX execute bits but are run by a Python interpreter. The distribution audit's “executable” rejection specifically checks the POSIX `0o111` execute-bit mask. The audited distribution contains no binaries or symbolic links. Compare the preview with the release manifest and checksums.
+<!-- socratic-distribution-file-count: 31 -->
+<!-- socratic-plugin-file-count: 51 -->
+The standalone Skill distribution contains 31 UTF-8 text files, including four Python source helpers, the current run schemas, and the experimental Plan, Evidence, and Interpretation schemas. The audited multi-Host Plugin component set contains 51 UTF-8 text files across Claude Code, Codex, and local Cursor Desktop integration, including the Plugin-managed Python runtime bootstrap. A Claude Marketplace source checkout can contain additional repository-level files because its source is the repository root; those files are not part of the 51-file audited Plugin release asset. Those helpers have no POSIX execute bits but are run by a Python interpreter. The distribution audit's “executable” rejection specifically checks the POSIX `0o111` execute-bit mask. The audited distribution contains no binaries or symbolic links. Compare the preview with the release manifest and checksums.
 
 For managed Codex deployment, do not rely on user-controlled Plugin hook trust. Deploy the pre-agent gate from an OS-managed absolute path through `requirements.toml`, force `[features].hooks = true`, and set `allow_managed_hooks_only = true`. Treat the v0.3.0 alpha as incomplete until that managed Host integration and a ready-run capability path are validated in the target environment.
 

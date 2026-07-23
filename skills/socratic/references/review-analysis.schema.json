@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Socratic Semantic Review Analysis",
+  "type": "object",
+  "required": [
+    "version", "mode", "stable_tests", "excluded_tests", "assessment",
+    "classifications", "not_challenged", "test_changes", "test_handoff",
+    "persistent_side_effects", "review"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "mode": { "enum": ["assessment", "harden", "catch"] },
+    "stable_tests": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "excluded_tests": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "assessment": {
+      "$ref": "mutation-report-draft.schema.json#/properties/assessment"
+    },
+    "classifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mutation_id", "source_intent", "changed_intent", "result",
+          "detecting_tests", "observed_failure_reason",
+          "contract_violation_observed", "follow_up", "outcome_interpretation"
+        ],
+        "properties": {
+          "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+          "source_intent": { "type": "string", "minLength": 1 },
+          "changed_intent": { "type": "string", "minLength": 1 },
+          "result": {
+            "enum": [
+              "killed", "survived", "timeout", "invalid", "equivalent",
+              "inconclusive", "weak-catch", "strong-catch", "false-positive",
+              "not-comparable", "no-catch"
+            ]
+          },
+          "detecting_tests": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "observed_failure_reason": { "type": "string", "minLength": 1 },
+          "contract_violation_observed": { "type": "boolean" },
+          "follow_up": {
+            "enum": [
+              "none", "harden-test", "clarify-intent", "replace-mutant",
+              "investigate-flake", "fix-infrastructure"
+            ]
+          },
+          "outcome_interpretation": {
+            "$ref": "mutation-result.schema.json#/properties/outcome_interpretation"
+          },
+          "equivalence_evidence": { "type": "string", "minLength": 1 },
+          "catch": { "$ref": "mutation-result.schema.json#/properties/catch" }
+        },
+        "additionalProperties": false
+      },
+      "uniqueItems": true
+    },
+    "not_challenged": {
+      "$ref": "mutation-report-draft.schema.json#/properties/not_challenged"
+    },
+    "test_changes": {
+      "$ref": "mutation-report-draft.schema.json#/properties/test_changes"
+    },
+    "test_handoff": {
+      "$ref": "mutation-report-draft.schema.json#/properties/test_handoff"
+    },
+    "persistent_side_effects": {
+      "$ref": "mutation-report-draft.schema.json#/properties/persistent_side_effects"
+    },
+    "review": { "$ref": "canonical-review.schema.json" }
+  },
+  "additionalProperties": false
+}

@@ -125,6 +125,23 @@ class RunReviewTest(unittest.TestCase):
         )
         return document
 
+    def anchored_challenge(self, mutation_id: str, after: str) -> dict:
+        return {
+            "id": mutation_id,
+            "contract_ids": ["DEC-001"],
+            "accident": f"{mutation_id} changes the established value",
+            "expected_detection": "The focused test detects the changed value",
+            "severity": "high",
+            "likelihood": "medium",
+            "code_location": "packages/app/source.ts:1",
+            "mutation": {
+                "kind": "replace-exact",
+                "relative_path": "packages/app/source.ts",
+                "before": "original\n",
+                "after": after,
+            },
+        }
+
     def test_standalone_preflight_is_blocked_and_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -270,29 +287,23 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            self.runner.probe_command(
+                manifest_path,
+                "CMD-001",
+                [sys.executable, "-c", "import time; time.sleep(0.4)"],
+                10,
             )
             self.stage_contract(manifest)
-            challenges = []
-            for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
-                challenges.append({
-                    "id": mutation_id,
-                    "contract_ids": ["DEC-001"],
-                    "mutation": {
-                        "kind": "prebuilt",
-                        "relative_path": f"packages/app/mutant-{index}.ts",
-                    },
-                    "command": [
-                        sys.executable,
-                        "-c",
-                        f"import time; time.sleep(0.4); print('{mutation_id}')",
-                    ],
-                    "timeout_seconds": 10,
-                })
+            challenges = [
+                self.anchored_challenge(mutation_id, f"changed {index}\n")
+                for index, mutation_id in enumerate(
+                    ("MUT-001", "MUT-002", "MUT-003"), 1
+                )
+            ]
             plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
             plan_path.write_text(json.dumps({
-                "version": 1,
+                "version": 2,
+                "command_id": "CMD-001",
                 "max_parallel": 3,
                 "challenges": challenges,
             }))
@@ -332,8 +343,8 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
             )
             contract = json.loads(
                 (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
@@ -347,18 +358,10 @@ class RunReviewTest(unittest.TestCase):
             }]
             self.stage_contract(manifest, contract)
             plan = {
-                "version": 1,
+                "version": 2,
+                "command_id": "CMD-001",
                 "max_parallel": 1,
-                "challenges": [{
-                    "id": "MUT-001",
-                    "contract_ids": ["DEC-001"],
-                    "mutation": {
-                        "kind": "prebuilt",
-                        "relative_path": "packages/app/mutant-1.ts",
-                    },
-                    "command": [sys.executable, "-c", "pass"],
-                    "timeout_seconds": 10,
-                }],
+                "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
             }
             (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(
                 json.dumps(plan)
@@ -374,58 +377,225 @@ class RunReviewTest(unittest.TestCase):
                 )
             )
 
-    def test_challenge_batch_isolates_timeout_from_other_mutants(self) -> None:
+    def test_challenge_plan_rejects_full_file_payload_before_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
             )
             self.stage_contract(manifest)
-            plan = {
-                "version": 1,
-                "max_parallel": 2,
-                "challenges": [
-                    {
-                        "id": "MUT-001",
-                        "contract_ids": ["DEC-001"],
-                        "mutation": {
-                            "kind": "prebuilt",
-                            "relative_path": "packages/app/mutant-1.ts",
-                        },
-                        "command": [
-                            sys.executable, "-c", "import time; time.sleep(2)"
-                        ],
-                        "timeout_seconds": 1,
-                    },
-                    {
-                        "id": "MUT-002",
-                        "contract_ids": ["DEC-001"],
-                        "mutation": {
-                            "kind": "prebuilt",
-                            "relative_path": "packages/app/mutant-2.ts",
-                        },
-                        "command": [sys.executable, "-c", "print('still ran')"],
-                        "timeout_seconds": 10,
-                    },
-                ],
+            challenge = self.anchored_challenge("MUT-001", "changed\n")
+            challenge["mutation"] = {
+                "kind": "write",
+                "relative_target": "packages/app/source.ts",
+                "content_utf8": "changed\n",
             }
             (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(
-                json.dumps(plan)
+                json.dumps({
+                    "version": 2,
+                    "command_id": "CMD-001",
+                    "max_parallel": 1,
+                    "challenges": [challenge],
+                })
             )
-            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
-            self.assertEqual(
-                [item["outcome"] for item in result["results"]],
-                ["timeout", "passed"],
+            with self.assertRaises(self.runner.RunGateError):
+                self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            self.assertFalse(any(
+                item.get("kind") in {"guarded-write", "prebuilt"}
+                for item in self.runner._ledger_events(manifest)
+            ))
+
+    def test_command_probe_failure_registers_no_mutations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.stage_contract(manifest)
+            result = self.runner.probe_command(
+                manifest_path,
+                "CMD-001",
+                [sys.executable, "-c", "import time; time.sleep(2)"],
+                1,
             )
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["outcome"], "timeout")
             events = [
                 item
                 for item in self.runner._ledger_events(manifest)
-                if item.get("phase") == "mutation"
+                if item.get("kind") in {"guarded-write", "prebuilt"}
             ]
+            self.assertEqual(events, [])
+            self.assertFalse(any(
+                item.get("kind") == "validated-command"
+                for item in self.runner._ledger_events(manifest)
+            ))
+
+    def test_validated_command_is_bound_to_prepared_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
             self.assertEqual(
-                [item["result"] for item in events], ["timeout", "completed"]
+                self.runner.probe_command(
+                    manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
+                )["status"],
+                "ready",
+            )
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "prepare cannot run"
+            ):
+                self.runner.execute(
+                    manifest_path,
+                    "prepare",
+                    None,
+                    [sys.executable, "-c", "pass"],
+                    10,
+                )
+            (Path(manifest["prepared_root"]) / "packages/app/source.ts").write_text(
+                "tampered\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "validated command is stale"
+            ):
+                self.runner._validated_command(manifest, "CMD-001")
+
+    def test_structured_inspection_is_bounded_and_blocks_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            file_result = self.runner.inspect_review(
+                manifest_path,
+                "file",
+                relative_path="packages/app/source.ts",
+                start_line=1,
+                end_line=10,
+            )
+            self.assertEqual(file_result["text"], "original")
+            search = self.runner.inspect_review(
+                manifest_path, "search", query="original"
+            )
+            self.assertEqual(
+                [(item["path"], item["line"]) for item in search["matches"]],
+                [("packages/app/source.ts", 1)],
+            )
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "excluded"
+            ):
+                self.runner.inspect_review(
+                    manifest_path, "file", relative_path=".env"
+                )
+
+    def test_complete_generates_drafts_renders_and_discards_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.stage_contract(manifest)
+            command = [
+                sys.executable,
+                "-c",
+                (
+                    "from pathlib import Path; "
+                    "raise SystemExit(0 if "
+                    "Path('packages/app/source.ts').read_text() == 'original\\n' "
+                    "else 1)"
+                ),
+            ]
+            probe = self.runner.probe_command(
+                manifest_path, "CMD-001", command, 10
+            )
+            self.assertEqual(probe["status"], "ready")
+            plan = {
+                "version": 2,
+                "command_id": "CMD-001",
+                "max_parallel": 1,
+                "challenges": [
+                    self.anchored_challenge("MUT-001", "changed\n")
+                ],
+            }
+            artifact_root = Path(manifest["artifact_root"])
+            plan_path = artifact_root / "challenge-plan.json"
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            self.assertLess(plan_path.stat().st_size, 2048)
+            batch = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            self.assertEqual(batch["results"][0]["outcome"], "failed")
+            scaffold = self.runner.scaffold_analysis(
+                manifest_path, "harden", ROOT / "schemas"
+            )
+            self.assertEqual(scaffold["classifications"], 1)
+            analysis_path = artifact_root / "review-analysis.json"
+            analysis = json.loads(analysis_path.read_text())
+            classification = analysis["classifications"][0]
+            self.assertEqual(classification["result"], "inconclusive")
+            classification.update({
+                "source_intent": "The source retains its established value",
+                "changed_intent": "The source silently changes value",
+                "result": "killed",
+                "detecting_tests": ["focused source behavior"],
+                "observed_failure_reason": "The focused behavior check failed",
+                "contract_violation_observed": True,
+                "outcome_interpretation": {
+                    "kind": "behavioral-failure",
+                    "reason": "The changed value violated DEC-001",
+                },
+            })
+            analysis["stable_tests"] = ["focused source behavior"]
+            analysis["test_changes"] = [{
+                "name": "focused source behavior",
+                "disposition": "existing",
+            }]
+            analysis["review"]["we_verified"] = [
+                "The focused behavior was detected by a test existing at run start"
+            ]
+            analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+            rendered = self.runner.complete(
+                manifest_path, retention="discard", schema_root=ROOT / "schemas"
+            )
+            self.assertIn("We Verified:", rendered)
+            self.assertFalse(manifest_path.exists())
+            self.assertFalse(artifact_root.exists())
+
+    def test_analysis_scaffold_uses_raw_outcomes_without_claiming_kills(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.stage_contract(manifest)
+            command = [
+                sys.executable,
+                "-c",
+                (
+                    "from pathlib import Path; "
+                    "raise SystemExit(0 if "
+                    "Path('packages/app/source.ts').read_text() == 'original\\n' "
+                    "else 1)"
+                ),
+            ]
+            self.runner.probe_command(manifest_path, "CMD-001", command, 10)
+            artifact_root = Path(manifest["artifact_root"])
+            (artifact_root / "challenge-plan.json").write_text(json.dumps({
+                "version": 2,
+                "command_id": "CMD-001",
+                "max_parallel": 1,
+                "challenges": [
+                    self.anchored_challenge("MUT-001", "changed\n")
+                ],
+            }))
+            self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            result = self.runner.scaffold_analysis(
+                manifest_path, "assessment", ROOT / "schemas"
+            )
+            self.assertEqual(result["status"], "created")
+            analysis = json.loads(
+                (artifact_root / "review-analysis.json").read_text()
+            )
+            classification = analysis["classifications"][0]
+            self.assertEqual(classification["result"], "inconclusive")
+            self.assertEqual(
+                classification["outcome_interpretation"]["kind"], "unparseable"
             )
 
     def test_execute_forces_home_temp_and_caches_into_sandbox(self) -> None:

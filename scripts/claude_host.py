@@ -333,14 +333,14 @@ def build_review_context(change: dict[str, Any], prompt: str = "") -> dict[str, 
         ],
         "fast_path": [
             "state the Mission, then obtain review-type confirmation",
-            "inspect the change with bounded read-only evidence gathering",
+            "run Runner inspect for bounded read-only evidence; do not delegate discovery",
             "present problem, changed behavior, preserved behavior, new observable, "
             "and uncertainty; obtain diff-understanding confirmation",
             "stage intent-contract.draft.json before any mutation",
             "ask a structured question and stop if an observable oracle is unresolved",
-            "run one baseline through the guarded Runner",
-            "submit one parallel challenge-batch",
-            "stage report and canonical review, then finish and cleanup",
+            "prepare dependencies once, then probe the focused command in a fresh clone",
+            "submit one parallel anchored challenge-batch with no full-file content",
+            "run scaffold-analysis, edit semantic judgments only, then let complete render and cleanup",
         ],
         "delegation_policy": (
             "Do not delegate deterministic diff or environment discovery; "

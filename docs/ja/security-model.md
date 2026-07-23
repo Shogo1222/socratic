@@ -6,9 +6,9 @@
 
 ## 配布物
 
-<!-- socratic-distribution-file-count: 30 -->
-<!-- socratic-plugin-file-count: 50 -->
-Standalone Skill配布物は3つのSkill Directoryにある30個のUTF-8 Text Fileで構成され、そのうち4個は同梱Python Source Helperで、現行Run Schemaと実験的なPlan・Evidence・Interpretation Schemaも含みます。監査対象Multi-Host Plugin Component Setは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Broker、Plugin管理Python Runtime Bootstrapを加えた合計50個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Marketplace Checkoutには`demo/`、`docs/`、`site/`など、この監査対象Runtime Component Set外のRepository Fileも実体化されます。50 Fileという記述は監査対象Plugin BundleとRelease Assetを指し、Source Checkoutに実体化される全File数ではありません。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否は監査対象Component SetについてPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+<!-- socratic-distribution-file-count: 31 -->
+<!-- socratic-plugin-file-count: 51 -->
+Standalone Skill配布物は3つのSkill Directoryにある31個のUTF-8 Text Fileで構成され、そのうち4個は同梱Python Source Helperで、現行Run Schemaと実験的なPlan・Evidence・Interpretation Schemaも含みます。監査対象Multi-Host Plugin Component Setは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Broker、Plugin管理Python Runtime Bootstrapを加えた合計51個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Marketplace Checkoutには`demo/`、`docs/`、`site/`など、この監査対象Runtime Component Set外のRepository Fileも実体化されます。51 Fileという記述は監査対象Plugin BundleとRelease Assetを指し、Source Checkoutに実体化される全File数ではありません。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否は監査対象Component SetについてPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 
