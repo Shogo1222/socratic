@@ -394,6 +394,42 @@ class RunReviewTest(unittest.TestCase):
                     cwd_relative="missing-directory",
                 )
 
+    def test_scaffold_contract_writes_schema_valid_template_once(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            document = self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
+            artifact = (
+                Path(manifest["artifact_root"]) / "intent-contract.draft.json"
+            )
+            self.assertEqual(json.loads(artifact.read_text()), document)
+            self.assertEqual(document["status"], "provisional")
+            with self.assertRaisesRegex(self.runner.RunGateError, "already exists"):
+                self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
+
+    def test_scaffold_plan_requires_probe_and_binds_command_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            with self.assertRaisesRegex(self.runner.RunGateError, "probe-command"):
+                self.runner.scaffold_plan(manifest_path, ROOT / "schemas")
+            self.runner.probe_command(
+                manifest_path, "CMD-007", [sys.executable, "-c", "pass"], 10
+            )
+            document = self.runner.scaffold_plan(manifest_path, ROOT / "schemas")
+            self.assertEqual(document["command_id"], "CMD-007")
+            artifact = Path(manifest["artifact_root"]) / "challenge-plan.json"
+            self.assertEqual(json.loads(artifact.read_text()), document)
+
+    def test_preflight_records_run_start_time(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, _manifest_path = self.ready(root, repository)
+            self.assertGreater(manifest["started_at_epoch"], 0)
+
     def test_unresolved_intent_blocks_mapped_challenge_before_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

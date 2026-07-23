@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.4.0-alpha.10"
+SOCRATIC_VERSION = "0.4.0-alpha.11"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -464,6 +464,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
         manifest = {
             "version": 1,
             "run_id": grant.run_id,
+            "started_at_epoch": round(time.time(), 3),
             "status": "ready",
             "write_mode": "review-only",
             "socratic_version": SOCRATIC_VERSION,
@@ -1873,6 +1874,118 @@ def _analysis_drafts(
     return report, analysis["review"]
 
 
+def _scaffold_document(
+    manifest: dict[str, Any],
+    filename: str,
+    document: dict[str, Any],
+    schema_name: str,
+    schema_root: Path | None,
+) -> dict[str, Any]:
+    validator = _validator_module()
+    try:
+        validator.validate_document(document, schema_name, schema_root)
+    except validator.ArtifactError as error:
+        raise RunGateError(f"scaffold failed self-validation: {error}") from error
+    artifact = Path(manifest["artifact_root"]) / filename
+    if artifact.exists():
+        raise RunGateError(
+            f"{filename} already exists; edit it in place instead of scaffolding"
+        )
+    artifact.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return document
+
+
+def scaffold_contract(
+    manifest_path: Path, schema_root: Path | None = None
+) -> dict[str, Any]:
+    """Write a structurally valid Intent Contract template into the artifact root.
+
+    Agents fill every replace-me value from repository evidence and never need
+    to read the schema files; stage-artifact still validates the final content.
+    """
+    manifest = _ready_manifest(manifest_path)
+    document = {
+        "version": 1,
+        "status": "provisional",
+        "change": {
+            "base": "replace-me: Base identity (SHA or snapshot label)",
+            "head": "replace-me: Head identity",
+            "summary": "replace-me: one-sentence observable change summary",
+        },
+        "intent": {
+            "statement": "replace-me: the intended observable behavior",
+            "confidence": "low",
+            "evidence": [
+                {
+                    "source": "replace-me: repository evidence path",
+                    "supports": "replace-me: what this evidence establishes",
+                }
+            ],
+        },
+        "decisions": [
+            {
+                "id": "DEC-001",
+                "question": "replace-me: the observable behavior question",
+                "expected": "replace-me: the expected observable answer",
+                "provenance": "repository-established",
+            }
+        ],
+        "invariants": [
+            {
+                "id": "INV-001",
+                "statement": "replace-me: behavior that must not change",
+                "severity": "high",
+            }
+        ],
+        "side_effects": {"required": [], "prohibited": []},
+        "unresolved": [],
+        "coverage": [],
+    }
+    return _scaffold_document(
+        manifest, ARTIFACT_FILES["contract"], document,
+        "intent-contract.schema.json", schema_root,
+    )
+
+
+def scaffold_plan(
+    manifest_path: Path, schema_root: Path | None = None
+) -> dict[str, Any]:
+    """Write a structurally valid challenge-plan template bound to the validated command."""
+    manifest = _ready_manifest(manifest_path)
+    validated = [
+        item for item in _ledger_events(manifest)
+        if item.get("kind") == "validated-command"
+    ]
+    if not validated:
+        raise RunGateError("scaffold-plan requires a successful probe-command first")
+    document = {
+        "version": 2,
+        "command_id": validated[-1]["command_id"],
+        "max_parallel": 2,
+        "challenges": [
+            {
+                "id": "MUT-001",
+                "contract_ids": ["DEC-001"],
+                "accident": "replace-me: the realistic accident this mutation represents",
+                "expected_detection": "replace-me: the observable failure that should catch it",
+                "severity": "high",
+                "likelihood": "medium",
+                "code_location": "replace-me/relative/path:1",
+                "mutation": {
+                    "kind": "replace-exact",
+                    "relative_path": "replace-me/relative/path",
+                    "before": "replace-me: exact unique anchor text",
+                    "after": "replace-me: mutated text",
+                },
+            }
+        ],
+    }
+    return _scaffold_document(
+        manifest, "challenge-plan.json", document,
+        "challenge-plan.schema.json", schema_root,
+    )
+
+
 def scaffold_analysis(
     manifest_path: Path,
     mode: str,
@@ -2198,6 +2311,12 @@ def main() -> int:
     batch_parser = commands.add_parser("challenge-batch")
     batch_parser.add_argument("--manifest", required=True, type=Path)
     batch_parser.add_argument("--schema-root", type=Path)
+    scaffold_contract_parser = commands.add_parser("scaffold-contract")
+    scaffold_contract_parser.add_argument("--manifest", required=True, type=Path)
+    scaffold_contract_parser.add_argument("--schema-root", type=Path)
+    scaffold_plan_parser = commands.add_parser("scaffold-plan")
+    scaffold_plan_parser.add_argument("--manifest", required=True, type=Path)
+    scaffold_plan_parser.add_argument("--schema-root", type=Path)
     scaffold_parser = commands.add_parser("scaffold-analysis")
     scaffold_parser.add_argument("--manifest", required=True, type=Path)
     scaffold_parser.add_argument(
@@ -2248,13 +2367,16 @@ def main() -> int:
             "prepared_root": manifest["prepared_root"],
             "artifact_root": manifest["artifact_root"],
             "next": (
-                "inspect and confirm the diff; stage the Intent Contract; prepare once; "
-                "probe the focused command before one anchored challenge-batch; scaffold "
-                "review-analysis.json; edit only semantic judgments; call complete"
+                "inspect and confirm the diff; scaffold-contract, fill every replace-me "
+                "value, then stage the Intent Contract; prepare once; probe the focused "
+                "command; scaffold-plan and fill it before one anchored challenge-batch; "
+                "scaffold review-analysis.json; edit only semantic judgments; call complete. "
+                "Never read schema files: every JSON you edit starts from a Runner scaffold"
             ),
             "allowed_operations": [
-                "inspect", "execute", "probe-command", "stage-artifact",
-                "challenge-batch", "scaffold-analysis", "complete", "cleanup",
+                "inspect", "execute", "probe-command", "scaffold-contract",
+                "stage-artifact", "scaffold-plan", "challenge-batch",
+                "scaffold-analysis", "complete", "cleanup",
             ],
         }, sort_keys=True))
         return 0
@@ -2298,6 +2420,16 @@ def main() -> int:
         elif args.command == "challenge-batch":
             print(json.dumps(
                 challenge_batch(args.manifest, args.schema_root), sort_keys=True
+            ))
+        elif args.command == "scaffold-contract":
+            print(json.dumps(
+                scaffold_contract(args.manifest, args.schema_root),
+                ensure_ascii=False, sort_keys=True,
+            ))
+        elif args.command == "scaffold-plan":
+            print(json.dumps(
+                scaffold_plan(args.manifest, args.schema_root),
+                ensure_ascii=False, sort_keys=True,
             ))
         elif args.command == "scaffold-analysis":
             print(json.dumps(

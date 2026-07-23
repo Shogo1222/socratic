@@ -82,7 +82,7 @@ def evidence() -> dict:
         "round": "ROUND-001",
         "source": {"sha256": "b" * 64},
         "plan_sha256": "c" * 64,
-        "runner": {"version": "0.4.0-alpha.10", "sha256": "d" * 64},
+        "runner": {"version": "0.4.0-alpha.11", "sha256": "d" * 64},
         "profile": {"name": "python-unittest", "digest": "e" * 64},
         "runtime": {
             "implementation": "cpython",
