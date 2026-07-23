@@ -34,7 +34,7 @@ class ClaudeHostTest(unittest.TestCase):
         cls.runner = load("socratic_runner_host", ROOT / "skills/socratic/scripts/run_review.py")
 
     def test_live_broker_allows_hook_and_issues_runner_grant(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = root / "repository"
             (repository / ".git").mkdir(parents=True)
@@ -86,7 +86,7 @@ class ClaudeHostTest(unittest.TestCase):
             self.assertEqual(self.hook.evaluate(payload)["decision"], "block")
 
     def test_launcher_runs_claude_only_in_disposable_copy(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as directory:
+        with tempfile.TemporaryDirectory() as directory:
             primary = Path(directory) / "primary"
             (primary / ".git").mkdir(parents=True)
             (primary / "source.py").write_text("original\n")
