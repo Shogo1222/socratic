@@ -1,6 +1,6 @@
 {
   "name": "socratic",
-  "version": "0.4.0-alpha.8",
+  "version": "0.4.0-alpha.9",
   "description": "Host-gated intent review and mutation testing for local Cursor Desktop workspaces.",
   "author": { "name": "Shogo1222" },
   "homepage": "https://github.com/Shogo1222/socratic",

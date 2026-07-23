@@ -777,6 +777,62 @@ class RunReviewTest(unittest.TestCase):
             with self.assertRaises(self.runner.RunGateError):
                 self.runner._ledger_events(manifest)
 
+    def test_mutant_clone_preserves_installed_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            prepared = Path(manifest["prepared_root"])
+            dependency_marker = prepared / "node_modules/.bin/vitest"
+            dependency_marker.parent.mkdir(parents=True, exist_ok=True)
+            dependency_marker.write_text("#!/bin/sh\n")
+            store_marker = (
+                prepared / ".socratic-runtime/home/install-store-marker.txt"
+            )
+            store_marker.parent.mkdir(parents=True, exist_ok=True)
+            store_marker.write_text("install-time store\n")
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            self.stage_contract(manifest)
+            event = self.runner.mutate(
+                manifest_path, "MUT-001", ["DEC-001"],
+                "packages/app/source.ts", b"mutant\n",
+            )
+            clone = Path(event["sandbox_root"])
+            self.assertEqual(
+                (clone / "node_modules/.bin/vitest").read_text(), "#!/bin/sh\n"
+            )
+            self.assertEqual(
+                (clone / ".socratic-runtime/home/install-store-marker.txt").read_text(),
+                "install-time store\n",
+            )
+
+    def test_sandbox_executions_receive_dependency_reuse_env(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            environment = self.runner._runtime_environment(Path(directory))
+            self.assertEqual(environment["CI"], "true")
+            self.assertEqual(
+                environment["npm_config_verify_deps_before_run"], "false"
+            )
+
+    def test_baseline_execution_receives_dependency_reuse_env(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            probe = Path(manifest["prepared_root"]) / "env-probe.txt"
+            code = (
+                "import os, pathlib; "
+                f"pathlib.Path({str(probe)!r}).write_text("
+                "os.environ.get('CI', '') + ' ' + "
+                "os.environ.get('npm_config_verify_deps_before_run', ''))"
+            )
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", code], 10
+            )
+            self.assertEqual(probe.read_text(), "true false")
+
     def test_finish_rejects_registered_mutation_without_execution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
