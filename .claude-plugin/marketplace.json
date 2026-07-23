@@ -4,13 +4,13 @@
     "name": "Shogo1222"
   },
   "description": "Socratic intent review and mutation-testing plugins for Claude Code.",
-  "version": "0.4.0-alpha.12",
+  "version": "0.4.0",
   "plugins": [
     {
       "name": "socratic",
       "source": "./",
       "description": "Host-gated intent review and mutation testing.",
-      "version": "0.4.0-alpha.12",
+      "version": "0.4.0",
       "author": {
         "name": "Shogo1222"
       },
