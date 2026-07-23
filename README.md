@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.8
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.9
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
@@ -509,7 +509,7 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a mandatory Host Adapter Review-only entrypoint, a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v8, and a canonical four-block renderer. Standalone mutation execution remains blocked; a trusted host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a mandatory Host Adapter Review-only entrypoint, a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v9, and a canonical four-block renderer. Standalone mutation execution remains blocked; a trusted host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 
