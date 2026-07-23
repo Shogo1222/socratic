@@ -63,7 +63,7 @@ def evaluate(payload: Any) -> dict[str, str]:
     if SOCRATIC_INVOCATION.search(prompt) or active:
         try:
             if not active:
-                state = host.prepare_session(session_id, Path(cwd))
+                state = host.prepare_session(session_id, Path(cwd), prompt=prompt)
             runtime_python = _runtime_python()
         except (OSError, RuntimeError):
             return _blocked()
@@ -72,7 +72,7 @@ def evaluate(payload: Any) -> dict[str, str]:
         context = (
             "Trusted Socratic Host is ready. Run mandatory preflight with: "
             f"{shlex.quote(str(runtime_python))} {shlex.quote(str(runner))} preflight "
-            f"--primary {shlex.quote(state['primary_root'])} "
+            f"--primary {shlex.quote(state['review_root'])} "
             f"--host-socket {shlex.quote(state['socket_path'])} "
             f"--host-token {shlex.quote(state['token'])}\n"
             "All mutations and tests must use that Runner manifest. "

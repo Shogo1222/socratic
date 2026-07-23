@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -16,11 +17,155 @@ import threading
 import time
 import hashlib
 from pathlib import Path
+from typing import Any
 
 
 SESSION_ROOT = Path("/tmp/socratic-sessions")
 BROKER_IDLE_TTL_SECONDS = 2 * 60 * 60
 BROKER_PROCESSES: dict[str, subprocess.Popen] = {}
+GITHUB_PR_URL = re.compile(
+    r"https://github\.com/([^/\s]+)/([^/\s]+)/pull/([0-9]+)\b", re.IGNORECASE
+)
+PR_NUMBER = re.compile(r"\bPR\s*#([0-9]+)\b", re.IGNORECASE)
+GITHUB_REMOTE = re.compile(
+    r"(?:https://github\.com/|git@github\.com:)([^/\s:]+/[^/\s]+?)(?:\.git)?$",
+    re.IGNORECASE,
+)
+
+
+def requested_pull_request(prompt: str) -> str | int | None:
+    url = GITHUB_PR_URL.search(prompt)
+    if url:
+        return url.group(0)
+    number = PR_NUMBER.search(prompt)
+    return int(number.group(1)) if number else None
+
+
+def materialize_pull_request(
+    primary: Path, storage: Path, requested: str | int
+) -> dict[str, str | int]:
+    number = int(requested.rsplit("/", 1)[1]) if isinstance(requested, str) else requested
+    metadata_process = subprocess.run(
+        [
+            "gh", "pr", "view", str(requested),
+            "--json",
+            "number,url,baseRefName,baseRefOid,headRefName,headRefOid",
+        ],
+        cwd=primary,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+    )
+    if metadata_process.returncode != 0:
+        raise RuntimeError("Host could not resolve the requested GitHub pull request")
+    try:
+        metadata = json.loads(metadata_process.stdout)
+        if (
+            metadata["number"] != number
+            or (
+                isinstance(requested, str)
+                and metadata["url"].rstrip("/") != requested.rstrip("/")
+            )
+            or not re.fullmatch(r"[0-9a-f]{40}", metadata["baseRefOid"])
+            or not re.fullmatch(r"[0-9a-f]{40}", metadata["headRefOid"])
+        ):
+            raise ValueError
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeError("GitHub returned malformed pull-request provenance") from error
+    remote_process = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=primary,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=10,
+    )
+    remote = remote_process.stdout.strip()
+    if remote_process.returncode != 0 or not remote:
+        raise RuntimeError("Host could not resolve the repository origin")
+    if isinstance(requested, str):
+        requested_match = GITHUB_PR_URL.fullmatch(requested)
+        remote_match = GITHUB_REMOTE.fullmatch(remote)
+        requested_repository = (
+            f"{requested_match.group(1)}/{requested_match.group(2)}"
+            if requested_match else ""
+        )
+        if (
+            remote_match is None
+            or remote_match.group(1).casefold() != requested_repository.casefold()
+        ):
+            raise RuntimeError(
+                "Requested pull request does not belong to the repository origin"
+            )
+    mirror = storage / "materialized.git"
+    subprocess.run(["git", "init", "--bare", str(mirror)], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    fetch = subprocess.run(
+        [
+            "git", "--git-dir", str(mirror), "fetch", "--no-tags", remote,
+            f"+refs/heads/{metadata['baseRefName']}:refs/socratic/base",
+            f"+refs/pull/{number}/head:refs/socratic/head",
+        ],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=120,
+    )
+    if fetch.returncode != 0:
+        raise RuntimeError("Host could not materialize the requested pull request")
+    for reference, expected in (
+        ("refs/socratic/base", metadata["baseRefOid"]),
+        ("refs/socratic/head", metadata["headRefOid"]),
+    ):
+        resolved = subprocess.run(
+            ["git", "--git-dir", str(mirror), "rev-parse", reference],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+        )
+        if resolved.returncode != 0 or resolved.stdout.strip() != expected:
+            raise RuntimeError("Materialized Git state does not match GitHub provenance")
+    snapshots = storage / "change"
+    base = snapshots / "base"
+    head = snapshots / "head"
+    base.mkdir(parents=True)
+    head.mkdir(parents=True)
+    for reference, target in (("refs/socratic/base", base), ("refs/socratic/head", head)):
+        checkout = subprocess.run(
+            [
+                "git", "--git-dir", str(mirror), "--work-tree", str(target),
+                "checkout", "--force", reference, "--", ".",
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+        if checkout.returncode != 0:
+            raise RuntimeError("Host could not expand a pull-request snapshot")
+        (target / ".git").mkdir()
+    provenance: dict[str, str | int] = {
+        "source": "github-pull-request",
+        "number": number,
+        "url": metadata["url"],
+        "base_ref": metadata["baseRefName"],
+        "base_sha": metadata["baseRefOid"],
+        "head_ref": metadata["headRefName"],
+        "head_sha": metadata["headRefOid"],
+        "base_root": str(base.resolve()),
+        "head_root": str(head.resolve()),
+    }
+    (storage / "change-provenance.json").write_text(
+        json.dumps(provenance, sort_keys=True), encoding="utf-8"
+    )
+    return provenance
 
 
 def session_root(session_id: str) -> Path:
@@ -33,7 +178,8 @@ def prepare_session(
     *,
     adapter_id: str = "claude-code-hook-host-v1",
     host_name: str = "Claude Code",
-) -> dict[str, str]:
+    prompt: str = "",
+) -> dict[str, Any]:
     primary = primary.resolve(strict=True)
     if not (primary / ".git").exists():
         raise RuntimeError("Socratic must start at a Git repository root")
@@ -45,9 +191,23 @@ def prepare_session(
     storage.mkdir(mode=0o700)
     artifacts = storage / "artifacts"
     artifacts.mkdir(mode=0o700)
+    pull_request = requested_pull_request(prompt)
+    try:
+        change = (
+            materialize_pull_request(primary, storage, pull_request)
+            if pull_request is not None
+            else {
+                "source": "local-workspace",
+                "head_root": str(primary),
+            }
+        )
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        shutil.rmtree(root, ignore_errors=True)
+        raise
     state = {
         "session_id": session_id,
         "primary_root": str(primary),
+        "review_root": str(change["head_root"]),
         "socket_path": str(root / "host.sock"),
         "token": secrets.token_urlsafe(48),
         "adapter_id": adapter_id,
@@ -57,6 +217,7 @@ def prepare_session(
         "artifact_root": str(artifacts),
         "protection_mode": "host-events",
         "protection_details": f"{host_name} tool gate denies Primary writes and unguarded execution",
+        "change_context": change,
     }
     state_path = root / "state.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -77,14 +238,14 @@ def prepare_session(
     raise RuntimeError("trusted Host broker did not start")
 
 
-def load_session(session_id: str) -> dict[str, str] | None:
+def load_session(session_id: str) -> dict[str, Any] | None:
     try:
         return json.loads((session_root(session_id) / "state.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
 
 
-def load_live_session(session_id: str) -> dict[str, str] | None:
+def load_live_session(session_id: str) -> dict[str, Any] | None:
     """Return active or fail-closed state, collecting only expired dead brokers."""
     state = load_session(session_id)
     if state is None:
@@ -150,7 +311,7 @@ def run_broker(state_path: Path) -> int:
     state = json.loads(state_path.read_text(encoding="utf-8"))
     grant = {key: state[key] for key in (
         "adapter_id", "run_id", "run_nonce", "storage_root",
-        "protection_mode", "protection_details",
+        "protection_mode", "protection_details", "change_context",
     )}
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(state["socket_path"])

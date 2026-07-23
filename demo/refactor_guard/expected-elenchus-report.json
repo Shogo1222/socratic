@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "run": {
     "id": "22222222222222222222222222222222",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -10,6 +10,10 @@
   },
   "mode": "catch",
   "write_mode": "review-only",
+  "change_context": {
+    "source": "local-workspace",
+    "head_root": "demo/refactor_guard"
+  },
   "intent_contract": {
     "path": "demo/refactor_guard/intent-contract.json",
     "status": "needs-decision"

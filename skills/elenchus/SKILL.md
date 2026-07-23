@@ -198,7 +198,7 @@ When Socratic invokes Elenchus, accept only a ready manifest issued through Socr
 
 Keep raw command outcomes separate from interpretation. A nonzero exit is not by itself a behavioral kill. Record `outcome_interpretation.kind` as `behavioral-failure` only when assertion evidence demonstrates the represented Contract violation. Use `infrastructure-failure`, `process-crash`, `timeout`, or `unparseable` and classify the mutation as `inconclusive` otherwise.
 
-Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires an accepted Host attestation for read-only protection or write-event monitoring. In schema v9, `verified: true` records that acceptance; it is not an independent OS verification performed by the Runner.
+Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires an accepted Host attestation for read-only protection or write-event monitoring. In schema v10, `verified: true` records that acceptance; it is not an independent OS verification performed by the Runner.
 
 ### 4. Execute each mutant in an isolated batch sandbox
 

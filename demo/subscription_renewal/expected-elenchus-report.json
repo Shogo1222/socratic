@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "run": {
     "id": "11111111111111111111111111111111",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -10,6 +10,10 @@
   },
   "mode": "harden",
   "write_mode": "apply-tests",
+  "change_context": {
+    "source": "local-workspace",
+    "head_root": "demo/subscription_renewal"
+  },
   "intent_contract": {
     "path": "demo/subscription_renewal/intent-contract.json",
     "status": "tested"

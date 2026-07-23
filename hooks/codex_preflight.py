@@ -66,6 +66,7 @@ def evaluate(payload: Any) -> dict[str, Any]:
                 Path(cwd),
                 adapter_id="codex-plugin-hook-host-v1",
                 host_name="Codex",
+                prompt=prompt,
             )
         runtime_python = _runtime_python()
     except (OSError, RuntimeError):
@@ -75,7 +76,7 @@ def evaluate(payload: Any) -> dict[str, Any]:
     context = (
         "Trusted Socratic Host is ready. Run mandatory preflight with: "
         f"{shlex.quote(str(runtime_python))} {shlex.quote(str(runner))} preflight "
-        f"--primary {shlex.quote(state['primary_root'])} "
+        f"--primary {shlex.quote(state['review_root'])} "
         f"--host-socket {shlex.quote(state['socket_path'])} "
         f"--host-token {shlex.quote(state['token'])}\n"
         "All mutations and tests must use that Runner manifest. "

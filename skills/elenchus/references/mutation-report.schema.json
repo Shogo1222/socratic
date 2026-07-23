@@ -16,6 +16,7 @@
     "test_changes",
     "test_handoff",
     "authorized_workspace_changes",
+    "change_context",
     "prepared_snapshot",
     "execution_evidence",
     "isolation",
@@ -24,7 +25,7 @@
     "postflight"
   ],
   "properties": {
-    "version": { "const": 9 },
+    "version": { "const": 10 },
     "mode": { "enum": ["assessment", "harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
     "run": {
@@ -175,6 +176,38 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
+    },
+    "change_context": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["source", "head_root"],
+          "properties": {
+            "source": { "const": "local-workspace" },
+            "head_root": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "source", "number", "url", "base_ref", "base_sha", "head_ref",
+            "head_sha", "base_root", "head_root"
+          ],
+          "properties": {
+            "source": { "const": "github-pull-request" },
+            "number": { "type": "integer", "minimum": 1 },
+            "url": { "type": "string", "pattern": "^https:\\/\\/github\\.com/" },
+            "base_ref": { "type": "string", "minLength": 1 },
+            "base_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "head_ref": { "type": "string", "minLength": 1 },
+            "head_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "base_root": { "type": "string", "minLength": 1 },
+            "head_root": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "prepared_snapshot": {
       "type": "object",

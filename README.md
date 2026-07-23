@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.10
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.11
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
@@ -393,7 +393,7 @@ The default mode is **Review-only**: nothing is written to the PR, GitHub, or th
 
 Only when the user explicitly asks for test additions — including selecting **Apply tests** for a proven handoff — does Socratic switch to **Apply tests** and add tests, based on confirmed intent, to the working tree. It verifies handoff preconditions before application and repeats the focused original-code and mutation proof afterward. Version-control operations stay with the user in both modes.
 
-Socratic may use allowlisted, read-only local Git commands to inspect the change and export Base and Head snapshots. It never stages, commits, pushes, fetches, switches branches, creates worktrees, contacts a remote, invokes `gh`, creates a pull request, or posts a comment. It never asks for permission to do so; all version-control actions remain with the user.
+The Socratic agent may use allowlisted, read-only local Git commands to inspect the materialized change. It never stages, commits, pushes, fetches, switches branches, creates worktrees, contacts a remote, invokes `gh`, creates a pull request, or posts a comment. When the invocation includes a GitHub PR URL or `PR #<number>`, the trusted Host—not the agent—resolves metadata with `gh`, fetches the exact Base and Head commits into private Host storage, verifies both SHAs, and gives the Runner read-only snapshots. Failure to resolve or verify either commit blocks the run. All version-control writes remain with the user.
 
 ## Internal architecture
 
@@ -509,7 +509,7 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a mandatory Host Adapter Review-only entrypoint, a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v9, and a canonical four-block renderer. Standalone mutation execution remains blocked; a trusted host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability.
+v0.2 is released: the three skills install from pinned GitHub Releases, standalone Test Assessment Mode is available, and the CI and release pipeline is operational. The current source adds a mandatory Host Adapter Review-only entrypoint, a fail-closed Isolation Gate, strict run-artifact validation, Mutation Report v10, and a canonical four-block renderer. Standalone mutation execution remains blocked; a trusted host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 

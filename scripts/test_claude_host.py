@@ -6,6 +6,7 @@ import io
 import json
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -59,6 +60,10 @@ class ClaudeHostTest(unittest.TestCase):
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["status"], "ready")
                 self.assertEqual(manifest["host"]["adapter_id"], "claude-code-hook-host-v1")
+                self.assertEqual(
+                    manifest["change_context"],
+                    {"source": "local-workspace", "head_root": str(repository.resolve())},
+                )
                 artifact_path = (
                     Path(state["artifact_root"]) / "intent-contract.draft.json"
                 )
@@ -175,6 +180,101 @@ class ClaudeHostTest(unittest.TestCase):
                 self.assertIsNone(self.host.load_session(session_id))
             finally:
                 self.host.cleanup_session(session_id)
+
+    def test_pull_request_detection_preserves_url_identity(self) -> None:
+        self.assertEqual(
+            self.host.requested_pull_request(
+                "review https://github.com/Shogo1222/socratic/pull/438"
+            ),
+            "https://github.com/Shogo1222/socratic/pull/438",
+        )
+        self.assertEqual(self.host.requested_pull_request("review PR #438"), 438)
+        self.assertIsNone(self.host.requested_pull_request("review local changes"))
+
+    def test_host_materializes_and_attests_exact_pull_request_commits(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            primary = root / "primary"
+            remote = root / "origin.git"
+            storage = root / "storage"
+            storage.mkdir()
+            subprocess.run(["git", "init", "-b", "main", str(primary)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(primary), "config", "user.name", "Test"], check=True)
+            subprocess.run(
+                ["git", "-C", str(primary), "config", "user.email", "test@example.com"],
+                check=True,
+            )
+            (primary / "value.txt").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(primary), "add", "value.txt"], check=True)
+            subprocess.run(["git", "-C", str(primary), "commit", "-m", "base"], check=True,
+                           stdout=subprocess.DEVNULL)
+            base_sha = subprocess.run(
+                ["git", "-C", str(primary), "rev-parse", "HEAD"], check=True,
+                stdout=subprocess.PIPE, text=True,
+            ).stdout.strip()
+            subprocess.run(["git", "init", "--bare", str(remote)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(primary), "remote", "add", "origin", str(remote)],
+                           check=True)
+            subprocess.run(["git", "-C", str(primary), "push", "origin", "main"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "-C", str(primary), "switch", "-c", "feature"], check=True,
+                           stdout=subprocess.DEVNULL)
+            (primary / "value.txt").write_text("head\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(primary), "commit", "-am", "head"], check=True,
+                           stdout=subprocess.DEVNULL)
+            head_sha = subprocess.run(
+                ["git", "-C", str(primary), "rev-parse", "HEAD"], check=True,
+                stdout=subprocess.PIPE, text=True,
+            ).stdout.strip()
+            subprocess.run(
+                ["git", "-C", str(primary), "push", "origin", "HEAD:refs/pull/7/head"],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            metadata = {
+                "number": 7,
+                "url": "https://github.com/Shogo1222/socratic/pull/7",
+                "baseRefName": "main",
+                "baseRefOid": base_sha,
+                "headRefName": "feature",
+                "headRefOid": head_sha,
+            }
+            real_run = self.host.subprocess.run
+
+            def fake_gh(argv, **kwargs):
+                if argv[:3] == ["gh", "pr", "view"]:
+                    return subprocess.CompletedProcess(argv, 0, json.dumps(metadata), "")
+                return real_run(argv, **kwargs)
+
+            with patch.object(self.host.subprocess, "run", side_effect=fake_gh):
+                provenance = self.host.materialize_pull_request(
+                    primary, storage, metadata["number"]
+                )
+            self.assertEqual(provenance["base_sha"], base_sha)
+            self.assertEqual(provenance["head_sha"], head_sha)
+            self.assertEqual(
+                (Path(provenance["base_root"]) / "value.txt").read_text(), "base\n"
+            )
+            self.assertEqual(
+                (Path(provenance["head_root"]) / "value.txt").read_text(), "head\n"
+            )
+            bad_metadata = dict(metadata, headRefOid="0" * 40)
+
+            def fake_bad_gh(argv, **kwargs):
+                if argv[:3] == ["gh", "pr", "view"]:
+                    return subprocess.CompletedProcess(argv, 0, json.dumps(bad_metadata), "")
+                return real_run(argv, **kwargs)
+
+            rejected_storage = root / "rejected"
+            rejected_storage.mkdir()
+            with patch.object(self.host.subprocess, "run", side_effect=fake_bad_gh):
+                with self.assertRaisesRegex(
+                    RuntimeError, "does not match GitHub provenance"
+                ):
+                    self.host.materialize_pull_request(
+                        primary, rejected_storage, metadata["number"]
+                    )
 
     def test_missing_or_wrong_broker_token_stays_blocked(self) -> None:
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic"}

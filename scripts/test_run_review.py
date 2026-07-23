@@ -441,6 +441,48 @@ class RunReviewTest(unittest.TestCase):
             self.runner.abort(manifest_path)
             self.assertFalse(Path(manifest["artifact_root"]).exists())
 
+    def test_host_preflight_binds_materialized_pull_request_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            storage = root / "host-storage"
+            base = storage / "change/base"
+            head = storage / "change/head"
+            for snapshot, content in ((base, "base\n"), (head, "head\n")):
+                (snapshot / ".git").mkdir(parents=True)
+                (snapshot / "source.py").write_text(content, encoding="utf-8")
+            change_context = {
+                "source": "github-pull-request",
+                "number": 7,
+                "url": "https://github.com/Shogo1222/socratic/pull/7",
+                "base_ref": "main",
+                "base_sha": "1" * 40,
+                "head_ref": "feature",
+                "head_sha": "2" * 40,
+                "base_root": str(base),
+                "head_root": str(head),
+            }
+            runner = self.runner
+
+            class MaterializedHost:
+                def begin_review_run(self, primary_root: Path):
+                    return runner.HostGrant(
+                        adapter_id="fixture-host-v1",
+                        run_id="c" * 32,
+                        run_nonce="host-issued-nonce-" + "d" * 32,
+                        storage_root=storage,
+                        protection_mode="os-read-only",
+                        protection_details="fixture materialization",
+                        change_context=change_context,
+                    )
+
+            manifest, manifest_path = runner.preflight_with_host(head, MaterializedHost())
+            self.assertEqual(manifest["change_context"], change_context)
+            self.assertEqual(
+                (Path(manifest["prepared_root"]) / "source.py").read_text(), "head\n"
+            )
+            runner.abort(manifest_path)
+            self.assertFalse(Path(manifest["artifact_root"]).exists())
+
     def test_finish_rejects_green_baseline_with_failing_execution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -606,7 +648,8 @@ class RunReviewTest(unittest.TestCase):
             attested_path = Path(manifest["artifact_root"]) / "mutation-report.attested.json"
             attested = json.loads(attested_path.read_text(encoding="utf-8"))
             self.assertEqual(attested["run"]["id"], manifest["run_id"])
-            self.assertEqual(attested["version"], 9)
+            self.assertEqual(attested["version"], 10)
+            self.assertEqual(attested["change_context"], manifest["change_context"])
             self.assertEqual(
                 attested["prepared_snapshot"]["protection"],
                 "host-managed-hash-verified",
