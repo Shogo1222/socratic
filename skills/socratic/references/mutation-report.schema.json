@@ -16,6 +16,7 @@
     "test_changes",
     "test_handoff",
     "authorized_workspace_changes",
+    "prepared_snapshot",
     "execution_evidence",
     "isolation",
     "persistent_side_effects",
@@ -23,7 +24,7 @@
     "postflight"
   ],
   "properties": {
-    "version": { "const": 8 },
+    "version": { "const": 9 },
     "mode": { "enum": ["assessment", "harden", "catch"] },
     "write_mode": { "enum": ["review-only", "apply-tests"] },
     "run": {
@@ -174,6 +175,29 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
+    },
+    "prepared_snapshot": {
+      "type": "object",
+      "required": ["root", "sha256", "protection", "clones"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "protection": { "const": "host-managed-hash-verified" },
+        "clones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mutation_id", "sandbox_root", "strategy"],
+            "properties": {
+              "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+              "sandbox_root": { "type": "string", "minLength": 1 },
+              "strategy": { "enum": ["copy-on-write", "full-copy"] }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "execution_evidence": {
       "type": "object",

@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "run": {
     "id": "33333333333333333333333333333333",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -254,6 +254,33 @@
         "attempt": 1,
         "outcome": "failed",
         "exit_code": 1
+      }
+    ]
+  },
+  "prepared_snapshot": {
+    "root": "/tmp/socratic-prepared",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "protection": "host-managed-hash-verified",
+    "clones": [
+      {
+        "mutation_id": "MUT-001",
+        "sandbox_root": "/tmp/socratic-sandbox/mutants/MUT-001",
+        "strategy": "copy-on-write"
+      },
+      {
+        "mutation_id": "MUT-002",
+        "sandbox_root": "/tmp/socratic-sandbox/mutants/MUT-002",
+        "strategy": "copy-on-write"
+      },
+      {
+        "mutation_id": "MUT-003",
+        "sandbox_root": "/tmp/socratic-sandbox/mutants/MUT-003",
+        "strategy": "copy-on-write"
+      },
+      {
+        "mutation_id": "MUT-004",
+        "sandbox_root": "/tmp/socratic-sandbox/mutants/MUT-004",
+        "strategy": "copy-on-write"
       }
     ]
   }

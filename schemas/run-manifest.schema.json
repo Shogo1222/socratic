@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "version", "run_id", "status", "write_mode", "socratic_version",
-    "entrypoint", "skill_root", "primary_root", "sandbox_root", "host",
+    "entrypoint", "skill_root", "primary_root", "sandbox_root", "prepared_root", "host",
     "protection", "environment", "ledger_path", "artifact_root",
     "artifact_index_path", "primary_sha256"
   ],
@@ -18,6 +18,7 @@
     "skill_root": { "type": "string", "minLength": 1 },
     "primary_root": { "type": "string", "minLength": 1 },
     "sandbox_root": { "type": ["string", "null"] },
+    "prepared_root": { "type": "string", "minLength": 1 },
     "host": {
       "type": "object",
       "required": ["adapter_id", "run_nonce", "storage_root"],

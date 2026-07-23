@@ -86,14 +86,14 @@ class DistributionDocumentationTest(unittest.TestCase):
 
 
 class PluginStructureTest(unittest.TestCase):
-    def make_plugin(self, root: Path, *, version: str = "0.3.0-alpha.8") -> None:
+    def make_plugin(self, root: Path, *, version: str = "0.3.0-alpha.9") -> None:
         (root / ".codex-plugin").mkdir(parents=True)
         (root / ".claude-plugin").mkdir(parents=True)
         (root / ".cursor-plugin").mkdir(parents=True)
         (root / ".agents/plugins").mkdir(parents=True)
         (root / "hooks").mkdir()
         (root / "skills/socratic/agents").mkdir(parents=True)
-        (root / "VERSION").write_text("0.3.0-alpha.8\n", encoding="utf-8")
+        (root / "VERSION").write_text("0.3.0-alpha.9\n", encoding="utf-8")
         (root / ".claude-plugin/plugin.json").write_text(
             json.dumps({"name": "socratic", "version": version}), encoding="utf-8"
         )

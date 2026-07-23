@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "run": {
     "id": "22222222222222222222222222222222",
     "entrypoint": "socratic/scripts/run_review.py",
@@ -129,6 +129,18 @@
         "attempt": 1,
         "outcome": "failed",
         "exit_code": 1
+      }
+    ]
+  },
+  "prepared_snapshot": {
+    "root": "/tmp/socratic-prepared",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "protection": "host-managed-hash-verified",
+    "clones": [
+      {
+        "mutation_id": "MUT-001",
+        "sandbox_root": "/tmp/socratic-sandbox/mutants/MUT-001",
+        "strategy": "copy-on-write"
       }
     ]
   }

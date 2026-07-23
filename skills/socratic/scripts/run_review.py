@@ -19,7 +19,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.8"
+SOCRATIC_VERSION = "0.3.0-alpha.9"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -169,6 +169,28 @@ def _tree_hash(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _prepared_hash(root: Path) -> str:
+    digest = hashlib.sha256()
+    ignored = {".git", ".hg", ".svn", ".env", "__pycache__"}
+    for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
+        names[:] = sorted(name for name in names if name not in ignored)
+        relative_directory = Path(directory).relative_to(root)
+        for filename in sorted(filenames):
+            if filename in ignored or filename.startswith(".env.") or filename.endswith(".pyc"):
+                continue
+            path = Path(directory) / filename
+            relative = (relative_directory / filename).as_posix()
+            digest.update(relative.encode("utf-8") + b"\0")
+            if path.is_symlink():
+                digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
+            elif path.is_file():
+                digest.update(b"file\0")
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _write_exclusive(path: Path, value: Any) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
@@ -232,9 +254,10 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             artifact_root_created = True
         sandbox = Path(tempfile.mkdtemp(prefix=f"workspace-{grant.run_id}-", dir=storage_root))
         _outside(sandbox, primary_root, "sandbox", strict=True)
-        shutil.copytree(primary_root, sandbox, dirs_exist_ok=True, symlinks=True, ignore=_ignored)
+        prepared = sandbox / "prepared"
+        shutil.copytree(primary_root, prepared, symlinks=True, ignore=_ignored)
         (sandbox / ".socratic-disposable").write_text(f"{grant.run_id}\n", encoding="utf-8")
-        environment_root = sandbox / ".socratic-runtime"
+        environment_root = prepared / ".socratic-runtime"
         environment = {
             "HOME": environment_root / "home",
             "TMPDIR": environment_root / "tmp",
@@ -253,6 +276,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             "skill_root": str(_skills_root()),
             "primary_root": str(primary_root),
             "sandbox_root": str(sandbox.resolve()),
+            "prepared_root": str(prepared.resolve()),
             "host": {
                 "adapter_id": grant.adapter_id,
                 "run_nonce": grant.run_nonce,
@@ -315,6 +339,12 @@ def _ready_manifest(
         Path(manifest["sandbox_root"]),
         primary_root,
         "sandbox",
+        strict=not allow_missing_sandbox,
+    )
+    _outside(
+        Path(manifest["prepared_root"]),
+        primary_root,
+        "prepared snapshot",
         strict=not allow_missing_sandbox,
     )
     _outside(Path(manifest["host"]["storage_root"]), primary_root, "host storage", strict=True)
@@ -478,21 +508,113 @@ def _staged_artifacts(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return documents
 
 
+def _runtime_environment(root: Path) -> dict[str, str]:
+    environment_root = root / ".socratic-runtime"
+    paths = {
+        "HOME": environment_root / "home",
+        "TMPDIR": environment_root / "tmp",
+        "XDG_CACHE_HOME": environment_root / "cache",
+        "npm_config_cache": environment_root / "npm-cache",
+    }
+    for path in paths.values():
+        path.mkdir(parents=True, exist_ok=True)
+    return {key: str(path.resolve()) for key, path in paths.items()}
+
+
+def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
+    events = _ledger_events(manifest)
+    sealed = [item for item in events if item.get("kind") == "prepared-snapshot"]
+    if len(sealed) > 1:
+        raise RunGateError("prepared snapshot was sealed more than once")
+    if sealed:
+        return sealed[0]
+    baselines = [
+        item for item in events
+        if item.get("kind") == "command" and item.get("phase") == "baseline"
+    ]
+    if not baselines or any(
+        item.get("result") != "completed" or item.get("returncode") != 0
+        for item in baselines
+    ):
+        raise RunGateError("a successful baseline must precede prepared snapshot sealing")
+    prepared = Path(manifest["prepared_root"])
+    event = {
+        "run_id": manifest["run_id"],
+        "kind": "prepared-snapshot",
+        "root": str(prepared),
+        "sha256": _prepared_hash(prepared),
+        "protection": "host-managed-hash-verified",
+    }
+    return _append_event(manifest, event)
+
+
+def _clone_prepared(
+    manifest: dict[str, Any], mutation_id: str
+) -> tuple[Path, str, str]:
+    events = _ledger_events(manifest)
+    if any(
+        item.get("mutation_id") == mutation_id
+        and item.get("kind") in {"guarded-write", "prebuilt"}
+        for item in events
+    ):
+        raise RunGateError(f"mutation already has a sandbox: {mutation_id}")
+    snapshot = _prepared_snapshot(manifest)
+    prepared = Path(manifest["prepared_root"])
+    destination = Path(manifest["sandbox_root"]) / "mutants" / mutation_id
+    destination.parent.mkdir(mode=0o700, exist_ok=True)
+    if destination.exists():
+        raise RunGateError(f"mutation sandbox already exists: {mutation_id}")
+
+    strategy = "full-copy"
+    commands: list[list[str]] = []
+    if sys.platform == "darwin":
+        commands.append(["cp", "-cR", str(prepared), str(destination)])
+    elif sys.platform.startswith("linux"):
+        commands.append(
+            ["cp", "--reflink=always", "-a", str(prepared), str(destination)]
+        )
+    for command in commands:
+        completed = subprocess.run(
+            command, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        if completed.returncode == 0 and destination.is_dir():
+            strategy = "copy-on-write"
+            break
+        shutil.rmtree(destination, ignore_errors=True)
+    else:
+        shutil.copytree(prepared, destination, symlinks=True)
+
+    (destination / ".socratic-disposable").write_text(
+        f"{manifest['run_id']}:{mutation_id}\n", encoding="utf-8"
+    )
+    runtime = destination / ".socratic-runtime"
+    shutil.rmtree(runtime, ignore_errors=True)
+    _runtime_environment(destination)
+    return destination, strategy, snapshot["sha256"]
+
+
 def mutate(manifest_path: Path, mutation_id: str, relative_target: str, content: bytes) -> dict[str, Any]:
     manifest = _ready_manifest(manifest_path)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
         raise RunGateError(f"invalid mutation id: {mutation_id}")
-    sandbox = Path(manifest["sandbox_root"])
+    sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     if Path(relative_target).is_absolute() or ".." in Path(relative_target).parts:
+        shutil.rmtree(sandbox, ignore_errors=True)
         raise RunGateError("mutation target must be a safe sandbox-relative path")
     isolation = _load_module("socratic_isolation_gate", _skills_root() / "elenchus/scripts/isolation_gate.py")
-    evidence = isolation.IsolationGate(Path(manifest["primary_root"]), sandbox).write_bytes(
-        sandbox / relative_target, content
-    )
+    try:
+        evidence = isolation.IsolationGate(
+            Path(manifest["primary_root"]), sandbox
+        ).write_bytes(sandbox / relative_target, content)
+    except BaseException:
+        shutil.rmtree(sandbox, ignore_errors=True)
+        raise
     return _append_event(manifest, {
         "run_id": manifest["run_id"], "mutation_id": mutation_id, "kind": "guarded-write",
         "requested_path": relative_target, "resolved_path": evidence.resolved_target,
         "content_sha256": _sha256_bytes(content), "bytes": len(content), "within_sandbox": True,
+        "sandbox_root": str(sandbox), "clone_strategy": clone_strategy,
+        "prepared_sha256": prepared_sha256,
     })
 
 
@@ -501,16 +623,29 @@ def register_prebuilt(manifest_path: Path, mutation_id: str, relative_path: str)
     if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
         raise RunGateError(f"invalid mutation id: {mutation_id}")
     relative = Path(relative_path)
-    sandbox = Path(manifest["sandbox_root"])
+    sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     unresolved = sandbox / relative
     isolation = _load_module("socratic_isolation_gate", _skills_root() / "elenchus/scripts/isolation_gate.py")
-    evidence = isolation.IsolationGate(Path(manifest["primary_root"]), sandbox).authorize(unresolved)
-    candidate = Path(evidence.resolved_target)
-    if relative.is_absolute() or ".." in relative.parts or unresolved.is_symlink() or not candidate.is_file():
-        raise RunGateError("prebuilt mutant must be a sandbox-relative regular file")
+    try:
+        evidence = isolation.IsolationGate(
+            Path(manifest["primary_root"]), sandbox
+        ).authorize(unresolved)
+        candidate = Path(evidence.resolved_target)
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or unresolved.is_symlink()
+            or not candidate.is_file()
+        ):
+            raise RunGateError("prebuilt mutant must be a sandbox-relative regular file")
+    except BaseException:
+        shutil.rmtree(sandbox, ignore_errors=True)
+        raise
     return _append_event(manifest, {
         "run_id": manifest["run_id"], "mutation_id": mutation_id, "kind": "prebuilt",
         "resolved_path": str(candidate), "sha256": _sha256_path(candidate),
+        "sandbox_root": str(sandbox), "clone_strategy": clone_strategy,
+        "prepared_sha256": prepared_sha256,
     })
 
 
@@ -530,10 +665,16 @@ def execute(
         raise RunGateError("mutation execution requires --mutation-id")
     if not command:
         raise RunGateError("sandbox command must not be empty")
-    registered = {
-        item.get("mutation_id") for item in _ledger_events(manifest)
+    ledger = _ledger_events(manifest)
+    if phase == "baseline" and any(
+        item.get("kind") == "prepared-snapshot" for item in ledger
+    ):
+        raise RunGateError("baseline cannot run after the prepared snapshot is sealed")
+    registrations = {
+        item.get("mutation_id"): item for item in ledger
         if item.get("kind") in {"guarded-write", "prebuilt"}
     }
+    registered = set(registrations)
     if phase == "mutation" and mutation_id not in registered:
         raise RunGateError(f"mutation execution has no guarded mutation evidence: {mutation_id}")
     environment = {
@@ -541,24 +682,35 @@ def execute(
         for key, value in os.environ.items()
         if key in {"PATH", "LANG"} or key.startswith("LC_")
     }
-    environment.update(manifest["environment"])
+    execution_root = (
+        Path(manifest["prepared_root"])
+        if phase == "baseline"
+        else Path(registrations[mutation_id]["sandbox_root"])
+    )
+    runtime_environment = (
+        manifest["environment"]
+        if phase == "baseline"
+        else _runtime_environment(execution_root)
+    )
+    environment.update(runtime_environment)
     try:
         completed = subprocess.run(
-            command, cwd=Path(manifest["sandbox_root"]), env=environment,
+            command, cwd=execution_root, env=environment,
             timeout=timeout_seconds, check=False,
         )
     except subprocess.TimeoutExpired as error:
         _append_event(manifest, {
             "run_id": manifest["run_id"], "kind": "command", "phase": phase,
             "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
-            "result": "timeout", "returncode": None, "environment": manifest["environment"],
+            "result": "timeout", "returncode": None,
+            "environment": runtime_environment, "sandbox_root": str(execution_root),
         })
         raise RunGateError(f"sandbox command timed out after {timeout_seconds}s") from error
     _append_event(manifest, {
         "run_id": manifest["run_id"], "kind": "command", "phase": phase,
         "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
         "result": "completed", "returncode": completed.returncode,
-        "environment": manifest["environment"],
+        "environment": runtime_environment, "sandbox_root": str(execution_root),
     })
     return completed.returncode
 
@@ -594,6 +746,16 @@ def _attested_report(
         item for item in ledger
         if item.get("kind") == "command" and item.get("phase") == "mutation"
     ]
+    prepared_events = [
+        item for item in ledger if item.get("kind") == "prepared-snapshot"
+    ]
+    if len(prepared_events) != 1:
+        raise RunGateError("finish requires exactly one sealed prepared snapshot")
+    prepared = prepared_events[0]
+    clone_events = [
+        item for item in registered
+        if item.get("sandbox_root") and item.get("clone_strategy")
+    ]
 
     def raw_outcome(item: dict[str, Any]) -> str:
         if item.get("result") == "timeout":
@@ -601,7 +763,7 @@ def _attested_report(
         return "passed" if item.get("returncode") == 0 else "failed"
 
     report = {
-        "version": 8,
+        "version": 9,
         "mode": draft["mode"],
         "write_mode": "review-only",
         "run": {
@@ -624,6 +786,21 @@ def _attested_report(
         "test_changes": draft["test_changes"],
         "test_handoff": draft["test_handoff"],
         "authorized_workspace_changes": draft["authorized_workspace_changes"],
+        "prepared_snapshot": {
+            "root": prepared["root"],
+            "sha256": prepared["sha256"],
+            "protection": prepared["protection"],
+            "clones": [
+                {
+                    "mutation_id": item["mutation_id"],
+                    "sandbox_root": item["sandbox_root"],
+                    "strategy": item["clone_strategy"],
+                }
+                for item in sorted(
+                    clone_events, key=lambda event: event["mutation_id"]
+                )
+            ],
+        },
         "execution_evidence": {
             "source": "host-ledger",
             "baseline": [
@@ -819,6 +996,34 @@ def finish_document(
     }
     if targets != guarded:
         raise RunGateError("report mutation targets do not match the guarded write ledger")
+    prepared_events = [
+        item for item in ledger if item.get("kind") == "prepared-snapshot"
+    ]
+    if len(prepared_events) != 1:
+        raise RunGateError("report lacks a unique prepared snapshot event")
+    prepared_report = report.get("prepared_snapshot", {})
+    prepared_event = prepared_events[0]
+    expected_prepared = {
+        "root": prepared_event["root"],
+        "sha256": prepared_event["sha256"],
+        "protection": prepared_event["protection"],
+        "clones": [
+            {
+                "mutation_id": item["mutation_id"],
+                "sandbox_root": item["sandbox_root"],
+                "strategy": item["clone_strategy"],
+            }
+            for item in sorted(
+                [
+                    event for event in ledger
+                    if event.get("kind") in {"guarded-write", "prebuilt"}
+                ],
+                key=lambda event: event["mutation_id"],
+            )
+        ],
+    }
+    if prepared_report != expected_prepared:
+        raise RunGateError("prepared snapshot evidence differs from the Host ledger")
 
 
 def _record_host_output(
@@ -887,6 +1092,13 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
         current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
         if current_primary_hash != manifest["primary_sha256"]:
             raise RunGateError("Primary content hash changed during the Review-only run")
+        prepared_events = [
+            item for item in ledger if item.get("kind") == "prepared-snapshot"
+        ]
+        if len(prepared_events) != 1 or _prepared_hash(
+            Path(manifest["prepared_root"])
+        ) != prepared_events[0].get("sha256"):
+            raise RunGateError("prepared snapshot changed after it was sealed")
         if sandbox.exists():
             shutil.rmtree(sandbox)
         if sandbox.exists():
@@ -1017,6 +1229,7 @@ def main() -> int:
             "status": "ready", "run_id": manifest["run_id"],
             "manifest_path": str(manifest_path),
             "sandbox_root": manifest["sandbox_root"],
+            "prepared_root": manifest["prepared_root"],
             "artifact_root": manifest["artifact_root"],
             "next": "stage contract, report, and review drafts after guarded executions",
             "allowed_operations": [

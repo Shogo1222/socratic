@@ -188,11 +188,66 @@ class RunReviewTest(unittest.TestCase):
                 self.runner.execute(manifest_path, "mutation", None, [sys.executable, "-c", "pass"], 10)
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "pass"], 10)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
             self.runner.register_prebuilt(manifest_path, "MUT-001", "packages/app/mutant-1.ts")
             self.assertEqual(
                 self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "raise SystemExit(1)"], 10),
                 1,
             )
+
+    def test_mutants_branch_from_one_dependency_prepared_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            install = (
+                "import pathlib; "
+                "pathlib.Path('node_modules/example').mkdir(parents=True); "
+                "pathlib.Path('node_modules/example/index.js').write_text('installed once')"
+            )
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", install], 10
+            )
+            first = self.runner.register_prebuilt(
+                manifest_path, "MUT-001", "packages/app/mutant-1.ts"
+            )
+            second = self.runner.register_prebuilt(
+                manifest_path, "MUT-002", "packages/app/mutant-2.ts"
+            )
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "prepared snapshot is sealed"
+            ):
+                self.runner.execute(
+                    manifest_path,
+                    "baseline",
+                    None,
+                    [sys.executable, "-c", "pass"],
+                    10,
+                )
+            first_root = Path(first["sandbox_root"])
+            second_root = Path(second["sandbox_root"])
+            prepared_root = Path(manifest["prepared_root"])
+            self.assertNotEqual(first_root, second_root)
+            for sandbox in (prepared_root, first_root, second_root):
+                self.assertEqual(
+                    (sandbox / "node_modules/example/index.js").read_text(),
+                    "installed once",
+                )
+            (first_root / "packages/app/source.ts").write_text("changed only in MUT-001\n")
+            self.assertEqual(
+                (second_root / "packages/app/source.ts").read_text(), "original\n"
+            )
+            self.assertEqual(
+                (prepared_root / "packages/app/source.ts").read_text(), "original\n"
+            )
+            prepared_events = [
+                item
+                for item in self.runner._ledger_events(manifest)
+                if item.get("kind") == "prepared-snapshot"
+            ]
+            self.assertEqual(len(prepared_events), 1)
 
     def test_execute_forces_home_temp_and_caches_into_sandbox(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -306,9 +361,16 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            os.symlink(repository / "packages", Path(manifest["sandbox_root"]) / "late-link")
+            os.symlink(
+                repository / "packages", Path(manifest["prepared_root"]) / "late-link"
+            )
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
             with self.assertRaises(Exception):
-                self.runner.mutate(manifest_path, "MUT-001", "packages/app/source.ts", b"mutant\n")
+                self.runner.mutate(
+                    manifest_path, "MUT-001", "late-link/app/source.ts", b"mutant\n"
+                )
 
     def test_ledger_chain_detects_rewritten_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -432,7 +494,28 @@ class RunReviewTest(unittest.TestCase):
             attested_path = Path(manifest["artifact_root"]) / "mutation-report.attested.json"
             attested = json.loads(attested_path.read_text(encoding="utf-8"))
             self.assertEqual(attested["run"]["id"], manifest["run_id"])
-            self.assertEqual(attested["version"], 8)
+            self.assertEqual(attested["version"], 9)
+            self.assertEqual(
+                attested["prepared_snapshot"]["protection"],
+                "host-managed-hash-verified",
+            )
+            self.assertEqual(
+                [item["mutation_id"] for item in attested["prepared_snapshot"]["clones"]],
+                ["MUT-001", "MUT-002", "MUT-003"],
+            )
+            self.assertTrue(
+                all(
+                    item["strategy"] in {"copy-on-write", "full-copy"}
+                    for item in attested["prepared_snapshot"]["clones"]
+                )
+            )
+            self.assertEqual(
+                len({
+                    item["sandbox_root"]
+                    for item in attested["prepared_snapshot"]["clones"]
+                }),
+                3,
+            )
             self.assertEqual(attested["execution_evidence"]["source"], "host-ledger")
             self.assertEqual(
                 attested["execution_evidence"]["baseline"],

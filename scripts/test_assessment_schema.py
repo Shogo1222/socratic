@@ -17,7 +17,7 @@ class AssessmentSchemaTest(unittest.TestCase):
         )
 
     def test_assessment_mode_is_versioned_and_required(self) -> None:
-        self.assertEqual(self.report["properties"]["version"]["const"], 8)
+        self.assertEqual(self.report["properties"]["version"]["const"], 9)
         self.assertIn("run", self.report["required"])
         self.assertIn("assessment", self.report["required"])
         self.assertIn("assessment", self.report["properties"]["mode"]["enum"])
@@ -74,6 +74,13 @@ class AssessmentSchemaTest(unittest.TestCase):
         self.assertIn("canonical_output", self.report["required"])
         self.assertIn("persistent_side_effects", self.report["required"])
         self.assertIn("execution_evidence", self.report["required"])
+        self.assertIn("prepared_snapshot", self.report["required"])
+        self.assertEqual(
+            self.report["properties"]["prepared_snapshot"]["properties"][
+                "protection"
+            ]["const"],
+            "host-managed-hash-verified",
+        )
         self.assertEqual(
             self.report["properties"]["execution_evidence"]["properties"]["source"][
                 "const"
