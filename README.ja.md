@@ -57,7 +57,7 @@ v0.3.0 Integration Previewでは、RepositoryをClaude Code Marketplaceとして
 /plugin update socratic@socratic-marketplace
 ```
 
-その後、信頼済みGit Repositoryで通常どおりClaudeを起動し、`/socratic:socratic`を実行してください。PluginはClaudeがRequestを処理する前にSession単位のHost brokerを自動起動し、`PreToolUse`でPrimaryへの直接WriteとRunner外Bashを拒否します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収します。専用Launcher Commandは不要です。
+その後、信頼済みGit Repositoryで通常どおりClaudeを起動し、Marketplace Commandとして表示される`/socratic`を実行してください。PluginはClaudeがRequestを処理する前にSession単位のHost brokerを自動起動し、`PreToolUse`でPrimaryへの直接WriteとRunner外Bashを拒否します。MaieuticとElenchusの直接起動にも同じGateを使います。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄・stale状態のbrokerはIdle TTLと後続Host Eventで回収します。専用Launcher Commandは不要です。
 
 `/hooks`で同梱HookをReview・Trustしてから新しいThreadを開始してください。Hookが未Trust、無効、利用不能な場合はSocraticを使用しません。Plugin HookのTrustはユーザーが変更できます。解除不能な境界が必要な組織は、同じGateを`requirements.toml`とOS・Device ManagementによるManaged Hookとして配布する必要があります。
 
@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.5
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.6
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。

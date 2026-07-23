@@ -80,6 +80,14 @@ class CodexHostTest(unittest.TestCase):
             "prompt": "Explain this function",
         }), {"continue": True})
 
+    def test_direct_maieutic_and_elenchus_require_host_context(self) -> None:
+        for prompt in ("$maieutic confirm intent", "$elenchus assess tests"):
+            with self.subTest(prompt=prompt):
+                decision = self.hook.evaluate({
+                    "hook_event_name": "UserPromptSubmit", "prompt": prompt,
+                })
+                self.assertFalse(decision["continue"])
+
 
 if __name__ == "__main__":
     unittest.main()

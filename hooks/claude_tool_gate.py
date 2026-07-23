@@ -54,13 +54,44 @@ def _patch_paths(patch: Any) -> list[str] | None:
     return paths or None
 
 
+def _read_only_git_command(command: str) -> bool:
+    """Accept only non-composed Git evidence commands with risky helpers disabled."""
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return False
+    if len(argv) < 3 or argv[:2] != ["git", "--no-pager"]:
+        return False
+    subcommand, arguments = argv[2], argv[3:]
+    forbidden = {
+        "-c", "--config-env", "--exec-path", "--git-dir", "--work-tree",
+        "--paginate", "--no-index", "--ext-diff", "--textconv", "--exec",
+    }
+    if any(
+        arg in forbidden
+        or arg.startswith(("--output", "--remote", "--add-file", "--add-virtual-file"))
+        for arg in arguments
+    ):
+        return False
+    if subcommand == "status":
+        return all(
+            arg in {"--short", "--branch", "--porcelain", "--porcelain=v1", "--untracked-files=no"}
+            for arg in arguments
+        )
+    if subcommand in {"diff", "show", "log"}:
+        return "--no-ext-diff" in arguments and "--no-textconv" in arguments
+    if subcommand in {"rev-parse", "merge-base", "ls-files", "archive"}:
+        return True
+    return False
+
+
 def evaluate(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("hook_event_name") != "PreToolUse":
         return {}
     session_id = payload.get("session_id")
     if not isinstance(session_id, str):
         return {}
-    state = _host_module().load_session(session_id)
+    state = _host_module().load_live_session(session_id)
     if not state:
         return {}
     tool = payload.get("tool_name")
@@ -88,6 +119,8 @@ def evaluate(payload: Any) -> dict[str, Any]:
         if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
             return _deny("Socratic forbids shell composition outside the guarded Runner")
         if len(argv) >= 2 and Path(argv[1]).name == "run_review.py" and Path(argv[0]).name.startswith("python"):
+            return {}
+        if _read_only_git_command(command):
             return {}
         return _deny("Socratic tests and mutations must run through run_review.py")
     return {}

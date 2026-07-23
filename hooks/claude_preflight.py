@@ -7,7 +7,6 @@ import json
 import importlib.util
 import os
 import re
-import socket
 import shlex
 import sys
 from typing import Any
@@ -15,18 +14,13 @@ from pathlib import Path
 
 
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(r"(?<![0-9A-Za-z_-])(?:\$|/)socratic\b", re.IGNORECASE)
+SOCRATIC_INVOCATION = re.compile(
+    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+)
 
 
 def _blocked() -> dict[str, str]:
     return {"decision": "block", "reason": BLOCKED_REASON}
-
-
-def _host_ready() -> bool:
-    path = os.environ.get("SOCRATIC_HOST_SOCKET", "")
-    token = os.environ.get("SOCRATIC_HOST_TOKEN", "")
-    if not path or len(token) < 32:
-        return False
 
 
 def _host_module():
@@ -47,15 +41,6 @@ def _runtime_python() -> Path:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.ensure_runtime(Path(__file__).resolve().parent.parent)
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.settimeout(1)
-            client.connect(path)
-            client.sendall(json.dumps({"action": "ping", "token": token}).encode())
-            response = json.loads(client.recv(65536).decode())
-        return response == {"status": "ready"}
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return False
 
 
 def evaluate(payload: Any) -> dict[str, str]:
@@ -71,7 +56,7 @@ def evaluate(payload: Any) -> dict[str, str]:
     if not isinstance(session_id, str) or not isinstance(cwd, str):
         return _blocked() if SOCRATIC_INVOCATION.search(prompt) else {}
     host = _host_module()
-    state = host.load_session(session_id)
+    state = host.load_live_session(session_id)
     active = bool(
         state and host.request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}
     )

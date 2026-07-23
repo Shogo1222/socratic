@@ -9,6 +9,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from contextlib import redirect_stdout
@@ -119,6 +120,34 @@ class ClaudeHostTest(unittest.TestCase):
                     },
                 })
                 self.assertEqual(allowed_runner, {})
+                for command in (
+                    "git --no-pager status --short",
+                    "git --no-pager diff --no-ext-diff --no-textconv HEAD~1 HEAD",
+                    "git --no-pager show --no-ext-diff --no-textconv HEAD",
+                    "git --no-pager log --no-ext-diff --no-textconv -3",
+                ):
+                    self.assertEqual(self.tool_gate.evaluate({
+                        "hook_event_name": "PreToolUse", "session_id": session_id,
+                        "tool_name": "Bash", "tool_input": {"command": command},
+                    }), {})
+                unsafe_git = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Bash", "tool_input": {
+                        "command": "git --no-pager diff --output=/tmp/leak HEAD"
+                    },
+                })
+                self.assertEqual(
+                    unsafe_git["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                conflicting_git = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Bash", "tool_input": {
+                        "command": "git --no-pager diff --no-ext-diff --no-textconv --ext-diff HEAD"
+                    },
+                })
+                self.assertEqual(
+                    conflicting_git["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
                 self.runner.abort(manifest_path)
                 with patch.object(
                     sys, "stdin", io.StringIO(json.dumps({"session_id": session_id}))
@@ -132,6 +161,47 @@ class ClaudeHostTest(unittest.TestCase):
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic"}
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(self.hook.evaluate(payload)["decision"], "block")
+
+    def test_each_explicit_skill_starts_the_host(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            for index, prompt in enumerate(("/socratic", "/maieutic", "/elenchus")):
+                session_id = f"explicit-skill-{index}"
+                try:
+                    decision = self.hook.evaluate({
+                        "hook_event_name": "UserPromptSubmit", "prompt": prompt,
+                        "session_id": session_id, "cwd": str(repository),
+                    })
+                    self.assertIn("Trusted Socratic Host is ready", decision["hookSpecificOutput"]["additionalContext"])
+                finally:
+                    self.host.cleanup_session(session_id)
+
+    def test_dead_broker_stays_fail_closed_until_expired_then_is_collected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            session_id = "stale-broker-fixture"
+            state = self.host.prepare_session(session_id, repository)
+            os.kill(int(state["pid"]), 15)
+            for _ in range(50):
+                if self.host.request(Path(state["socket_path"]), state["token"]) == {"status": "blocked"}:
+                    break
+                time.sleep(0.02)
+            payload = {
+                "hook_event_name": "PreToolUse", "session_id": session_id,
+                "tool_name": "Edit", "tool_input": {"file_path": str(repository / "source.py")},
+            }
+            still_blocked = self.tool_gate.evaluate(payload)
+            self.assertEqual(
+                still_blocked["hookSpecificOutput"]["permissionDecision"], "deny"
+            )
+            state_path = self.host.session_root(session_id) / "state.json"
+            expired = time.time() - self.host.BROKER_IDLE_TTL_SECONDS - 1
+            os.utime(state_path, (expired, expired))
+            decision = self.tool_gate.evaluate(payload)
+            self.assertEqual(decision, {})
+            self.assertFalse(self.host.session_root(session_id).exists())
 
     def test_launcher_runs_claude_only_in_disposable_copy(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

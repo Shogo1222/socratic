@@ -66,7 +66,7 @@ Answer A, B, or state a different expected behavior.
 
 ## Git safety boundary
 
-Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. Prefer host-provided change context when available.
+Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`. Prefer host-provided change context when available.
 
 Never change local or remote Git state. Never stage, commit, amend, push, pull, fetch, create or switch a branch, check out files, reset, stash, merge, rebase, cherry-pick, tag, or add or remove a worktree. Never invoke `gh` or a code-host write API, and never post a review comment. Do not request permission to perform a prohibited operation; leave all version-control actions to the user.
 

@@ -96,6 +96,15 @@ class CursorHostTest(unittest.TestCase):
         self.assertFalse(decision["continue"])
         self.assertIn("blocked", decision["agent_message"])
 
+    def test_direct_maieutic_and_elenchus_require_desktop_context(self) -> None:
+        for prompt in ("$maieutic confirm intent", "$elenchus assess tests"):
+            with self.subTest(prompt=prompt):
+                decision = self.hook.evaluate({
+                    "hook_event_name": "beforeSubmitPrompt", "prompt": prompt,
+                    "conversation_id": "missing-workspace",
+                })
+                self.assertFalse(decision["continue"])
+
     def test_manifest_declares_desktop_hooks(self) -> None:
         manifest = json.loads((ROOT / ".cursor-plugin/plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "socratic")

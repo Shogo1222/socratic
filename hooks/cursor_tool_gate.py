@@ -70,6 +70,40 @@ def _runner_command(command: Any) -> bool:
     return len(argv) >= 2 and Path(argv[1]).name == "run_review.py" and Path(argv[0]).name.startswith("python")
 
 
+def _read_only_git_command(command: Any) -> bool:
+    if not isinstance(command, str):
+        return False
+    if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
+        return False
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return False
+    if len(argv) < 3 or argv[:2] != ["git", "--no-pager"]:
+        return False
+    subcommand, arguments = argv[2], argv[3:]
+    forbidden = {
+        "-c", "--config-env", "--exec-path", "--git-dir", "--work-tree",
+        "--paginate", "--no-index", "--ext-diff", "--textconv", "--exec",
+    }
+    if any(
+        arg in forbidden
+        or arg.startswith(("--output", "--remote", "--add-file", "--add-virtual-file"))
+        for arg in arguments
+    ):
+        return False
+    if subcommand == "status":
+        return all(
+            arg in {"--short", "--branch", "--porcelain", "--porcelain=v1", "--untracked-files=no"}
+            for arg in arguments
+        )
+    if subcommand in {"diff", "show", "log"}:
+        return "--no-ext-diff" in arguments and "--no-textconv" in arguments
+    if subcommand in {"rev-parse", "merge-base", "ls-files", "archive"}:
+        return True
+    return False
+
+
 def evaluate(payload: Any) -> dict[str, str]:
     if not isinstance(payload, dict):
         return _deny("Socratic Cursor gate received malformed input")
@@ -77,7 +111,7 @@ def evaluate(payload: Any) -> dict[str, str]:
     if event not in {"preToolUse", "beforeShellExecution"}:
         return {"permission": "allow"}
     session_id = _session_id(payload)
-    state = _host_module().load_session(session_id) if session_id is not None else None
+    state = _host_module().load_live_session(session_id) if session_id is not None else None
     if state is None:
         return {"permission": "allow"}
     tool = payload.get("tool_name")
@@ -98,7 +132,7 @@ def evaluate(payload: Any) -> dict[str, str]:
         command = payload.get("command")
         if command is None and isinstance(tool_input, dict):
             command = tool_input.get("command")
-        if _runner_command(command):
+        if _runner_command(command) or _read_only_git_command(command):
             return {"permission": "allow"}
         return _deny("Socratic tests and mutations must run through run_review.py")
     return {"permission": "allow"}

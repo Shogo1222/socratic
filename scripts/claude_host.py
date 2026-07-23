@@ -20,6 +20,7 @@ from pathlib import Path
 
 SESSION_ROOT = Path("/tmp/socratic-sessions")
 BROKER_IDLE_TTL_SECONDS = 2 * 60 * 60
+BROKER_PROCESSES: dict[str, subprocess.Popen] = {}
 
 
 def session_root(session_id: str) -> Path:
@@ -65,6 +66,7 @@ def prepare_session(
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
+    BROKER_PROCESSES[session_id] = process
     state["pid"] = str(process.pid)
     state_path.write_text(json.dumps(state), encoding="utf-8")
     for _ in range(40):
@@ -82,14 +84,65 @@ def load_session(session_id: str) -> dict[str, str] | None:
         return None
 
 
+def load_live_session(session_id: str) -> dict[str, str] | None:
+    """Return active or fail-closed state, collecting only expired dead brokers."""
+    state = load_session(session_id)
+    if state is None:
+        return None
+    if request(Path(state.get("socket_path", "")), state.get("token", "")) == {"status": "ready"}:
+        return state
+    pid_text = str(state.get("pid", ""))
+    process_alive = False
+    if pid_text.isdigit():
+        pid = int(pid_text)
+        try:
+            waited, _status = os.waitpid(pid, os.WNOHANG)
+        except (ChildProcessError, OSError):
+            waited = 0
+        if waited == 0:
+            try:
+                os.kill(pid, 0)
+                process_alive = True
+            except (OSError, ProcessLookupError):
+                pass
+    state_path = session_root(session_id) / "state.json"
+    try:
+        expired = time.time() - state_path.stat().st_mtime >= BROKER_IDLE_TTL_SECONDS
+    except OSError:
+        expired = False
+    if not process_alive and expired:
+        cleanup_session(session_id)
+        return None
+    return state
+
+
 def cleanup_session(session_id: str) -> None:
     root = session_root(session_id)
     state = load_session(session_id)
-    if state and str(state.get("pid", "")).isdigit():
+    process = BROKER_PROCESSES.pop(session_id, None)
+    if process is not None:
+        if process.poll() is None:
+            process.terminate()
         try:
-            os.kill(int(state["pid"]), 15)
+            process.wait(timeout=0.2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=0.2)
+    elif state and str(state.get("pid", "")).isdigit():
+        pid = int(state["pid"])
+        try:
+            os.kill(pid, 15)
         except (OSError, ProcessLookupError):
             pass
+        else:
+            for _ in range(20):
+                try:
+                    waited, _status = os.waitpid(pid, os.WNOHANG)
+                except (ChildProcessError, OSError):
+                    break
+                if waited == pid:
+                    break
+                time.sleep(0.01)
     shutil.rmtree(root, ignore_errors=True)
 
 

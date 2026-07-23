@@ -8,7 +8,7 @@
 
 <!-- socratic-distribution-file-count: 21 -->
 <!-- socratic-plugin-file-count: 41 -->
-Standalone Skill配布物は3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。v0.3.0 Multi-Host Plugin Bundleは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Broker、Plugin管理Python Runtime Bootstrapを加えた合計41個のUTF-8 Text Fileです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+Standalone Skill配布物は3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。監査対象のv0.3.0 Multi-Host Plugin Component Setは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Broker、Plugin管理Python Runtime Bootstrapを加えた合計41個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Marketplace Checkoutには`demo/`、`docs/`、`site/`など、この監査対象Runtime Component Set外のRepository Fileも実体化されます。41 Fileという記述は監査対象Plugin BundleとRelease Assetを指し、Source Checkoutに実体化される全File数ではありません。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否は監査対象Component SetについてPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 
@@ -28,7 +28,9 @@ Schema v7との互換性のため、JSON Field名`verified`は維持します。
 
 ## Agent開始前のHost Gate
 
-v0.3.0 Claude Code・Codex Pluginは`UserPromptSubmit`からSession単位のHost brokerを起動し、`PreToolUse`でReview-onlyを強制します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収します。ローカルCursor Desktop PluginはNativeな`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`、`stop`を同じActive-run維持規則で使用します。Host Eventが不足・不正な場合はSocratic開始前にFail-closedで停止します。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。現行Lifecycle coverageで同じ保証を確立できないCursor CLI、Remote Workspace、Cloud Agentは対象外です。
+v0.3.0 Claude Code・Codex Pluginは、Socratic、Maieutic、Elenchusの明示的な起動時に`UserPromptSubmit`からSession単位のHost brokerを起動し、`PreToolUse`でReview-onlyを強制します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収し、broker死亡後に残った期限切れStateは次のHost Eventで削除します。TTL前に異常終了したbrokerは、次の明示PromptがSessionを置き換えるまでFail-closedを維持します。ローカルCursor Desktop PluginはNativeな`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`、`stop`を同じActive-run維持規則で使用します。Host Eventが不足・不正な場合はSocratic開始前にFail-closedで停止します。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。現行Lifecycle coverageで同じ保証を確立できないCursor CLI、Remote Workspace、Cloud Agentは対象外です。
+
+Hook-host実行中のShellによる証拠収集は、Guarded Runnerと明示的にParseされるLocal Git Commandに限定します。Git Commandは`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`も付けます。Shell合成、出力Path、Remote Archive、Repository Path Override、Git設定Overrideは拒否します。
 
 各Live Host SessionはHost Storage配下にPrivateな`artifact_root`を1つ作成する。Write Toolはその配下にだけContract、Report、Reviewを作成できる。Primary、Disposable Sandbox、Manifest／Ledger、任意のTemporary Directory、他Repository、User設定、Plugin CodeへのPathは引き続き拒否する。`apply_patch`は宣言された全PathがAbsoluteで、同じArtifact Root配下へResolveされる場合だけ受理する。Artifact Writeは意図的にMutation Ledger Headを変更しないため、Primary保護を弱めずにReport／Ledgerの循環依存を解消する。
 

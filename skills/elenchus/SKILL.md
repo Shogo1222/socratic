@@ -13,7 +13,7 @@ Read [references/mutation-design.md](references/mutation-design.md) before gener
 
 ## Git safety boundary
 
-Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. Never change local or remote Git state. Never run any staging, commit, amend, push, pull, fetch, checkout, switch, reset, stash, merge, rebase, cherry-pick, branch, tag, or worktree operation. Never invoke `gh` or a code-host write API. Do not request permission to perform a prohibited operation.
+Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`. Never change local or remote Git state. Never run any staging, commit, amend, push, pull, fetch, checkout, switch, reset, stash, merge, rebase, cherry-pick, branch, tag, or worktree operation. Never invoke `gh` or a code-host write API. Do not request permission to perform a prohibited operation.
 
 Materialize Base and Head as disposable filesystem snapshots without branch switching or Git worktrees. If the required object is unavailable locally and obtaining it would require `fetch`, stop and report the snapshot as unavailable.
 

@@ -88,7 +88,10 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertEqual(decision, {"continue": True})
 
     def test_slash_and_case_variants_are_intercepted(self) -> None:
-        for prompt in ("/socratic 日本語で PR438", "Use $SoCrAtIc for this review"):
+        for prompt in (
+            "/socratic 日本語で PR438", "Use $SoCrAtIc for this review",
+            "$maieutic confirm intent", "/elenchus assess tests",
+        ):
             with self.subTest(prompt=prompt):
                 self.assertEqual(
                     self.hook.evaluate(
@@ -130,7 +133,7 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertEqual(module.evaluate(self.fixture["hook_input"]), expected)
         self.assertEqual(module.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": "hello"}), {})
         manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.3.0-alpha.5")
+        self.assertEqual(manifest["version"], "0.3.0-alpha.6")
         hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
         self.assertIn("${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py", command)

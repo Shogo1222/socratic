@@ -73,7 +73,7 @@ Apply testsでは、引き渡しPatchのHashとすべての本番・テストPre
 
 ## Git安全境界
 
-ローカルGitは、厳密に読み取り専用の根拠収集とImmutable Snapshotの出力にだけ使う。許可するコマンドは`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`に限定する。Host提供のDiffまたは展開済みのBase・Head Snapshotがある場合はそちらを優先する。
+ローカルGitは、厳密に読み取り専用の根拠収集とImmutable Snapshotの出力にだけ使う。許可するコマンドは`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`に限定する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。Host提供のDiffまたは展開済みのBase・Head Snapshotがある場合はそちらを優先する。
 
 ローカルまたはRemoteのGit状態を決して変更しない。`git add`、`commit`、`amend`、`push`、`pull`、`fetch`、`checkout`、`switch`、`reset`、`stash`、`merge`、`rebase`、`cherry-pick`、`branch`、`tag`、`worktree`を実行せず、Pull Requestを作成せず、Code Hostへコメントを投稿しない。`gh`またはCode HostのWrite APIを呼び出さない。禁止操作の許可を求めない。許可されたWorking Treeのテスト・ドキュメント変更、Review Artifact、Copy-ready Commentを作成した時点で停止し、Version Control操作はすべてユーザーへ残す。
 
@@ -87,7 +87,7 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 
 ### Review-onlyの必須Entry Point
 
-Native Host IntegrationがTrusted Preflightを完了した後だけ、このWorkflowへ入る。Claude Code Terminalでは`/socratic:socratic`、Codexまたは対応するローカルCursor Desktop Workspaceでは`$socratic`を実行する。各Host PluginはSkillの実行前にLive brokerを自動起動し、正確なPreflight Commandを注入してTool Gateを有効化する。実行中ManifestはTurn間で維持し、完了・Abort・Idle時にSessionをCleanupする。注入されたCommandを捏造・変更しない。Standalone Skill Installと未対応のCursor CLI、Remote、Cloud Surfaceは準拠Entry Pointではない。
+Native Host IntegrationがTrusted Preflightを完了した後だけ、このWorkflowへ入る。Claude Code TerminalではMarketplace Commandとして表示される`/socratic`、Codexまたは対応するローカルCursor Desktop Workspaceでは`$socratic`を実行する。`$maieutic`と`$elenchus`の直接起動にも同じHost Gateを使う。各Host PluginはSkillの実行前にLive brokerを自動起動し、正確なPreflight Commandを注入してTool Gateを有効化する。実行中ManifestはTurn間で維持し、完了・Abort・Idle・broker stale時にSessionをCleanupする。注入されたCommandを捏造・変更しない。Standalone Skill Installと未対応のCursor CLI、Remote、Cloud Surfaceは準拠Entry Pointではない。
 
 すべてのReview-only Mutation Runは、信頼されたHost Adapterによる`preflight_with_host`、各`mutate`または`register_prebuilt`、BaselineとMutation ID付き`execute`、`finish`を必ず使用する。Standalone CLIはReady Runを作れず、自己申告Attestation JSONを受理しない。Host Adapter、Schema、またはHostがAttestしたRead-only/Write-monitor CapabilityがなければMutation前に`blocked`で停止する。Schema v7の`verified: true`は、Runnerが信頼するHostのAttestationを受理したことを意味し、Runner自身がOS境界を独立検証したという意味ではない。手作業の近似、Primary変更後の復元、`execute`外のCommand、手書きArtifactや4ブロックを正規Runとして提示しない。
 

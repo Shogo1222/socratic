@@ -65,7 +65,7 @@ A/B、または別の期待仕様を回答してください。
 
 ## Git安全境界
 
-ローカルGitは、厳密に読み取り専用の根拠収集とImmutable Snapshotの出力にだけ使う。許可するコマンドは`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`に限定し、Host提供の変更Contextがあれば優先する。
+ローカルGitは、厳密に読み取り専用の根拠収集とImmutable Snapshotの出力にだけ使う。許可するコマンドは`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`に限定する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。Host提供の変更Contextがあれば優先する。
 
 ローカルまたはRemoteのGit状態を決して変更しない。Stage、Commit、Amend、Push、Pull、Fetch、Branchの作成・切替、Checkout、Reset、Stash、Merge、Rebase、Cherry-pick、Tag、Worktreeの追加・削除を行わない。`gh`またはCode HostのWrite APIを呼び出さず、レビューコメントを投稿しない。禁止操作の許可を求めず、Version Control操作はすべてユーザーへ残す。
 

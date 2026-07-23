@@ -19,7 +19,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.5"
+SOCRATIC_VERSION = "0.3.0-alpha.6"
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -375,11 +375,17 @@ def execute(
             timeout=timeout_seconds, check=False,
         )
     except subprocess.TimeoutExpired as error:
+        _append_event(manifest, {
+            "run_id": manifest["run_id"], "kind": "command", "phase": phase,
+            "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
+            "result": "timeout", "returncode": None, "environment": manifest["environment"],
+        })
         raise RunGateError(f"sandbox command timed out after {timeout_seconds}s") from error
     _append_event(manifest, {
         "run_id": manifest["run_id"], "kind": "command", "phase": phase,
         "mutation_id": mutation_id, "argv": command, "timeout_seconds": timeout_seconds,
-        "returncode": completed.returncode, "environment": manifest["environment"],
+        "result": "completed", "returncode": completed.returncode,
+        "environment": manifest["environment"],
     })
     return completed.returncode
 
@@ -413,14 +419,48 @@ def finish_document(
             executions.setdefault(item["mutation_id"], []).append(item)
     if not baselines:
         raise RunGateError("run has no baseline execution evidence")
+    baseline = report.get("baseline", {})
+    if baseline.get("attempts") != len(baselines):
+        raise RunGateError("report baseline attempts do not match baseline execution evidence")
+    baseline_results = [item.get("result", "completed") for item in baselines]
+    baseline_codes = [item.get("returncode") for item in baselines]
+    baseline_status = baseline.get("status")
+    if baseline_status == "green" and (
+        any(result != "completed" for result in baseline_results)
+        or any(code != 0 for code in baseline_codes)
+    ):
+        raise RunGateError("green baseline does not match successful execution evidence")
+    if baseline_status == "baseline-red" and not any(
+        result == "completed" and code != 0
+        for result, code in zip(baseline_results, baseline_codes)
+    ):
+        raise RunGateError("baseline-red does not match failing execution evidence")
+    if baseline_status == "not-runnable" and not any(
+        result == "timeout" for result in baseline_results
+    ):
+        raise RunGateError("not-runnable baseline has no timeout execution evidence")
+    if baseline_status == "flaky-reduced" and not (
+        any(result == "completed" and code == 0 for result, code in zip(baseline_results, baseline_codes))
+        and baseline.get("excluded_tests")
+    ):
+        raise RunGateError("flaky-reduced baseline lacks a green execution and excluded tests")
     if set(mutations) != registered or set(mutations) != set(executions):
         raise RunGateError("every reported mutation requires guarded mutation and execution evidence")
     for mutation_id, mutation in mutations.items():
-        returncodes = [item["returncode"] for item in executions[mutation_id]]
-        if mutation["result"] == "killed" and not any(code != 0 for code in returncodes):
+        mutation_executions = executions[mutation_id]
+        completed_codes = [
+            item.get("returncode") for item in mutation_executions
+            if item.get("result", "completed") == "completed"
+        ]
+        timed_out = any(item.get("result") == "timeout" for item in mutation_executions)
+        if mutation["result"] == "killed" and not any(code != 0 for code in completed_codes):
             raise RunGateError(f"killed mutation has no failing execution: {mutation_id}")
-        if mutation["result"] == "survived" and any(code != 0 for code in returncodes):
+        if mutation["result"] == "survived" and (
+            timed_out or not completed_codes or any(code != 0 for code in completed_codes)
+        ):
             raise RunGateError(f"survived mutation has a failing execution: {mutation_id}")
+        if mutation["result"] == "timeout" and not timed_out:
+            raise RunGateError(f"timeout mutation has no timeout execution: {mutation_id}")
     isolation = report.get("isolation", {})
     if isolation.get("primary_root") != manifest["primary_root"] or isolation.get("sandbox_root") != manifest["sandbox_root"]:
         raise RunGateError("report roots differ from trusted host preflight")
