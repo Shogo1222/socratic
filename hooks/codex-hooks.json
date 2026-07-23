@@ -1,12 +1,26 @@
 {
-  "description": "Stop Socratic requests before the Codex agent starts when no native trusted Host Adapter is available.",
+  "description": "Start and enforce the native trusted Socratic Host for explicit Codex requests.",
   "hooks": {
     "UserPromptSubmit": [{
       "hooks": [{
         "type": "command",
-        "command": "python3 \"$PLUGIN_ROOT/hooks/socratic_preflight.py\"",
+        "command": "python3 \"$PLUGIN_ROOT/hooks/codex_preflight.py\"",
         "timeout": 10,
         "statusMessage": "Checking the trusted Socratic Host capability"
+      }]
+    }],
+    "PreToolUse": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$PLUGIN_ROOT/hooks/codex_tool_gate.py\"",
+        "timeout": 10
+      }]
+    }],
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$PLUGIN_ROOT/hooks/codex_cleanup.py\"",
+        "timeout": 10
       }]
     }]
   }

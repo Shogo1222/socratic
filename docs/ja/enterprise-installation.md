@@ -41,8 +41,8 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 31 -->
-Standalone Skill配布物は21個のUTF-8 Text Fileで、そのうち3個はPython Source Helperです。Codex Plugin Bundleは同じ21個のSkill File、1個のPlugin Manifest、2個のHost Hook Fileからなる24個のUTF-8 Text Fileです。HelperにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。配布Auditの「実行可能」拒否は、具体的にはPOSIXの`0o111` Execute-bit Maskを検査します。配布物にBinaryやSymbolic Linkは含まれません。PreviewをReleaseのManifestとChecksumと比較してください。
+<!-- socratic-plugin-file-count: 40 -->
+Standalone Skill配布物は21個のUTF-8 Text Fileで、そのうち3個はPython Source Helperです。Multi-Host Plugin BundleはClaude Code・Codex・ローカルCursor Desktop統合を含む40個のUTF-8 Text Fileです。HelperにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。配布Auditの「実行可能」拒否は、具体的にはPOSIXの`0o111` Execute-bit Maskを検査します。配布物にBinaryやSymbolic Linkは含まれません。PreviewをReleaseのManifestとChecksumと比較してください。
 
 Managed Codex導入では、ユーザーが変更できるPlugin Hook Trustへ依存しません。OS管理のAbsolute PathからPre-agent Gateを`requirements.toml`で配布し、`[features].hooks = true`を強制し、`allow_managed_hooks_only = true`を設定してください。対象環境でManaged Host IntegrationとReady-run Capability Pathを検証するまで、v0.3.0 Alphaを完成扱いにしません。
 

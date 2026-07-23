@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Contract tests for the local Cursor Desktop Plugin Host integration."""
+
+import importlib.util
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class CursorHostTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.host = load("socratic_cursor_shared_host", ROOT / "scripts/claude_host.py")
+        cls.hook = load("socratic_cursor_preflight", ROOT / "hooks/cursor_preflight.py")
+        cls.gate = load("socratic_cursor_gate", ROOT / "hooks/cursor_tool_gate.py")
+        cls.runner = load("socratic_cursor_runner", ROOT / "skills/socratic/scripts/run_review.py")
+
+    def test_local_desktop_run_issues_grant_and_denies_primary_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            (repository / "source.py").write_text("value = 1\n", encoding="utf-8")
+            session_id = "cursor-local-fixture"
+            try:
+                decision = self.hook.evaluate({
+                    "hook_event_name": "beforeSubmitPrompt",
+                    "prompt": "$socratic review",
+                    "conversation_id": session_id,
+                    "workspace_roots": [str(repository)],
+                })
+                self.assertTrue(decision["continue"])
+                self.assertIn("Trusted Socratic Host is ready", decision["agent_message"])
+                state = self.host.load_session(session_id)
+                adapter = self.runner.ClaudeSocketHostAdapter(
+                    Path(state["socket_path"]), state["token"]
+                )
+                manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
+                self.assertEqual(manifest["host"]["adapter_id"], "cursor-desktop-hook-host-v1")
+                denied = self.gate.evaluate({
+                    "hook_event_name": "preToolUse",
+                    "conversation_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": str(repository / "source.py")},
+                })
+                self.assertEqual(denied["permission"], "deny")
+                denied_shell = self.gate.evaluate({
+                    "hook_event_name": "beforeShellExecution",
+                    "conversation_id": session_id,
+                    "command": "npm test",
+                })
+                self.assertEqual(denied_shell["permission"], "deny")
+                allowed_runner = self.gate.evaluate({
+                    "hook_event_name": "beforeShellExecution",
+                    "conversation_id": session_id,
+                    "command": "python3 /plugin/skills/socratic/scripts/run_review.py preflight",
+                })
+                self.assertEqual(allowed_runner["permission"], "allow")
+                self.runner.abort(manifest_path)
+            finally:
+                self.host.cleanup_session(session_id)
+
+    def test_unsupported_or_malformed_socratic_surface_fails_closed(self) -> None:
+        decision = self.hook.evaluate({
+            "hook_event_name": "beforeSubmitPrompt",
+            "prompt": "$socratic review",
+            "conversation_id": "missing-workspace",
+        })
+        self.assertFalse(decision["continue"])
+        self.assertIn("blocked", decision["agent_message"])
+
+    def test_manifest_declares_desktop_hooks(self) -> None:
+        manifest = json.loads((ROOT / ".cursor-plugin/plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["name"], "socratic")
+        self.assertEqual(manifest["hooks"], "./hooks/cursor-hooks.json")
+        hooks = json.loads((ROOT / "hooks/cursor-hooks.json").read_text(encoding="utf-8"))
+        self.assertTrue(hooks["hooks"]["beforeSubmitPrompt"][0]["failClosed"])
+        self.assertTrue(hooks["hooks"]["preToolUse"][0]["failClosed"])
+        self.assertTrue(hooks["hooks"]["beforeShellExecution"][0]["failClosed"])
+
+
+if __name__ == "__main__":
+    unittest.main()

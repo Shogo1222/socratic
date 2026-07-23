@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "python3 \"${CURSOR_PLUGIN_ROOT}/hooks/cursor_preflight.py\"",
+        "timeout": 10,
+        "failClosed": true
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "python3 \"${CURSOR_PLUGIN_ROOT}/hooks/cursor_tool_gate.py\"",
+        "timeout": 10,
+        "failClosed": true
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "python3 \"${CURSOR_PLUGIN_ROOT}/hooks/cursor_tool_gate.py\"",
+        "timeout": 10,
+        "failClosed": true
+      }
+    ],
+    "stop": [
+      {
+        "command": "python3 \"${CURSOR_PLUGIN_ROOT}/hooks/cursor_cleanup.py\"",
+        "timeout": 10
+      }
+    ]
+  }
+}

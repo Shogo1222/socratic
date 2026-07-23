@@ -1,0 +1,20 @@
+{
+  "name": "socratic-marketplace",
+  "interface": {
+    "displayName": "Socratic"
+  },
+  "plugins": [
+    {
+      "name": "socratic",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -61,9 +61,28 @@ v0.3.0 Integration Previewでは、RepositoryをClaude Code Marketplaceとして
 
 `/hooks`で同梱HookをReview・Trustしてから新しいThreadを開始してください。Hookが未Trust、無効、利用不能な場合はSocraticを使用しません。Plugin HookのTrustはユーザーが変更できます。解除不能な境界が必要な組織は、同じGateを`requirements.toml`とOS・Device ManagementによるManaged Hookとして配布する必要があります。
 
-### Codex・Cursor
+### Codex
 
-Standalone Agent SkillはCodexまたはCursor向けにのみInstallします。Maieutic・Elenchus開発に利用できますが、`$socratic`だけをInstallしてもPre-agent Safety Boundaryにはなりません。
+Codex Marketplaceを追加し、PluginをInstallして、同梱Hookを`/hooks`でReview・Trustします。
+
+```bash
+codex plugin marketplace add Shogo1222/socratic
+codex plugin add socratic@socratic-marketplace
+
+# 公開UpdateのInstall前にMarketplace Snapshotを更新
+codex plugin marketplace upgrade socratic-marketplace
+codex plugin add socratic@socratic-marketplace
+```
+
+信頼済みのローカルGit Repositoryで`$socratic`を実行します。Codex PluginもSession単位のHost brokerを自動起動し、`PreToolUse`でPrimaryへの直接Writeと未GuardのCommandを拒否し、`Stop`でHost stateをCleanupします。
+
+### Cursor Desktop
+
+Repositoryには`.cursor-plugin/`配下のNative Cursor Pluginも含まれます。Cursor DesktopへLocal PluginとしてInstallし、WindowをReloadしてから`$socratic`を実行します。Pluginは`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`をFail-closedで使用します。現行Hook coverageでは同じ境界を証明できないため、Cursor CLI、Remote Workspace、Cloud Agentはサポートしません。Cursor Marketplaceからの公開Installは、Cursor側の別途Submission審査を通過するまで利用できません。
+
+### Standalone Maieutic・Elenchus
+
+Standalone Agent SkillはCodexまたはCursorでMaieutic・Elenchus開発に利用できますが、準拠した`$socratic` Entry Pointではありません。
 
 ```bash
 # 対話式でSkillと導入先のCodexまたはCursorを選ぶ
@@ -73,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.5
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。
@@ -82,7 +101,7 @@ gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
 npx skills add Shogo1222/socratic --skill '*'
 ```
 
-Standalone分析では`$maieutic`または`$elenchus`を直接実行します。`$socratic`は、そのHostに統合Workflowが要求する信頼済みPre-agent Boundaryが実装されるまでFail-closedを維持します。
+Standalone分析では`$maieutic`または`$elenchus`を直接実行します。統合`$socratic` Workflowには上記の各Host Pluginを使用します。
 
 必須Review Runnerには、Python 3の`jsonschema`と`referencing`が必要です。
 

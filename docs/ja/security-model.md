@@ -7,8 +7,8 @@
 ## 配布物
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 31 -->
-Standalone Skill配布物は3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。v0.3.0 Codex Plugin Bundleは、それらにPlugin Manifestと2個のHost Hook Fileを加えた合計24個のUTF-8 Text Fileです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
+<!-- socratic-plugin-file-count: 40 -->
+Standalone Skill配布物は3つのSkill Directoryにある21個のUTF-8 Text Fileで構成され、そのうち3個は同梱Python Source Helperです。v0.3.0 Multi-Host Plugin Bundleは、これらのSkillにClaude Code・Codex・CursorのManifest、Marketplace、Host Hook、共通Brokerを加えた合計40個のUTF-8 Text Fileです。Python FileにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。CIの実行可能File拒否はPOSIXの`0o111` Execute-bit Maskを検査し、予期しないFile、許可されていない拡張子、Symbolic Link、Binary、未承認の外部Hostも拒否します。Release AssetにはManifestとSHA-256 Checksumが含まれます。
 
 RepositoryにはSkill配布物に加えて、文書、CI Script、実行可能デモがあります。SkillのInstallでは、それらのRepository Level FileはInstallされません。
 
@@ -28,7 +28,7 @@ Schema v7との互換性のため、JSON Field名`verified`は維持します。
 
 ## Agent開始前のHost Gate
 
-v0.3.0 Codex Pluginは`UserPromptSubmit` Lifecycle Hookを同梱します。NativeなTrusted Host Adapterがない場合、明示的な`$socratic`または`/socratic` RequestをModel開始前に停止します。Hookが読むのは標準入力のHost Eventだけで、Repositoryは調査しません。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。
+v0.3.0 Claude Code・Codex Pluginは`UserPromptSubmit`からSession単位のHost brokerを起動し、`PreToolUse`でReview-onlyを強制し、`Stop`でCleanupします。ローカルCursor Desktop PluginはNativeな`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`、`stop`を使用します。Host Eventが不足・不正な場合はSocratic開始前にFail-closedで停止します。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。現行Lifecycle coverageで同じ保証を確立できないCursor CLI、Remote Workspace、Cloud Agentは対象外です。
 
 このPlugin HookがNo-Host経路を閉じるのは、ユーザーがHookをReview・Trustした後だけです。通常のPlugin Hookはユーザーが無効化でき、特殊なHosted ToolはLocal Tool Hookを通らない可能性があります。迂回不能なPolicyが必要な組織は、`requirements.toml`でHookを強制有効化したManaged Hookを使い、Hook実装をOS管理Directoryへ配置し、Unmanaged Hook Sourceを拒否する必要があります。Skill指示、MCP Tool、User-trusted Plugin Hookだけでは完全なHost Security Boundaryになりません。
 

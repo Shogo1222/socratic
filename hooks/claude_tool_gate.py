@@ -39,7 +39,7 @@ def evaluate(payload: Any) -> dict[str, Any]:
         return {}
     tool = payload.get("tool_name")
     tool_input = payload.get("tool_input", {})
-    if tool in {"Edit", "Write", "NotebookEdit"}:
+    if tool in {"Edit", "Write", "NotebookEdit", "apply_patch"}:
         return _deny("Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox")
     if tool == "Bash":
         command = tool_input.get("command") if isinstance(tool_input, dict) else None

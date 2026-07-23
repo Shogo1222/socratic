@@ -114,7 +114,9 @@ class PluginHostGateTest(unittest.TestCase):
         hooks = json.loads((ROOT / "hooks/codex-hooks.json").read_text(encoding="utf-8"))
         groups = hooks["hooks"]["UserPromptSubmit"]
         self.assertEqual(len(groups), 1)
-        self.assertIn("$PLUGIN_ROOT/hooks/socratic_preflight.py", groups[0]["hooks"][0]["command"])
+        self.assertIn("$PLUGIN_ROOT/hooks/codex_preflight.py", groups[0]["hooks"][0]["command"])
+        self.assertIn("PreToolUse", hooks["hooks"])
+        self.assertIn("Stop", hooks["hooks"])
 
     def test_claude_plugin_uses_native_block_schema(self) -> None:
         spec = importlib.util.spec_from_file_location("claude_preflight_hook", CLAUDE_HOOK)
@@ -128,7 +130,7 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertEqual(module.evaluate(self.fixture["hook_input"]), expected)
         self.assertEqual(module.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": "hello"}), {})
         manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.3.0-alpha.4")
+        self.assertEqual(manifest["version"], "0.3.0-alpha.5")
         hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
         self.assertIn("${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py", command)

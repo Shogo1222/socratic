@@ -61,9 +61,28 @@ Then start Claude normally in a trusted Git repository and invoke `/socratic:soc
 
 Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
 
-### Codex and Cursor
+### Codex
 
-Install the standalone Agent Skills only for Codex or Cursor. They remain available for Maieutic and Elenchus development, but installing `$socratic` alone does not provide the pre-agent safety boundary:
+Add the Codex marketplace, install the Plugin, and review its bundled hooks through `/hooks`:
+
+```bash
+codex plugin marketplace add Shogo1222/socratic
+codex plugin add socratic@socratic-marketplace
+
+# refresh the Marketplace snapshot before installing a published update
+codex plugin marketplace upgrade socratic-marketplace
+codex plugin add socratic@socratic-marketplace
+```
+
+Invoke `$socratic` in a trusted local Git repository. The Codex Plugin starts the same session-scoped Host broker, denies direct Primary writes and unguarded commands through `PreToolUse`, and cleans the Host state on `Stop`.
+
+### Cursor Desktop
+
+The repository also contains a native Cursor Plugin under `.cursor-plugin/`. Install it as a local Plugin in Cursor Desktop and reload the window before invoking `$socratic`. The Plugin uses fail-closed `beforeSubmitPrompt`, `preToolUse`, and `beforeShellExecution` hooks. Cursor CLI, remote workspaces, and cloud agents are not supported because their current hook coverage cannot establish the same boundary. Public Cursor Marketplace installation remains unavailable until the Plugin has passed Cursor's separate submission process.
+
+### Standalone Maieutic and Elenchus
+
+Standalone Agent Skills remain available for Maieutic and Elenchus development in Codex or Cursor, but they are not the compliant `$socratic` entrypoint:
 
 ```bash
 # choose skills and install them for Codex or Cursor interactively
@@ -73,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.5
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
@@ -82,7 +101,7 @@ Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target
 npx skills add Shogo1222/socratic --skill '*'
 ```
 
-Invoke `$maieutic` or `$elenchus` directly for standalone analysis. `$socratic` remains fail-closed until that host provides the trusted pre-agent boundary required by the integration workflow.
+Invoke `$maieutic` or `$elenchus` directly for standalone analysis. Use each Host's Plugin above for the integrated `$socratic` workflow.
 
 The mandatory review runner requires Python 3 with `jsonschema` and `referencing`:
 

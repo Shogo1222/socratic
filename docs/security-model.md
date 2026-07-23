@@ -7,8 +7,8 @@ This document explains the intended security boundaries of Socratic, Maieutic, a
 ## Distribution
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 31 -->
-The standalone Skill distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The v0.3.0 Codex Plugin bundle contains those files plus its manifest and two Host-hook files, for exactly 24 UTF-8 text files. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
+<!-- socratic-plugin-file-count: 40 -->
+The standalone Skill distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The v0.3.0 multi-Host Plugin bundle contains exactly 40 UTF-8 text files: those Skills plus Claude Code, Codex, and Cursor manifests, marketplaces, Host hooks, and the shared broker. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
 
 The repository contains documentation, CI scripts, and executable demos in addition to the skill distribution. Installing a skill does not install those repository-level files.
 
@@ -28,7 +28,7 @@ Schema v7 retains the JSON field name `verified` for compatibility. In protectio
 
 ## Pre-agent Host gate
 
-The v0.3.0 Codex Plugin bundles a `UserPromptSubmit` lifecycle hook. Explicit `$socratic` or `/socratic` requests are stopped before the model starts when no native trusted Host Adapter is available. The hook reads only the Host event on standard input; it does not inspect the repository. Implicit Socratic invocation is disabled so every supported invocation is identifiable at this boundary.
+The v0.3.0 Claude Code and Codex Plugins start a session-scoped Host broker from `UserPromptSubmit`, enforce Review-only through `PreToolUse`, and clean it on `Stop`. The local Cursor Desktop Plugin uses its native `beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, and `stop` events. A missing or malformed Host event fails closed before Socratic runs. Implicit Socratic invocation is disabled so every supported invocation is identifiable at this boundary. Cursor CLI, remote workspaces, and cloud agents are excluded because their current lifecycle coverage cannot establish the same guarantee.
 
 This plugin hook closes the no-Host path only after the user has reviewed and trusted it. A user can disable a normal plugin hook, and specialized hosted tools may not pass through local tool hooks. Organizations that require a non-bypassable policy must deploy a managed hook with hooks forced on through `requirements.toml`, keep the hook implementation in an OS-managed directory, and deny unmanaged hook sources. A Skill instruction, an MCP tool, or a user-trusted Plugin hook alone is not a complete Host security boundary.
 

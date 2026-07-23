@@ -25,7 +25,13 @@ def session_root(session_id: str) -> Path:
     return SESSION_ROOT / hashlib.sha256(session_id.encode()).hexdigest()[:20]
 
 
-def prepare_session(session_id: str, primary: Path) -> dict[str, str]:
+def prepare_session(
+    session_id: str,
+    primary: Path,
+    *,
+    adapter_id: str = "claude-code-hook-host-v1",
+    host_name: str = "Claude Code",
+) -> dict[str, str]:
     primary = primary.resolve(strict=True)
     if not (primary / ".git").exists():
         raise RuntimeError("Socratic must start at a Git repository root")
@@ -40,12 +46,12 @@ def prepare_session(session_id: str, primary: Path) -> dict[str, str]:
         "primary_root": str(primary),
         "socket_path": str(root / "host.sock"),
         "token": secrets.token_urlsafe(48),
-        "adapter_id": "claude-code-hook-host-v1",
+        "adapter_id": adapter_id,
         "run_id": secrets.token_hex(16),
         "run_nonce": secrets.token_urlsafe(48),
         "storage_root": str(storage),
         "protection_mode": "host-events",
-        "protection_details": "Claude Code PreToolUse gate denies Primary writes and unguarded execution",
+        "protection_details": f"{host_name} tool gate denies Primary writes and unguarded execution",
     }
     state_path = root / "state.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
