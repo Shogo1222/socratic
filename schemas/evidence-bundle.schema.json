@@ -39,6 +39,40 @@
         "stdout": { "$ref": "#/$defs/output" },
         "stderr": { "$ref": "#/$defs/output" }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "outcome": { "const": "passed" } },
+            "required": ["outcome"]
+          },
+          "then": {
+            "properties": {
+              "exit_code": { "const": 0 },
+              "failed_tests": { "type": "array", "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "outcome": { "const": "failed" } },
+            "required": ["outcome"]
+          },
+          "then": {
+            "properties": {
+              "exit_code": { "type": "integer", "not": { "const": 0 } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": { "enum": ["timeout", "runner-error"] }
+            },
+            "required": ["outcome"]
+          },
+          "then": { "properties": { "exit_code": { "type": "null" } } }
+        }
+      ],
       "additionalProperties": false
     }
   },
@@ -99,7 +133,6 @@
     "baseline": { "$ref": "#/$defs/execution" },
     "mutations": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["id", "changes", "execution"],

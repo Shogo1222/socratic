@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Socratic Evidence Interpretation",
   "type": "object",
-  "required": ["version", "interpretations", "canonical_review"],
+  "required": ["version", "interpretations"],
   "properties": {
     "version": { "const": 1 },
     "interpretations": {

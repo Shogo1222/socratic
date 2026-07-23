@@ -86,6 +86,26 @@ class ClaudeHostTest(unittest.TestCase):
                     "tool_input": {"file_path": str(challenge_plan)},
                 })
                 self.assertEqual(allowed_challenge_plan, {})
+                experiment_plan = Path(state["artifact_root"]) / "experiment-plan.json"
+                self.assertEqual(self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": str(experiment_plan)},
+                }), {})
+                denied_self_asserted_evidence = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write", "tool_input": {
+                        "file_path": str(
+                            Path(state["artifact_root"]) / "evidence-bundle.json"
+                        )
+                    },
+                })
+                self.assertEqual(
+                    denied_self_asserted_evidence["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                    "deny",
+                )
                 denied_arbitrary_artifact = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write", "tool_input": {

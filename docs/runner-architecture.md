@@ -24,9 +24,9 @@ The prototype does not implement signing. Its `local-copy` evidence must contain
 
 ## D3: typed mutation limits
 
-One mutation contains explicitly listed target paths with preimage hashes and ordered operations. The prototype permits at most four files per mutation and eight operations per file. Absolute paths, backslashes, parent traversal, globs, arbitrary Python, arbitrary shell, binaries, and symlinks are rejected by later Runner validation.
+One mutation contains explicitly listed target paths, preimage identity, and ordered operations. The prototype permits at most four files per mutation and eight operations per file. Use `runner-computed` when the Runner owns Source materialization; use an explicit SHA-256 only to pin a previously observed preimage. Absolute paths, backslashes, parent traversal, globs, arbitrary Python, arbitrary shell, binaries, and symlinks are rejected by Runner validation.
 
-The prototype operations are `replace-exact` and `delete-exact`. Both require one unique, exact preimage match. Schema validation is necessary but not sufficient; the Runner must resolve paths, reject symlinks, verify hashes immediately before writing, and enforce bounded aggregate change size.
+The prototype operations are `replace-exact` and `delete-exact`. Both require one unique, exact text match. Schema validation is necessary but not sufficient; the Runner resolves paths, rejects symlinks, verifies an explicit hash immediately before writing, records the actual preimage and postimage hashes, and enforces bounded aggregate change size.
 
 ## D4: Run and round lifecycle
 
@@ -50,6 +50,8 @@ A compliant `isolated-host` backend must:
 
 Dependency downloads, when later supported, occur only in a separate Host-approved preparation phase without production credentials and with a fixed lockfile. Canonical Review remains unavailable until a conforming backend emits signed `attested: true` evidence.
 
-## Prototype completion signal
+## Implemented prototype
 
-The prototype is working when one Plan call creates a local copy, runs a full Python unittest baseline, applies typed mutations to fresh copies, returns deterministic raw Evidence in Plan order, and removes all disposable workspaces. It must never render that evidence as a canonical Socratic review.
+`run_review.py assess` now performs one complete local experiment: it computes Source identity, creates a prepared copy, runs a full Python unittest baseline in a separate copy, applies each typed mutation to another fresh copy, returns raw Evidence in Plan order, and removes all disposable workspaces in a `finally` path. Baseline failure stops mutation execution. Environment credentials and `SOCRATIC_*` values are omitted from test processes.
+
+This path is deliberately not an isolation or authenticity claim: `local-copy` cannot disable network or establish an OS boundary. Its Evidence is always unsigned and must never be rendered as a canonical Socratic review.
