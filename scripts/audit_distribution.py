@@ -41,6 +41,8 @@ EXPECTED_PLUGIN_FILES = (
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
     "hooks/claude_preflight.py",
+    "hooks/claude_tool_gate.py",
+    "hooks/claude_cleanup.py",
     "hooks/codex-hooks.json",
     "hooks/hooks.json",
     "hooks/socratic_preflight.py",

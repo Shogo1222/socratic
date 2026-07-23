@@ -10,9 +10,94 @@ import secrets
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
+import time
+import hashlib
 from pathlib import Path
+
+
+SESSION_ROOT = Path("/tmp/socratic-sessions")
+
+
+def session_root(session_id: str) -> Path:
+    return SESSION_ROOT / hashlib.sha256(session_id.encode()).hexdigest()[:20]
+
+
+def prepare_session(session_id: str, primary: Path) -> dict[str, str]:
+    primary = primary.resolve(strict=True)
+    if not (primary / ".git").exists():
+        raise RuntimeError("Socratic must start at a Git repository root")
+    root = session_root(session_id)
+    if root.exists():
+        cleanup_session(session_id)
+    root.mkdir(parents=True, mode=0o700)
+    storage = root / "host-storage"
+    storage.mkdir(mode=0o700)
+    state = {
+        "session_id": session_id,
+        "primary_root": str(primary),
+        "socket_path": str(root / "host.sock"),
+        "token": secrets.token_urlsafe(48),
+        "adapter_id": "claude-code-hook-host-v1",
+        "run_id": secrets.token_hex(16),
+        "run_nonce": secrets.token_urlsafe(48),
+        "storage_root": str(storage),
+        "protection_mode": "host-events",
+        "protection_details": "Claude Code PreToolUse gate denies Primary writes and unguarded execution",
+    }
+    state_path = root / "state.json"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    state_path.chmod(0o600)
+    process = subprocess.Popen(
+        [sys.executable, str(Path(__file__).resolve()), "broker", "--state", str(state_path)],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    state["pid"] = str(process.pid)
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    for _ in range(40):
+        if request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}:
+            return state
+        time.sleep(0.025)
+    cleanup_session(session_id)
+    raise RuntimeError("trusted Host broker did not start")
+
+
+def load_session(session_id: str) -> dict[str, str] | None:
+    try:
+        return json.loads((session_root(session_id) / "state.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+
+
+def cleanup_session(session_id: str) -> None:
+    root = session_root(session_id)
+    state = load_session(session_id)
+    if state and str(state.get("pid", "")).isdigit():
+        try:
+            os.kill(int(state["pid"]), 15)
+        except (OSError, ProcessLookupError):
+            pass
+    shutil.rmtree(root, ignore_errors=True)
+
+
+def run_broker(state_path: Path) -> int:
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    grant = {key: state[key] for key in (
+        "adapter_id", "run_id", "run_nonce", "storage_root",
+        "protection_mode", "protection_details",
+    )}
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(state["socket_path"])
+    server.listen(8)
+    stop = threading.Event()
+    try:
+        _serve(server, state["token"], grant, stop)
+    finally:
+        server.close()
+    return 0
 
 
 def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threading.Event) -> None:
@@ -104,11 +189,16 @@ def launch(primary: Path, plugin: Path, claude: str, extra: list[str]) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    subcommands = parser.add_subparsers(dest="command")
+    broker = subcommands.add_parser("broker")
+    broker.add_argument("--state", required=True, type=Path)
     parser.add_argument("--primary", type=Path, default=Path.cwd())
     parser.add_argument("--plugin", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--claude", default="claude")
     parser.add_argument("claude_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    if args.command == "broker":
+        return run_broker(args.state)
     claude_args = args.claude_args[1:] if args.claude_args[:1] == ["--"] else args.claude_args
     return launch(args.primary, args.plugin, args.claude, claude_args)
 

@@ -48,7 +48,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             count = counts.get(relative, 21)
             path.write_text(
                 f"<!-- socratic-distribution-file-count: {count} -->\n"
-                "<!-- socratic-plugin-file-count: 28 -->\n",
+                "<!-- socratic-plugin-file-count: 30 -->\n",
                 encoding="utf-8",
             )
 
@@ -58,7 +58,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             self.make_documents(root)
             with patch.object(check_repository, "ROOT", root), patch.object(
                 check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 21
-            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 28):
+            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 30):
                 check_repository.check_distribution_documentation()
 
     def test_rejects_expected_files_change_without_documentation_update(self) -> None:
@@ -67,7 +67,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             self.make_documents(root)
             with patch.object(check_repository, "ROOT", root), patch.object(
                 check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 22
-            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 28), redirect_stderr(io.StringIO()):
+            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 30), redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     check_repository.check_distribution_documentation()
 
@@ -80,7 +80,7 @@ class DistributionDocumentationTest(unittest.TestCase):
                 self.make_documents(root, {stale_document: 16})
                 with patch.object(check_repository, "ROOT", root), patch.object(
                     check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 21
-                ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 28), redirect_stderr(io.StringIO()):
+                ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 30), redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit):
                         check_repository.check_distribution_documentation()
 

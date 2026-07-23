@@ -496,6 +496,8 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     pre = commands.add_parser("preflight")
     pre.add_argument("--primary", required=True, type=Path)
+    pre.add_argument("--host-socket", type=Path)
+    pre.add_argument("--host-token")
     mutate_parser = commands.add_parser("mutate")
     mutate_parser.add_argument("--manifest", required=True, type=Path)
     mutate_parser.add_argument("--mutation-id", required=True)
@@ -520,8 +522,13 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "preflight":
         try:
+            adapter = (
+                ClaudeSocketHostAdapter(args.host_socket, args.host_token)
+                if args.host_socket is not None and args.host_token is not None
+                else ClaudeSocketHostAdapter.from_environment()
+            )
             manifest, manifest_path = preflight_with_host(
-                args.primary, ClaudeSocketHostAdapter.from_environment()
+                args.primary, adapter
             )
         except RunGateError:
             print(json.dumps(blocked_preflight(args.primary), sort_keys=True))

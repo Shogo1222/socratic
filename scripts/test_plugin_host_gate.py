@@ -132,6 +132,8 @@ class PluginHostGateTest(unittest.TestCase):
         hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
         self.assertIn("${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py", command)
+        self.assertIn("PreToolUse", hooks["hooks"])
+        self.assertIn("Stop", hooks["hooks"])
 
 
 if __name__ == "__main__":

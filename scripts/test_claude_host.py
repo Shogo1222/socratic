@@ -30,6 +30,7 @@ class ClaudeHostTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.host = load("socratic_claude_host", ROOT / "scripts/claude_host.py")
         cls.hook = load("socratic_claude_hook", ROOT / "hooks/claude_preflight.py")
+        cls.tool_gate = load("socratic_tool_gate", ROOT / "hooks/claude_tool_gate.py")
         cls.runner = load("socratic_runner_host", ROOT / "skills/socratic/scripts/run_review.py")
 
     def test_live_broker_allows_hook_and_issues_runner_grant(self) -> None:
@@ -38,45 +39,46 @@ class ClaudeHostTest(unittest.TestCase):
             repository = root / "repository"
             (repository / ".git").mkdir(parents=True)
             (repository / "source.py").write_text("value = 1\n")
-            storage = root / "storage"
-            storage.mkdir()
-            socket_path = root / "host.sock"
-            token = "t" * 48
-            grant = {
-                "adapter_id": "claude-code-disposable-host-v1",
-                "run_id": "a" * 32,
-                "run_nonce": "n" * 48,
-                "storage_root": str(storage),
-                "protection_mode": "host-events",
-                "protection_details": "fixture disposable workspace",
-            }
-            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            server.bind(str(socket_path))
-            server.listen(4)
-            stop = threading.Event()
-            thread = threading.Thread(
-                target=self.host._serve, args=(server, token, grant, stop), daemon=True
-            )
-            thread.start()
-            environment = {
-                "SOCRATIC_HOST_SOCKET": str(socket_path),
-                "SOCRATIC_HOST_TOKEN": token,
-            }
+            session_id = "automatic-host-fixture"
             try:
-                with patch.dict(os.environ, environment, clear=False):
-                    decision = self.hook.evaluate({
-                        "hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic review"
-                    })
-                    self.assertEqual(decision, {})
-                    adapter = self.runner.ClaudeSocketHostAdapter.from_environment()
-                    manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
-                    self.assertEqual(manifest["status"], "ready")
-                    self.assertEqual(manifest["host"]["adapter_id"], grant["adapter_id"])
-                    self.runner.abort(manifest_path)
+                decision = self.hook.evaluate({
+                    "hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic review",
+                    "session_id": session_id, "cwd": str(repository),
+                })
+                context = decision["hookSpecificOutput"]["additionalContext"]
+                self.assertIn("Trusted Socratic Host is ready", context)
+                state = self.host.load_session(session_id)
+                self.assertIsNotNone(state)
+                adapter = self.runner.ClaudeSocketHostAdapter(
+                    Path(state["socket_path"]), state["token"]
+                )
+                manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
+                self.assertEqual(manifest["status"], "ready")
+                self.assertEqual(manifest["host"]["adapter_id"], "claude-code-hook-host-v1")
+                denied = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Edit", "tool_input": {"file_path": str(repository / "source.py")},
+                })
+                self.assertEqual(
+                    denied["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                denied_bash = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Bash", "tool_input": {"command": "npm test"},
+                })
+                self.assertEqual(
+                    denied_bash["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                allowed_runner = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Bash", "tool_input": {
+                        "command": "python3 /plugin/skills/socratic/scripts/run_review.py preflight"
+                    },
+                })
+                self.assertEqual(allowed_runner, {})
+                self.runner.abort(manifest_path)
             finally:
-                stop.set()
-                server.close()
-                thread.join(timeout=1)
+                self.host.cleanup_session(session_id)
 
     def test_missing_or_wrong_broker_token_stays_blocked(self) -> None:
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic"}
