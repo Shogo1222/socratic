@@ -152,6 +152,21 @@ def check_plugin_gate() -> None:
     )
     if claude_manifest.get("name") != "socratic" or claude_manifest.get("version") != version:
         fail("Claude Plugin identity and version must match VERSION")
+    marketplace = json.loads(
+        (ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8")
+    )
+    if marketplace.get("name") != "socratic-marketplace":
+        fail("Claude Marketplace name must be socratic-marketplace")
+    if marketplace.get("version") != version:
+        fail("Claude Marketplace version must match VERSION")
+    entries = marketplace.get("plugins")
+    if not isinstance(entries, list) or len(entries) != 1:
+        fail("Claude Marketplace must publish exactly one Plugin")
+    entry = entries[0]
+    if entry.get("name") != "socratic" or entry.get("source") != "./":
+        fail("Claude Marketplace must publish the repository-root Socratic Plugin")
+    if entry.get("version") != version:
+        fail("Claude Marketplace Plugin version must match VERSION")
     claude_hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
     claude_handler = claude_hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]
     if "${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py" not in claude_handler.get("command", ""):

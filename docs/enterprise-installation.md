@@ -41,7 +41,7 @@ GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.2.0
 ```
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 30 -->
+<!-- socratic-plugin-file-count: 31 -->
 The standalone Skill distribution contains 21 UTF-8 text files, including three Python source helpers. The Codex Plugin bundle contains 24 UTF-8 text files: the same 21 Skill files, one Plugin manifest, and two Host-hook files. Those helpers have no POSIX execute bits but are run by a Python interpreter. The distribution audit's “executable” rejection specifically checks the POSIX `0o111` execute-bit mask. The distribution contains no binaries or symbolic links. Compare the preview with the release manifest and checksums.
 
 For managed Codex deployment, do not rely on user-controlled Plugin hook trust. Deploy the pre-agent gate from an OS-managed absolute path through `requirements.toml`, force `[features].hooks = true`, and set `allow_managed_hooks_only = true`. Treat the v0.3.0 alpha as incomplete until that managed Host integration and a ready-run capability path are validated in the target environment.

@@ -38,6 +38,7 @@ EXPECTED_FILES = (
     "socratic/scripts/validate_and_render.py",
 )
 EXPECTED_PLUGIN_FILES = (
+    ".claude-plugin/marketplace.json",
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
     "hooks/claude_preflight.py",

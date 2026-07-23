@@ -1,0 +1,21 @@
+{
+  "name": "socratic-marketplace",
+  "owner": {
+    "name": "Shogo1222"
+  },
+  "description": "Socratic intent review and mutation-testing plugins for Claude Code.",
+  "version": "0.3.0-alpha.4",
+  "plugins": [
+    {
+      "name": "socratic",
+      "source": "./",
+      "description": "Host-gated intent review and mutation testing.",
+      "version": "0.3.0-alpha.4",
+      "author": {
+        "name": "Shogo1222"
+      },
+      "category": "development",
+      "tags": ["code-review", "mutation-testing", "agent-safety"]
+    }
+  ]
+}
