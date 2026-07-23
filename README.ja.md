@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.6
+gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.7
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。

@@ -86,6 +86,31 @@ Before executing a repository-defined command, inspect the command and the scrip
 
 ## Workflow
 
+### Mission and human checkpoints
+
+Start every ready run by stating this Mission in the user's language:
+
+> Infer intended observable behavior from repository evidence, expose only consequential uncertainty, and design realistic accidents that test whether the suite protects that intent. The Runner owns commands, mutation mechanics, JSON schemas, hashes, ledgers, reports, and cleanup.
+
+Do not begin with schemas, commands, test execution, or mutation planning. Use the Host-injected recommendation to present exactly these Review Type options before repository inspection:
+
+- **Bug Fix Review** — verify that the reported failure is removed while established behavior remains;
+- **Feature Review** — establish and challenge newly introduced observable behavior;
+- **Refactor Guard** — compare Base and Head observations for a behavior-preserving change;
+- **Test Assessment** — evaluate whether an existing test cohort detects realistic accidents.
+
+Ask the human to confirm or correct the recommendation. Treat the recommendation as routing, never as specification evidence. If the invocation already explicitly selects one of these types, restate it and ask for confirmation rather than asking an open-ended scope question.
+
+After bounded read-only inspection, and before any repository-defined command, baseline, or mutation, present one compact **Diff understanding** checkpoint containing exactly:
+
+1. the problem being addressed;
+2. the changed behavior;
+3. the behavior that should remain unchanged;
+4. the new observable behavior;
+5. consequential uncertainty.
+
+Ask the human to confirm, correct, defer to the specification owner, or proceed from repository evidence. Incorporate corrections before constructing the Intent Contract. This is a semantic checkpoint, not permission for each mechanical operation. The full run has four human checkpoints: Review Type, Diff understanding, an Intent/oracle decision only when repository evidence cannot resolve it, and final interpretation/disposition. Do not ask repeatedly between those checkpoints.
+
 ### Mandatory Review-only entrypoint
 
 Enter this workflow only after a native Host integration has completed trusted preflight. In Claude Code Terminal invoke the Marketplace command shown as `/socratic`; in Codex or a supported local Cursor Desktop workspace invoke `$socratic`. Direct `$maieutic` and `$elenchus` invocations use the same Host gate. The Host Plugin automatically starts the live broker, injects the exact preflight command, and activates tool enforcement before the Skill runs. It preserves an active manifest across turns, then cleans completed, aborted, idle, or broker-stale sessions. Never invent or alter that injected command. Standalone Skill invocation and unsupported Cursor CLI, remote, or cloud surfaces remain non-compliant.
@@ -126,10 +151,12 @@ Check `runtime.probe` before interpreting Baseline. When it is `failed`, report 
 
 ### 1. Establish scope
 
-Identify the diff, immutable Base and Head snapshot identities, repository instructions, affected behavior, focused test command, and risk partitions. Obtain them from host-provided change context, already-materialized directories, or the read-only Git allowlist. Never create or switch branches or worktrees. If both snapshots cannot be materialized without a prohibited operation, report Refactor Guard as blocked instead of weakening the comparison. State any excluded partition. Determine the review purpose and choose the workflow branch:
+After the Review Type checkpoint, identify the diff, immutable Base and Head snapshot identities, repository instructions, affected behavior, focused test command, and risk partitions. Obtain them from host-provided change context, already-materialized directories, or the read-only Git allowlist. Never create or switch branches or worktrees. If both snapshots cannot be materialized without a prohibited operation, report Refactor Guard as blocked instead of weakening the comparison. State any excluded partition. Complete the Diff understanding checkpoint before running tests or entering Maieutic. Then use the confirmed Review Type to choose the workflow branch:
 
 - **Feature Review** — the change introduces new or changed behavior. Use the standard hardening branch: confirm unresolved specifications first, then challenge the tests that fix them.
+- **Bug Fix Review** — the change removes a reported failure. Establish the failure and the preserved surrounding behavior, then challenge both the regression fix and false-positive boundaries.
 - **Refactor Guard** — the change claims to preserve behavior. Use the catching branch: observe important parent behavior, run the same observations on the head, and surface each observable difference as a human question instead of assuming either side is the specification.
+- **Test Assessment** — the primary subject is an existing test cohort. Establish the observable contract it claims to protect, then challenge that cohort without treating the implementation as specification.
 
 ### 2. Run Maieutic
 

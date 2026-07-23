@@ -87,8 +87,14 @@ def evaluate(payload: Any) -> dict[str, Any]:
     )
     context = retarget_context + (
         f"Host review context: {review_context}\n"
-        "Use this context and the materialized snapshots directly. Do not launch "
-        "subagents for deterministic diff or environment discovery. Stage the "
+        "Start by stating the injected Mission in the user's language. Before "
+        "repository commands or tests, present the recommended Review Type and "
+        "obtain human confirmation or correction. Then use this context and the "
+        "materialized snapshots directly. Do not launch subagents for deterministic "
+        "diff or environment discovery. After bounded read-only inspection and "
+        "before tests, present exactly: problem, changed behavior, preserved behavior, "
+        "new observable behavior, and consequential uncertainty. Obtain human "
+        "confirmation or correction of that diff understanding. Stage the "
         "Intent Contract before mutation; if an observable oracle remains unresolved, "
         "ask the user a structured question and stop that challenge.\n"
         "Trusted Socratic Host is ready. Run mandatory preflight with: "
