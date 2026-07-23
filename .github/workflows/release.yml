@@ -141,7 +141,7 @@ jobs:
             --format=zip \
             --prefix="socratic-plugin-$TAG/" \
             --output="dist/socratic-plugin-$TAG.zip" \
-            HEAD .claude-plugin .codex-plugin hooks skills
+            HEAD .claude-plugin .codex-plugin hooks skills scripts/claude_host.py
           (
             cd dist
             sha256sum -- *.zip > SHA256SUMS

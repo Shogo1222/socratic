@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.2"
+SOCRATIC_VERSION = "0.3.0-alpha.3"
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -45,6 +46,39 @@ class HostAdapter(Protocol):
     """Host integration point. The standalone CLI intentionally has no implementation."""
 
     def begin_review_run(self, primary_root: Path) -> HostGrant: ...
+
+
+class ClaudeSocketHostAdapter:
+    """Obtain a run grant from the live launcher-owned Unix socket."""
+
+    def __init__(self, socket_path: Path, token: str):
+        self.socket_path = socket_path
+        self.token = token
+
+    @classmethod
+    def from_environment(cls) -> "ClaudeSocketHostAdapter":
+        path = os.environ.get("SOCRATIC_HOST_SOCKET", "")
+        token = os.environ.get("SOCRATIC_HOST_TOKEN", "")
+        if not path or len(token) < 32:
+            raise RunGateError("trusted Claude Host broker is unavailable")
+        return cls(Path(path), token)
+
+    def begin_review_run(self, primary_root: Path) -> HostGrant:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(1)
+                client.connect(str(self.socket_path))
+                client.sendall(json.dumps({"action": "grant", "token": self.token}).encode())
+                response = json.loads(client.recv(65536).decode())
+            grant = response["grant"]
+        except (OSError, KeyError, TypeError, UnicodeError, json.JSONDecodeError) as error:
+            raise RunGateError("trusted Claude Host broker rejected the run") from error
+        return HostGrant(
+            adapter_id=grant["adapter_id"], run_id=grant["run_id"],
+            run_nonce=grant["run_nonce"], storage_root=Path(grant["storage_root"]),
+            protection_mode=grant["protection_mode"],
+            protection_details=grant["protection_details"],
+        )
 
 
 def _load_module(name: str, path: Path):
@@ -462,17 +496,68 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     pre = commands.add_parser("preflight")
     pre.add_argument("--primary", required=True, type=Path)
-    for name in ("mutate", "register-prebuilt", "execute", "finish"):
-        commands.add_parser(name)
-    args, _unknown = parser.parse_known_args()
+    pre.add_argument("--host-socket", type=Path)
+    pre.add_argument("--host-token")
+    mutate_parser = commands.add_parser("mutate")
+    mutate_parser.add_argument("--manifest", required=True, type=Path)
+    mutate_parser.add_argument("--mutation-id", required=True)
+    mutate_parser.add_argument("--relative-path", required=True)
+    mutate_parser.add_argument("--content-file", required=True, type=Path)
+    register_parser = commands.add_parser("register-prebuilt")
+    register_parser.add_argument("--manifest", required=True, type=Path)
+    register_parser.add_argument("--mutation-id", required=True)
+    register_parser.add_argument("--relative-path", required=True)
+    execute_parser = commands.add_parser("execute")
+    execute_parser.add_argument("--manifest", required=True, type=Path)
+    execute_parser.add_argument("--phase", required=True, choices=("baseline", "mutation"))
+    execute_parser.add_argument("--mutation-id")
+    execute_parser.add_argument("--timeout", type=int, default=120)
+    execute_parser.add_argument("argv", nargs=argparse.REMAINDER)
+    finish_parser = commands.add_parser("finish")
+    finish_parser.add_argument("--manifest", required=True, type=Path)
+    finish_parser.add_argument("--contract", required=True, type=Path)
+    finish_parser.add_argument("--report", required=True, type=Path)
+    finish_parser.add_argument("--review", required=True, type=Path)
+    finish_parser.add_argument("--schema-root", type=Path)
+    args = parser.parse_args()
     if args.command == "preflight":
-        print(json.dumps(blocked_preflight(args.primary), sort_keys=True))
+        try:
+            adapter = (
+                ClaudeSocketHostAdapter(args.host_socket, args.host_token)
+                if args.host_socket is not None and args.host_token is not None
+                else ClaudeSocketHostAdapter.from_environment()
+            )
+            manifest, manifest_path = preflight_with_host(
+                args.primary, adapter
+            )
+        except RunGateError:
+            print(json.dumps(blocked_preflight(args.primary), sort_keys=True))
+            return 2
+        print(json.dumps({
+            "status": "ready", "run_id": manifest["run_id"],
+            "manifest_path": str(manifest_path),
+            "sandbox_root": manifest["sandbox_root"],
+        }, sort_keys=True))
+        return 0
+    try:
+        if args.command == "mutate":
+            mutate(args.manifest, args.mutation_id, args.relative_path, args.content_file.read_bytes())
+        elif args.command == "register-prebuilt":
+            register_prebuilt(args.manifest, args.mutation_id, args.relative_path)
+        elif args.command == "execute":
+            if not args.argv:
+                raise RunGateError("execute requires a command after --")
+            argv = args.argv[1:] if args.argv[0] == "--" else args.argv
+            return execute(args.manifest, args.phase, args.mutation_id, argv, args.timeout)
+        elif args.command == "finish":
+            print(finish(
+                args.manifest, _load_json(args.contract), _load_json(args.report),
+                _load_json(args.review), args.schema_root,
+            ))
+        return 0
+    except (OSError, RunGateError) as error:
+        print(f"ERROR: {error}", file=sys.stderr)
         return 2
-    print(
-        "ERROR: mutation phases require a trusted HostAdapter integration; standalone CLI execution is blocked",
-        file=sys.stderr,
-    )
-    return 2
 
 
 if __name__ == "__main__":

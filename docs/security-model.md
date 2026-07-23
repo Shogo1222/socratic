@@ -7,7 +7,7 @@ This document explains the intended security boundaries of Socratic, Maieutic, a
 ## Distribution
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 27 -->
+<!-- socratic-plugin-file-count: 30 -->
 The standalone Skill distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The v0.3.0 Codex Plugin bundle contains those files plus its manifest and two Host-hook files, for exactly 24 UTF-8 text files. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
 
 The repository contains documentation, CI scripts, and executable demos in addition to the skill distribution. Installing a skill does not install those repository-level files.
