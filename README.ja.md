@@ -57,13 +57,32 @@ v0.3.0 Integration Previewでは、RepositoryをClaude Code Marketplaceとして
 /plugin update socratic@socratic-marketplace
 ```
 
-その後、信頼済みGit Repositoryで通常どおりClaudeを起動し、`/socratic:socratic`を実行してください。PluginはClaudeがRequestを処理する前にSession単位のHost brokerを自動起動し、`PreToolUse`でPrimaryへの直接WriteとRunner外Bashを拒否し、`Stop`でHost stateをCleanupします。専用Launcher Commandは不要です。
+その後、信頼済みGit Repositoryで通常どおりClaudeを起動し、`/socratic:socratic`を実行してください。PluginはClaudeがRequestを処理する前にSession単位のHost brokerを自動起動し、`PreToolUse`でPrimaryへの直接WriteとRunner外Bashを拒否します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収します。専用Launcher Commandは不要です。
 
 `/hooks`で同梱HookをReview・Trustしてから新しいThreadを開始してください。Hookが未Trust、無効、利用不能な場合はSocraticを使用しません。Plugin HookのTrustはユーザーが変更できます。解除不能な境界が必要な組織は、同じGateを`requirements.toml`とOS・Device ManagementによるManaged Hookとして配布する必要があります。
 
-### Codex・Cursor
+### Codex
 
-Standalone Agent SkillはCodexまたはCursor向けにのみInstallします。Maieutic・Elenchus開発に利用できますが、`$socratic`だけをInstallしてもPre-agent Safety Boundaryにはなりません。
+Codex Marketplaceを追加し、PluginをInstallして、同梱Hookを`/hooks`でReview・Trustします。
+
+```bash
+codex plugin marketplace add Shogo1222/socratic
+codex plugin add socratic@socratic-marketplace
+
+# 公開UpdateのInstall前にMarketplace Snapshotを更新
+codex plugin marketplace upgrade socratic-marketplace
+codex plugin add socratic@socratic-marketplace
+```
+
+信頼済みのローカルGit Repositoryで`$socratic`を実行します。Codex PluginもSession単位のHost brokerを自動起動し、`PreToolUse`でPrimaryへの直接Writeと未GuardのCommandを拒否します。実行中のStateはTurn間で維持し、完了・Abort・Idle時にCleanupします。
+
+### Cursor Desktop
+
+Repositoryには`.cursor-plugin/`配下のNative Cursor Pluginも含まれます。Cursor DesktopへLocal PluginとしてInstallし、WindowをReloadしてから`$socratic`を実行します。Pluginは`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`をFail-closedで使用します。現行Hook coverageでは同じ境界を証明できないため、Cursor CLI、Remote Workspace、Cloud Agentはサポートしません。Cursor Marketplaceからの公開Installは、Cursor側の別途Submission審査を通過するまで利用できません。
+
+### Standalone Maieutic・Elenchus
+
+Standalone Agent SkillはCodexまたはCursorでMaieutic・Elenchus開発に利用できますが、準拠した`$socratic` Entry Pointではありません。
 
 ```bash
 # 対話式でSkillと導入先のCodexまたはCursorを選ぶ
@@ -73,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
+gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.5
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。
@@ -82,15 +101,9 @@ gh skill install Shogo1222/socratic --all --pin v0.3.0-alpha.4
 npx skills add Shogo1222/socratic --skill '*'
 ```
 
-Standalone分析では`$maieutic`または`$elenchus`を直接実行します。`$socratic`は、そのHostに統合Workflowが要求する信頼済みPre-agent Boundaryが実装されるまでFail-closedを維持します。
+Standalone分析では`$maieutic`または`$elenchus`を直接実行します。統合`$socratic` Workflowには上記の各Host Pluginを使用します。
 
-必須Review Runnerには、Python 3の`jsonschema`と`referencing`が必要です。
-
-```bash
-python3 -m pip install jsonschema referencing
-```
-
-Global環境へ導入するのではなく、Host管理のVirtual EnvironmentまたはManaged Python Runtimeを使用してください。どちらかの依存Packageが利用できない場合、RunnerはFail-closedで`blocked`になります。
+必須Review RunnerにはPython 3の`jsonschema`と`referencing`が必要です。各Host PluginはAgent開始前にこれらを解決します。利用できない場合、HookがPluginの書き込み可能Data Directoryへ隔離Virtual Environmentを作り、固定VersionをInstallします。RepositoryやGlobal Python環境は変更しません。そのため初回実行だけPackage IndexへのAccessが必要です。Bootstrapに失敗した場合はAgent開始前にSocraticを停止します。組織環境では、初回Network Accessを避けるため、同じ固定DependencyをManaged Python Runtimeへ事前配備できます。
 
 組織での導入(Releaseの検証・Preview・Project Scope)は[企業向け導入ガイド](docs/ja/enterprise-installation.md)を参照してください。
 

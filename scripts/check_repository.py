@@ -124,6 +124,19 @@ def check_plugin_gate() -> None:
         fail("plugin must bundle the repository skills directory")
     if manifest.get("hooks") != "./hooks/codex-hooks.json":
         fail("plugin must declare the pre-agent hooks manifest")
+    codex_marketplace = json.loads(
+        (ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8")
+    )
+    if codex_marketplace.get("name") != "socratic-marketplace":
+        fail("Codex Marketplace name must be socratic-marketplace")
+    codex_entries = codex_marketplace.get("plugins")
+    if not isinstance(codex_entries, list) or len(codex_entries) != 1:
+        fail("Codex Marketplace must publish exactly one Plugin")
+    codex_entry = codex_entries[0]
+    if codex_entry.get("name") != "socratic" or codex_entry.get("source") != {
+        "source": "local", "path": "./"
+    }:
+        fail("Codex Marketplace must publish the repository-root Socratic Plugin")
 
     hooks_path = ROOT / "hooks/codex-hooks.json"
     hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
@@ -136,11 +149,11 @@ def check_plugin_gate() -> None:
     if len(groups) != 1 or len(handlers) != 1:
         fail("plugin must define exactly one UserPromptSubmit gate")
     if handler.get("type") != "command" or handler.get("command") != (
-        'python3 "$PLUGIN_ROOT/hooks/socratic_preflight.py"'
+        'python3 "$PLUGIN_ROOT/hooks/codex_preflight.py"'
     ):
         fail("plugin UserPromptSubmit gate must invoke the bundled preflight hook")
 
-    hook_script = ROOT / "hooks/socratic_preflight.py"
+    hook_script = ROOT / "hooks/codex_preflight.py"
     if not hook_script.is_file():
         fail("plugin preflight hook is missing")
     if stat.S_IMODE(hook_script.stat().st_mode) & 0o111:
@@ -171,6 +184,24 @@ def check_plugin_gate() -> None:
     claude_handler = claude_hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]
     if "${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py" not in claude_handler.get("command", ""):
         fail("Claude Plugin must invoke its Claude-format preflight hook")
+
+    cursor_manifest = json.loads(
+        (ROOT / ".cursor-plugin/plugin.json").read_text(encoding="utf-8")
+    )
+    if cursor_manifest.get("name") != "socratic" or cursor_manifest.get("version") != version:
+        fail("Cursor Plugin identity and version must match VERSION")
+    if cursor_manifest.get("skills") != "./skills/":
+        fail("Cursor Plugin must bundle the repository skills directory")
+    if cursor_manifest.get("hooks") != "./hooks/cursor-hooks.json":
+        fail("Cursor Plugin must declare the native Cursor hooks manifest")
+    cursor_hooks = json.loads((ROOT / "hooks/cursor-hooks.json").read_text(encoding="utf-8"))
+    required_cursor_hooks = {"beforeSubmitPrompt", "preToolUse", "beforeShellExecution", "stop"}
+    if set(cursor_hooks.get("hooks", {})) != required_cursor_hooks:
+        fail("Cursor Plugin must declare the complete local Desktop lifecycle gate")
+    for event in ("beforeSubmitPrompt", "preToolUse", "beforeShellExecution"):
+        handlers = cursor_hooks["hooks"].get(event)
+        if not isinstance(handlers, list) or len(handlers) != 1 or handlers[0].get("failClosed") is not True:
+            fail(f"Cursor {event} hook must be a single fail-closed handler")
 
     metadata = (ROOT / "skills/socratic/agents/openai.yaml").read_text(encoding="utf-8")
     if "allow_implicit_invocation: false" not in metadata:

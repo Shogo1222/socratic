@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Clean the automatic Socratic Host session after Claude stops."""
+"""Clean the automatic Socratic Host session after Codex stops."""
 
 import importlib.util
 import json
@@ -13,7 +13,7 @@ def main() -> int:
         session_id = payload.get("session_id")
         if isinstance(session_id, str):
             path = Path(__file__).resolve().parent.parent / "scripts/claude_host.py"
-            spec = importlib.util.spec_from_file_location("socratic_claude_host_cleanup", path)
+            spec = importlib.util.spec_from_file_location("socratic_codex_host_cleanup", path)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)

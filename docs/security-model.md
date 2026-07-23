@@ -7,8 +7,8 @@ This document explains the intended security boundaries of Socratic, Maieutic, a
 ## Distribution
 
 <!-- socratic-distribution-file-count: 21 -->
-<!-- socratic-plugin-file-count: 31 -->
-The standalone Skill distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The v0.3.0 Codex Plugin bundle contains those files plus its manifest and two Host-hook files, for exactly 24 UTF-8 text files. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
+<!-- socratic-plugin-file-count: 41 -->
+The standalone Skill distribution contains exactly 21 UTF-8 text files under the three skill directories, including three bundled Python source helpers. The v0.3.0 multi-Host Plugin bundle contains exactly 41 UTF-8 text files: those Skills plus Claude Code, Codex, and Cursor manifests, marketplaces, Host hooks, the shared broker, and the Plugin-managed Python runtime bootstrap. The Python files have no POSIX execute bits but are run by a Python interpreter. CI's executable-file rejection checks the POSIX `0o111` execute-bit mask; it also rejects unexpected files, unsupported extensions, symbolic links, binaries, and unapproved external hosts. Release assets include a manifest and SHA-256 checksums.
 
 The repository contains documentation, CI scripts, and executable demos in addition to the skill distribution. Installing a skill does not install those repository-level files.
 
@@ -28,7 +28,9 @@ Schema v7 retains the JSON field name `verified` for compatibility. In protectio
 
 ## Pre-agent Host gate
 
-The v0.3.0 Codex Plugin bundles a `UserPromptSubmit` lifecycle hook. Explicit `$socratic` or `/socratic` requests are stopped before the model starts when no native trusted Host Adapter is available. The hook reads only the Host event on standard input; it does not inspect the repository. Implicit Socratic invocation is disabled so every supported invocation is identifiable at this boundary.
+The v0.3.0 Claude Code and Codex Plugins start a session-scoped Host broker from `UserPromptSubmit` and enforce Review-only through `PreToolUse`. `Stop` preserves a broker while its run manifest exists, allowing human decisions across turns, and cleans it after finish or abort; an idle TTL collects abandoned brokers. The local Cursor Desktop Plugin uses its native `beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, and `stop` events with the same active-run retention rule. A missing or malformed Host event fails closed before Socratic runs. Implicit Socratic invocation is disabled so every supported invocation is identifiable at this boundary. Cursor CLI, remote workspaces, and cloud agents are excluded because their current lifecycle coverage cannot establish the same guarantee.
+
+Each live Host session creates one private `artifact_root` under Host storage. Write tools may create the Contract, Report, and Review only below that root. Paths in Primary, the disposable Sandbox, Manifest or Ledger locations, arbitrary temporary directories, other repositories, user configuration, and Plugin code remain denied. `apply_patch` is accepted only when every declared path is absolute and resolves below the same artifact root. These artifact writes intentionally do not change the mutation ledger head, which removes the Report/ledger circular dependency without weakening Primary protection.
 
 This plugin hook closes the no-Host path only after the user has reviewed and trusted it. A user can disable a normal plugin hook, and specialized hosted tools may not pass through local tool hooks. Organizations that require a non-bypassable policy must deploy a managed hook with hooks forced on through `requirements.toml`, keep the hook implementation in an OS-managed directory, and deny unmanaged hook sources. A Skill instruction, an MCP tool, or a user-trusted Plugin hook alone is not a complete Host security boundary.
 

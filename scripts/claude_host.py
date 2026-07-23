@@ -19,13 +19,20 @@ from pathlib import Path
 
 
 SESSION_ROOT = Path("/tmp/socratic-sessions")
+BROKER_IDLE_TTL_SECONDS = 2 * 60 * 60
 
 
 def session_root(session_id: str) -> Path:
     return SESSION_ROOT / hashlib.sha256(session_id.encode()).hexdigest()[:20]
 
 
-def prepare_session(session_id: str, primary: Path) -> dict[str, str]:
+def prepare_session(
+    session_id: str,
+    primary: Path,
+    *,
+    adapter_id: str = "claude-code-hook-host-v1",
+    host_name: str = "Claude Code",
+) -> dict[str, str]:
     primary = primary.resolve(strict=True)
     if not (primary / ".git").exists():
         raise RuntimeError("Socratic must start at a Git repository root")
@@ -35,17 +42,20 @@ def prepare_session(session_id: str, primary: Path) -> dict[str, str]:
     root.mkdir(parents=True, mode=0o700)
     storage = root / "host-storage"
     storage.mkdir(mode=0o700)
+    artifacts = storage / "artifacts"
+    artifacts.mkdir(mode=0o700)
     state = {
         "session_id": session_id,
         "primary_root": str(primary),
         "socket_path": str(root / "host.sock"),
         "token": secrets.token_urlsafe(48),
-        "adapter_id": "claude-code-hook-host-v1",
+        "adapter_id": adapter_id,
         "run_id": secrets.token_hex(16),
         "run_nonce": secrets.token_urlsafe(48),
         "storage_root": str(storage),
+        "artifact_root": str(artifacts),
         "protection_mode": "host-events",
-        "protection_details": "Claude Code PreToolUse gate denies Primary writes and unguarded execution",
+        "protection_details": f"{host_name} tool gate denies Primary writes and unguarded execution",
     }
     state_path = root / "state.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -102,7 +112,10 @@ def run_broker(state_path: Path) -> int:
 
 def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threading.Event) -> None:
     server.settimeout(0.25)
+    last_request = time.monotonic()
     while not stop.is_set():
+        if time.monotonic() - last_request > BROKER_IDLE_TTL_SECONDS:
+            break
         try:
             connection, _ = server.accept()
         except (TimeoutError, socket.timeout):
@@ -112,6 +125,7 @@ def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threa
                 break
             raise
         with connection:
+            last_request = time.monotonic()
             try:
                 request = json.loads(connection.recv(65536).decode())
                 if not secrets.compare_digest(str(request.get("token", "")), token):

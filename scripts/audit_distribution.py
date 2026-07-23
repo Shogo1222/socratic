@@ -38,16 +38,26 @@ EXPECTED_FILES = (
     "socratic/scripts/validate_and_render.py",
 )
 EXPECTED_PLUGIN_FILES = (
+    ".agents/plugins/marketplace.json",
     ".claude-plugin/marketplace.json",
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
+    ".cursor-plugin/plugin.json",
     "hooks/claude_preflight.py",
     "hooks/claude_tool_gate.py",
     "hooks/claude_cleanup.py",
+    "hooks/codex_preflight.py",
+    "hooks/codex_tool_gate.py",
+    "hooks/codex_cleanup.py",
     "hooks/codex-hooks.json",
+    "hooks/cursor-hooks.json",
+    "hooks/cursor_preflight.py",
+    "hooks/cursor_tool_gate.py",
+    "hooks/cursor_cleanup.py",
     "hooks/hooks.json",
     "hooks/socratic_preflight.py",
     "scripts/claude_host.py",
+    "scripts/plugin_runtime.py",
     *(f"skills/{relative}" for relative in EXPECTED_FILES),
 )
 ALLOWED_EXTENSIONS = {".json", ".md", ".py", ".yaml"}
@@ -197,11 +207,14 @@ def inspect_plugin_tree(root: Path) -> tuple[list[dict[str, object]], list[str]]
     errors: list[str] = []
     actual: dict[str, Path] = {}
     for directory in (
+        root / ".agents/plugins",
         root / ".claude-plugin",
         root / ".codex-plugin",
+        root / ".cursor-plugin",
         root / "hooks",
         root / "skills",
         root / "scripts/claude_host.py",
+        root / "scripts/plugin_runtime.py",
     ):
         if directory.is_file():
             actual[directory.relative_to(root).as_posix()] = directory

@@ -33,9 +33,15 @@ class DistributionAuditTest(unittest.TestCase):
     def test_plugin_distribution_rejects_unexpected_hook(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            shutil.copytree(ROOT / ".agents", root / ".agents")
+            shutil.copytree(ROOT / ".claude-plugin", root / ".claude-plugin")
             shutil.copytree(ROOT / ".codex-plugin", root / ".codex-plugin")
+            shutil.copytree(ROOT / ".cursor-plugin", root / ".cursor-plugin")
             shutil.copytree(ROOT / "hooks", root / "hooks")
             shutil.copytree(ROOT / "skills", root / "skills")
+            (root / "scripts").mkdir()
+            shutil.copy2(ROOT / "scripts/claude_host.py", root / "scripts/claude_host.py")
+            shutil.copy2(ROOT / "scripts/plugin_runtime.py", root / "scripts/plugin_runtime.py")
             (root / "hooks/untracked.py").write_text("pass\n", encoding="utf-8")
             _, errors = inspect_plugin_tree(root)
             self.assertTrue(any("unexpected plugin file" in error for error in errors))

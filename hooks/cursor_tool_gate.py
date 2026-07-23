@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enforce the active Socratic session boundary before Claude tools run."""
+"""Enforce the active Socratic boundary in a local Cursor Desktop session."""
 
 from __future__ import annotations
 
@@ -13,19 +13,15 @@ from typing import Any
 
 def _host_module():
     path = Path(__file__).resolve().parent.parent / "scripts/claude_host.py"
-    spec = importlib.util.spec_from_file_location("socratic_claude_host_gate", path)
+    spec = importlib.util.spec_from_file_location("socratic_cursor_host_gate", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def _deny(reason: str) -> dict[str, Any]:
-    return {"hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
-        "permissionDecisionReason": reason,
-    }}
+def _deny(reason: str) -> dict[str, str]:
+    return {"permission": "deny", "user_message": reason, "agent_message": reason}
 
 
 def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
@@ -54,43 +50,58 @@ def _patch_paths(patch: Any) -> list[str] | None:
     return paths or None
 
 
-def evaluate(payload: Any) -> dict[str, Any]:
-    if not isinstance(payload, dict) or payload.get("hook_event_name") != "PreToolUse":
-        return {}
-    session_id = payload.get("session_id")
-    if not isinstance(session_id, str):
-        return {}
-    state = _host_module().load_session(session_id)
-    if not state:
-        return {}
+def _session_id(payload: dict[str, Any]) -> str | None:
+    for key in ("conversation_id", "session_id"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _runner_command(command: Any) -> bool:
+    if not isinstance(command, str):
+        return False
+    if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
+        return False
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return False
+    return len(argv) >= 2 and Path(argv[1]).name == "run_review.py" and Path(argv[0]).name.startswith("python")
+
+
+def evaluate(payload: Any) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        return _deny("Socratic Cursor gate received malformed input")
+    event = payload.get("hook_event_name")
+    if event not in {"preToolUse", "beforeShellExecution"}:
+        return {"permission": "allow"}
+    session_id = _session_id(payload)
+    state = _host_module().load_session(session_id) if session_id is not None else None
+    if state is None:
+        return {"permission": "allow"}
     tool = payload.get("tool_name")
     tool_input = payload.get("tool_input", {})
-    if tool in {"Edit", "Write", "NotebookEdit"}:
+    if tool in {"Write", "StrReplace", "Delete", "Edit"}:
         path = None
         if isinstance(tool_input, dict):
-            path = tool_input.get("file_path") or tool_input.get("path") or tool_input.get("notebook_path")
+            path = tool_input.get("file_path") or tool_input.get("path")
         if _inside_artifact_root(state, path):
-            return {}
+            return {"permission": "allow"}
         return _deny("Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox")
     if tool == "apply_patch":
         paths = _patch_paths(tool_input.get("patch") if isinstance(tool_input, dict) else None)
         if paths and all(_inside_artifact_root(state, path) for path in paths):
-            return {}
+            return {"permission": "allow"}
         return _deny("Socratic apply_patch may write only absolute paths under the Host artifact root")
-    if tool == "Bash":
-        command = tool_input.get("command") if isinstance(tool_input, dict) else None
-        if not isinstance(command, str):
-            return _deny("Socratic requires a structured guarded Runner command")
-        try:
-            argv = shlex.split(command)
-        except ValueError:
-            return _deny("Socratic rejected an unparsable shell command")
-        if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
-            return _deny("Socratic forbids shell composition outside the guarded Runner")
-        if len(argv) >= 2 and Path(argv[1]).name == "run_review.py" and Path(argv[0]).name.startswith("python"):
-            return {}
+    if event == "beforeShellExecution" or tool in {"Shell", "Bash"}:
+        command = payload.get("command")
+        if command is None and isinstance(tool_input, dict):
+            command = tool_input.get("command")
+        if _runner_command(command):
+            return {"permission": "allow"}
         return _deny("Socratic tests and mutations must run through run_review.py")
-    return {}
+    return {"permission": "allow"}
 
 
 def main() -> int:
