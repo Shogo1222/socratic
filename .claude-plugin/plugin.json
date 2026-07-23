@@ -1,6 +1,6 @@
 {
   "name": "socratic",
-  "version": "0.4.0-alpha.5",
+  "version": "0.4.0-alpha.6",
   "description": "Host-gated intent review and mutation testing for Claude Code Terminal.",
   "author": { "name": "Shogo1222" },
   "homepage": "https://github.com/Shogo1222/socratic",

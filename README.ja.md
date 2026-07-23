@@ -92,7 +92,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.5
+gh skill install Shogo1222/socratic --all --pin v0.4.0-alpha.6
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。
@@ -394,6 +394,8 @@ Mutant    → Fail
 ユーザーがテスト追加を明示的に依頼した場合——証明済み引き渡しで**テストを適用**を選んだ場合を含む——のみ**Apply tests**へ切り替え、確認済みIntentに基づくテストをWorking Treeへ追加します。適用前に引き渡しPreconditionを確認し、適用後に元コードの対象テストとMutation証明を繰り返します。Version Control操作はどちらのModeでもユーザーに残ります。
 
 Socratic Agentは、HostがMaterializeした変更を確認するために、Allowlist化した読み取り専用のローカルGitコマンドだけを使えます。Stage、Commit、Push、Fetch、Branch切替、Worktree作成、Remote接続、`gh`呼び出し、Pull Request作成、コメント投稿は行いません。起動PromptにGitHub PR URLまたは`PR #<number>`が含まれる場合は、AgentではなくTrusted Hostが`gh`でMetadataを解決し、正確なBase・Head CommitをPrivate Host StorageへFetchして両SHAを検証し、RunnerへRead-only Snapshotを渡します。BaseはBranchの現在の先端ではなくImmutableな当時のSHAでFetchするため、Target Branchが進んだ後もMerged済み・過去のPRを再現できます。どちらかのCommitを解決・検証できなければ、失敗したMaterialization段階を示してRunはBlockedになります。Version Controlへの書き込みはすべてユーザーへ残します。
+
+Hostは正確なTarget、変更File一覧、Package Manager Hint、固定Fast Pathを含む簡潔なReview Contextも注入します。決定論的なDiff・Environment調査をSubagentへ委譲しません。Mutation前にIntent ContractをStageし、各ChallengeへContract IDを持たせ、RunnerがMutant作成前に未解決OracleをBlockします。Canonicalな`Review This` ItemはContractへLinkし、Attested ReportへBaseline・Mutationの実測時間を含めます。
 
 ## 内部アーキテクチャ
 

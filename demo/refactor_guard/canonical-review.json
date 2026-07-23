@@ -1,6 +1,10 @@
 {
   "review_this": [
-    "The exact end-date behavior differs and requires confirmation from the specification owner"
+    {
+      "kind": "needs-decision",
+      "body": "The exact end-date behavior differs and requires confirmation from the specification owner",
+      "contract_ids": ["UNR-001"]
+    }
   ],
   "we_verified": [
     "Behavior away from the exact end-date boundary is preserved by tests existing at run start"

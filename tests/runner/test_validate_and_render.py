@@ -175,6 +175,46 @@ class ValidateAndRenderTest(unittest.TestCase):
         self.assertTrue(rendered.startswith("Review This:\n"))
         self.assertTrue(rendered.endswith("Evidence: The boundary incident survived.\n"))
 
+    def test_review_this_cannot_hide_an_unresolved_intent(self) -> None:
+        contract = {
+            "status": "needs-decision",
+            "decisions": [],
+            "invariants": [],
+            "side_effects": {"required": [], "prohibited": []},
+            "unresolved": [{"id": "UNR-001"}],
+        }
+        report = {
+            "write_mode": "review-only",
+            "intent_contract": {"status": "needs-decision"},
+            "mutations": [],
+            "unresolved": ["UNR-001"],
+            "isolation": {
+                "execution_strategy": "comparison-only",
+                "primary_root": "/primary",
+                "sandbox_root": "/sandbox",
+                "host_protection": {"verified": True},
+                "write_monitor": {"verified": False},
+                "mutation_targets": [],
+            },
+            "postflight": {
+                "primary_written_during_run": False,
+                "production_mutation_free": True,
+                "sandbox_destroyed": True,
+            },
+            "persistent_side_effects": {"writes": []},
+        }
+        review = {
+            "review_this": [{
+                "kind": "confirmed-behavior",
+                "body": "Ask the specification owner",
+                "contract_ids": ["UNR-001"],
+            }]
+        }
+        with self.assertRaisesRegex(
+            validate_and_render.ArtifactError, "hides an unresolved ID"
+        ):
+            validate_and_render.validate_cross_artifact(contract, report, review)
+
     def test_direct_cli_is_disabled_in_favor_of_mandatory_run_entrypoint(self) -> None:
         self.assertEqual(validate_and_render.main([]), 2)
 

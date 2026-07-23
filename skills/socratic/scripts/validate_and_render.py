@@ -51,7 +51,11 @@ def _contract_ids(contract: dict[str, Any]) -> set[str]:
     return ids
 
 
-def validate_cross_artifact(contract: dict[str, Any], report: dict[str, Any]) -> None:
+def validate_cross_artifact(
+    contract: dict[str, Any],
+    report: dict[str, Any],
+    review: dict[str, Any] | None = None,
+) -> None:
     known = _contract_ids(contract)
     unresolved = {item["id"] for item in contract.get("unresolved", [])}
     errors: list[str] = []
@@ -78,6 +82,24 @@ def validate_cross_artifact(contract: dict[str, Any], report: dict[str, Any]) ->
         errors.append("a Contract with unresolved items must have status needs-decision")
     if not unresolved and contract_status == "needs-decision":
         errors.append("needs-decision requires at least one unresolved item")
+    if review is not None:
+        review_known = known | unresolved
+        for index, item in enumerate(review.get("review_this", []), 1):
+            references = set(item.get("contract_ids", []))
+            missing = sorted(references - review_known)
+            if missing:
+                errors.append(
+                    f"Review This item {index} references unknown Contract IDs: {missing}"
+                )
+            needs_decision = item.get("kind") == "needs-decision"
+            if needs_decision and not references.intersection(unresolved):
+                errors.append(
+                    f"Review This item {index} claims needs-decision without an unresolved ID"
+                )
+            if not needs_decision and references.intersection(unresolved):
+                errors.append(
+                    f"Review This item {index} hides an unresolved ID as a resolved finding"
+                )
 
     isolation = report.get("isolation", {})
     sandbox_root = Path(isolation.get("sandbox_root", "/__missing_sandbox__")).resolve(strict=False)
@@ -251,7 +273,7 @@ def validate_with_schemas(
         ("canonical-review.schema.json", review),
     ):
         validate_document(document, name, schema_root)
-    validate_cross_artifact(contract, report)
+    validate_cross_artifact(contract, report, review)
     rendered = render_review(review)
     canonical_output = report.get("canonical_output", {})
     rendered_hash = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
@@ -268,7 +290,10 @@ def render_review(review: dict[str, Any]) -> str:
     )
     for title, items in sections:
         lines.append(f"{title}:")
-        lines.extend(f"- {item}" for item in items)
+        if title == "Review This":
+            lines.extend(f"- {item['body']}" for item in items)
+        else:
+            lines.extend(f"- {item}" for item in items)
         if not items:
             lines.append("- None")
         lines.append("")

@@ -80,7 +80,15 @@ def evaluate(payload: Any) -> dict[str, str]:
             "git fetch, gh, or a subagent to obtain the pull request.\n"
             if retargeted else ""
         )
+        review_context = json.dumps(
+            state["review_context"], ensure_ascii=False, sort_keys=True
+        )
         context = retarget_context + (
+            f"Host review context: {review_context}\n"
+            "Use this context and the materialized snapshots directly. Do not launch "
+            "subagents for deterministic diff or environment discovery. Stage the "
+            "Intent Contract before mutation; if an observable oracle remains unresolved, "
+            "ask the user a structured question and stop that challenge.\n"
             "Trusted Socratic Host is ready. Run mandatory preflight with: "
             f"{shlex.quote(str(runtime_python))} {shlex.quote(str(runner))} preflight "
             f"--primary {shlex.quote(state['review_root'])} "

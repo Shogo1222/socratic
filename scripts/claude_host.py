@@ -210,6 +210,22 @@ def materialize_pull_request(
         )
         if resolved.returncode != 0 or resolved.stdout.strip() != expected:
             raise RuntimeError("Materialized Git state does not match GitHub provenance")
+    diff = subprocess.run(
+        [
+            "git", "--git-dir", str(mirror), "diff", "--name-only",
+            "refs/socratic/base", "refs/socratic/head",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+    )
+    if diff.returncode != 0:
+        raise RuntimeError("Host could not summarize the materialized pull request")
+    changed_files = [
+        line for line in diff.stdout.splitlines() if line and "\0" not in line
+    ]
     snapshots = storage / "change"
     base = snapshots / "base"
     head = snapshots / "head"
@@ -240,11 +256,53 @@ def materialize_pull_request(
         "head_sha": metadata["headRefOid"],
         "base_root": str(base.resolve()),
         "head_root": str(head.resolve()),
+        "changed_files": changed_files,
     }
     (storage / "change-provenance.json").write_text(
         json.dumps(provenance, sort_keys=True), encoding="utf-8"
     )
     return provenance
+
+
+def build_review_context(change: dict[str, Any]) -> dict[str, Any]:
+    head = Path(str(change["head_root"]))
+    package_manager = next(
+        (
+            name
+            for filename, name in (
+                ("pnpm-lock.yaml", "pnpm"),
+                ("yarn.lock", "yarn"),
+                ("package-lock.json", "npm"),
+                ("uv.lock", "uv"),
+                ("poetry.lock", "poetry"),
+                ("Cargo.lock", "cargo"),
+            )
+            if (head / filename).is_file()
+        ),
+        "unknown",
+    )
+    target = {
+        key: change[key]
+        for key in ("source", "number", "url", "base_sha", "head_sha")
+        if key in change
+    }
+    return {
+        "target": target,
+        "changed_files": change.get("changed_files", []),
+        "environment_hints": {"package_manager": package_manager},
+        "fast_path": [
+            "infer intent from Host context and repository evidence",
+            "stage intent-contract.draft.json before any mutation",
+            "ask a structured question and stop if an observable oracle is unresolved",
+            "run one baseline through the guarded Runner",
+            "submit one parallel challenge-batch",
+            "stage report and canonical review, then finish and cleanup",
+        ],
+        "delegation_policy": (
+            "Do not delegate deterministic diff or environment discovery; "
+            "do not use gh or git fetch."
+        ),
+    }
 
 
 def session_root(session_id: str) -> Path:
@@ -297,6 +355,7 @@ def prepare_session(
         "protection_mode": "host-events",
         "protection_details": f"{host_name} tool gate denies Primary writes and unguarded execution",
         "change_context": change,
+        "review_context": build_review_context(change),
     }
     state_path = root / "state.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -390,7 +449,7 @@ def run_broker(state_path: Path) -> int:
     state = json.loads(state_path.read_text(encoding="utf-8"))
     grant = {key: state[key] for key in (
         "adapter_id", "run_id", "run_nonce", "storage_root",
-        "protection_mode", "protection_details", "change_context",
+        "protection_mode", "protection_details", "change_context", "review_context",
     )}
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(state["socket_path"])

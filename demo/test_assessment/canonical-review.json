@@ -1,6 +1,10 @@
 {
   "review_this": [
-    "Whether negative quantities must be rejected remains unresolved"
+    {
+      "kind": "needs-decision",
+      "body": "Whether negative quantities must be rejected remains unresolved",
+      "contract_ids": ["UNR-001"]
+    }
   ],
   "we_verified": [
     "The bulk-tier incident is detected by a test existing at run start"
