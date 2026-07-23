@@ -5,7 +5,7 @@
       "hooks": [{
         "type": "command",
         "command": "python3 \"$PLUGIN_ROOT/hooks/codex_preflight.py\"",
-        "timeout": 10,
+        "timeout": 240,
         "statusMessage": "Checking the trusted Socratic Host capability"
       }]
     }],

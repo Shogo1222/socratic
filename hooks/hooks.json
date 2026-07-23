@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py\"",
-            "timeout": 10
+            "timeout": 240
           }
         ]
       }

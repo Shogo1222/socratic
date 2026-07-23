@@ -4,7 +4,7 @@
     "beforeSubmitPrompt": [
       {
         "command": "python3 \"${CURSOR_PLUGIN_ROOT}/hooks/cursor_preflight.py\"",
-        "timeout": 10,
+        "timeout": 240,
         "failClosed": true
       }
     ],

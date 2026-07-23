@@ -57,6 +57,7 @@ EXPECTED_PLUGIN_FILES = (
     "hooks/hooks.json",
     "hooks/socratic_preflight.py",
     "scripts/claude_host.py",
+    "scripts/plugin_runtime.py",
     *(f"skills/{relative}" for relative in EXPECTED_FILES),
 )
 ALLOWED_EXTENSIONS = {".json", ".md", ".py", ".yaml"}
@@ -213,6 +214,7 @@ def inspect_plugin_tree(root: Path) -> tuple[list[dict[str, object]], list[str]]
         root / "hooks",
         root / "skills",
         root / "scripts/claude_host.py",
+        root / "scripts/plugin_runtime.py",
     ):
         if directory.is_file():
             actual[directory.relative_to(root).as_posix()] = directory

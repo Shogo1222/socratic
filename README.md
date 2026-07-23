@@ -57,7 +57,7 @@ To receive a published version bump, refresh the catalog and update the Plugin:
 /plugin update socratic@socratic-marketplace
 ```
 
-Then start Claude normally in a trusted Git repository and invoke `/socratic:socratic`. The Plugin automatically starts a session-scoped Host broker before Claude processes the request, denies direct Primary writes and unguarded Bash through `PreToolUse`, and cleans the Host state on `Stop`. No separate launcher command is required.
+Then start Claude normally in a trusted Git repository and invoke `/socratic:socratic`. The Plugin automatically starts a session-scoped Host broker before Claude processes the request and denies direct Primary writes and unguarded Bash through `PreToolUse`. A `Stop` event preserves the broker while a run manifest exists so human decisions can span turns, then cleans it after finish or abort; an idle TTL collects abandoned brokers. No separate launcher command is required.
 
 Review and trust the bundled hook through `/hooks`, then start a new thread. If the hook is untrusted, disabled, or unavailable, do not use Socratic. Plugin-hook trust is user-controlled; an organization that needs an undeletable boundary must deploy the same gate as a managed hook through `requirements.toml` and OS/device management.
 
@@ -74,7 +74,7 @@ codex plugin marketplace upgrade socratic-marketplace
 codex plugin add socratic@socratic-marketplace
 ```
 
-Invoke `$socratic` in a trusted local Git repository. The Codex Plugin starts the same session-scoped Host broker, denies direct Primary writes and unguarded commands through `PreToolUse`, and cleans the Host state on `Stop`.
+Invoke `$socratic` in a trusted local Git repository. The Codex Plugin starts the same session-scoped Host broker and denies direct Primary writes and unguarded commands through `PreToolUse`. It preserves active run state across turns and cleans completed, aborted, or idle sessions.
 
 ### Cursor Desktop
 
@@ -103,13 +103,7 @@ npx skills add Shogo1222/socratic --skill '*'
 
 Invoke `$maieutic` or `$elenchus` directly for standalone analysis. Use each Host's Plugin above for the integrated `$socratic` workflow.
 
-The mandatory review runner requires Python 3 with `jsonschema` and `referencing`:
-
-```bash
-python3 -m pip install jsonschema referencing
-```
-
-Use a Host-managed virtual environment or managed Python runtime instead of installing these packages globally. If either dependency is unavailable, the runner fails closed with a `blocked` result.
+The mandatory review runner requires Python 3 with `jsonschema` and `referencing`. Each Host Plugin resolves these dependencies before the agent starts. If they are absent, the Hook creates an isolated virtual environment in the Plugin's writable data directory and installs pinned versions there; it never changes the repository or global Python environment. The first run therefore requires package-index access. Bootstrap failure stops Socratic before the agent runs. Organizations may pre-provision the same pinned dependencies in a managed Python runtime to avoid first-run network access.
 
 For organizational rollout — release verification, preview, and project scope — follow the [enterprise installation guide](docs/enterprise-installation.md).
 

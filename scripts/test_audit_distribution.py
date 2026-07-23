@@ -41,6 +41,7 @@ class DistributionAuditTest(unittest.TestCase):
             shutil.copytree(ROOT / "skills", root / "skills")
             (root / "scripts").mkdir()
             shutil.copy2(ROOT / "scripts/claude_host.py", root / "scripts/claude_host.py")
+            shutil.copy2(ROOT / "scripts/plugin_runtime.py", root / "scripts/plugin_runtime.py")
             (root / "hooks/untracked.py").write_text("pass\n", encoding="utf-8")
             _, errors = inspect_plugin_tree(root)
             self.assertTrue(any("unexpected plugin file" in error for error in errors))

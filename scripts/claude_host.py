@@ -19,6 +19,7 @@ from pathlib import Path
 
 
 SESSION_ROOT = Path("/tmp/socratic-sessions")
+BROKER_IDLE_TTL_SECONDS = 2 * 60 * 60
 
 
 def session_root(session_id: str) -> Path:
@@ -108,7 +109,10 @@ def run_broker(state_path: Path) -> int:
 
 def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threading.Event) -> None:
     server.settimeout(0.25)
+    last_request = time.monotonic()
     while not stop.is_set():
+        if time.monotonic() - last_request > BROKER_IDLE_TTL_SECONDS:
+            break
         try:
             connection, _ = server.accept()
         except (TimeoutError, socket.timeout):
@@ -118,6 +122,7 @@ def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threa
                 break
             raise
         with connection:
+            last_request = time.monotonic()
             try:
                 request = json.loads(connection.recv(65536).decode())
                 if not secrets.compare_digest(str(request.get("token", "")), token):

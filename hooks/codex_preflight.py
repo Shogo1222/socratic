@@ -26,6 +26,16 @@ def _host_module():
     return module
 
 
+def _runtime_python() -> Path:
+    path = Path(__file__).resolve().parent.parent / "scripts/plugin_runtime.py"
+    spec = importlib.util.spec_from_file_location("socratic_codex_plugin_runtime", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Plugin runtime helper is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.ensure_runtime(Path(__file__).resolve().parent.parent)
+
+
 def _blocked() -> dict[str, Any]:
     return {"continue": False, "stopReason": BLOCKED_REASON}
 
@@ -36,25 +46,33 @@ def evaluate(payload: Any) -> dict[str, Any]:
     prompt = payload.get("prompt")
     if not isinstance(prompt, str):
         return _blocked()
-    if SOCRATIC_INVOCATION.search(prompt) is None:
-        return {"continue": True}
     session_id = payload.get("session_id")
     cwd = payload.get("cwd")
     if not isinstance(session_id, str) or not isinstance(cwd, str):
-        return _blocked()
+        return _blocked() if SOCRATIC_INVOCATION.search(prompt) else {"continue": True}
+    host = _host_module()
+    state = host.load_session(session_id)
+    active = bool(
+        state and host.request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}
+    )
+    if SOCRATIC_INVOCATION.search(prompt) is None and not active:
+        return {"continue": True}
     try:
-        state = _host_module().prepare_session(
-            session_id,
-            Path(cwd),
-            adapter_id="codex-plugin-hook-host-v1",
-            host_name="Codex",
-        )
+        if not active:
+            state = host.prepare_session(
+                session_id,
+                Path(cwd),
+                adapter_id="codex-plugin-hook-host-v1",
+                host_name="Codex",
+            )
+        runtime_python = _runtime_python()
     except (OSError, RuntimeError):
         return _blocked()
+    assert state is not None
     runner = Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"
     context = (
         "Trusted Socratic Host is ready. Run mandatory preflight with: "
-        f"python3 {shlex.quote(str(runner))} preflight "
+        f"{shlex.quote(str(runtime_python))} {shlex.quote(str(runner))} preflight "
         f"--primary {shlex.quote(state['primary_root'])} "
         f"--host-socket {shlex.quote(state['socket_path'])} "
         f"--host-token {shlex.quote(state['token'])}\n"

@@ -17,7 +17,10 @@ def main() -> int:
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-                module.cleanup_session(session_id)
+                state = module.load_session(session_id)
+                manifest = Path(state["storage_root"]) / "run-manifest.json" if state else None
+                if manifest is None or not manifest.is_file():
+                    module.cleanup_session(session_id)
     except (OSError, UnicodeError, json.JSONDecodeError):
         pass
     print("{}")

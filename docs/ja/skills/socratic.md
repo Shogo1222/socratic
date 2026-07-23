@@ -87,7 +87,7 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 
 ### Review-onlyの必須Entry Point
 
-Native Host IntegrationがTrusted Preflightを完了した後だけ、このWorkflowへ入る。Claude Code Terminalでは`/socratic:socratic`、Codexまたは対応するローカルCursor Desktop Workspaceでは`$socratic`を実行する。各Host PluginはSkillの実行前にLive brokerを自動起動し、正確なPreflight Commandを注入し、Tool Gateを有効化して、Stop時にSessionをCleanupする。注入されたCommandを捏造・変更しない。Standalone Skill Installと未対応のCursor CLI、Remote、Cloud Surfaceは準拠Entry Pointではない。
+Native Host IntegrationがTrusted Preflightを完了した後だけ、このWorkflowへ入る。Claude Code Terminalでは`/socratic:socratic`、Codexまたは対応するローカルCursor Desktop Workspaceでは`$socratic`を実行する。各Host PluginはSkillの実行前にLive brokerを自動起動し、正確なPreflight Commandを注入してTool Gateを有効化する。実行中ManifestはTurn間で維持し、完了・Abort・Idle時にSessionをCleanupする。注入されたCommandを捏造・変更しない。Standalone Skill Installと未対応のCursor CLI、Remote、Cloud Surfaceは準拠Entry Pointではない。
 
 すべてのReview-only Mutation Runは、信頼されたHost Adapterによる`preflight_with_host`、各`mutate`または`register_prebuilt`、BaselineとMutation ID付き`execute`、`finish`を必ず使用する。Standalone CLIはReady Runを作れず、自己申告Attestation JSONを受理しない。Host Adapter、Schema、またはHostがAttestしたRead-only/Write-monitor CapabilityがなければMutation前に`blocked`で停止する。Schema v7の`verified: true`は、Runnerが信頼するHostのAttestationを受理したことを意味し、Runner自身がOS境界を独立検証したという意味ではない。手作業の近似、Primary変更後の復元、`execute`外のCommand、手書きArtifactや4ブロックを正規Runとして提示しない。
 
