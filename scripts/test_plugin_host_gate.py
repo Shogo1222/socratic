@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 HOOK = ROOT / "hooks/socratic_preflight.py"
+CLAUDE_HOOK = ROOT / "hooks/claude_preflight.py"
 FIXTURE = ROOT / "fixtures/pr438-blocked-bypass.json"
 
 
@@ -109,11 +110,28 @@ class PluginHostGateTest(unittest.TestCase):
         )
         self.assertEqual(manifest["name"], "socratic")
         self.assertEqual(manifest["skills"], "./skills/")
-        self.assertEqual(manifest["hooks"], "./hooks/hooks.json")
-        hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["hooks"], "./hooks/codex-hooks.json")
+        hooks = json.loads((ROOT / "hooks/codex-hooks.json").read_text(encoding="utf-8"))
         groups = hooks["hooks"]["UserPromptSubmit"]
         self.assertEqual(len(groups), 1)
         self.assertIn("$PLUGIN_ROOT/hooks/socratic_preflight.py", groups[0]["hooks"][0]["command"])
+
+    def test_claude_plugin_uses_native_block_schema(self) -> None:
+        spec = importlib.util.spec_from_file_location("claude_preflight_hook", CLAUDE_HOOK)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        expected = {
+            "decision": "block",
+            "reason": "blocked: trusted Host Adapter capability is unavailable",
+        }
+        self.assertEqual(module.evaluate(self.fixture["hook_input"]), expected)
+        self.assertEqual(module.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": "hello"}), {})
+        manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["version"], "0.3.0-alpha.2")
+        hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
+        command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+        self.assertIn("${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py", command)
 
 
 if __name__ == "__main__":

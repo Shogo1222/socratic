@@ -1,14 +1,13 @@
 {
-  "description": "Stop Socratic requests before the agent starts when no native trusted Host Adapter is available.",
+  "description": "Stop Socratic requests before Claude Code processes them when no trusted Host capability is available.",
   "hooks": {
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$PLUGIN_ROOT/hooks/socratic_preflight.py\"",
-            "timeout": 10,
-            "statusMessage": "Checking the trusted Socratic Host capability"
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py\"",
+            "timeout": 10
           }
         ]
       }

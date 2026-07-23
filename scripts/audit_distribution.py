@@ -38,7 +38,10 @@ EXPECTED_FILES = (
     "socratic/scripts/validate_and_render.py",
 )
 EXPECTED_PLUGIN_FILES = (
+    ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
+    "hooks/claude_preflight.py",
+    "hooks/codex-hooks.json",
     "hooks/hooks.json",
     "hooks/socratic_preflight.py",
     *(f"skills/{relative}" for relative in EXPECTED_FILES),
@@ -189,7 +192,12 @@ def inspect_tree(root: Path, *, require_safety_text: bool) -> tuple[list[dict[st
 def inspect_plugin_tree(root: Path) -> tuple[list[dict[str, object]], list[str]]:
     errors: list[str] = []
     actual: dict[str, Path] = {}
-    for directory in (root / ".codex-plugin", root / "hooks", root / "skills"):
+    for directory in (
+        root / ".claude-plugin",
+        root / ".codex-plugin",
+        root / "hooks",
+        root / "skills",
+    ):
         if not directory.is_dir():
             errors.append(f"plugin directory is missing: {directory.relative_to(root)}")
             continue

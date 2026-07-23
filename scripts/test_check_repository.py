@@ -48,7 +48,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             count = counts.get(relative, 21)
             path.write_text(
                 f"<!-- socratic-distribution-file-count: {count} -->\n"
-                "<!-- socratic-plugin-file-count: 24 -->\n",
+                "<!-- socratic-plugin-file-count: 27 -->\n",
                 encoding="utf-8",
             )
 
@@ -58,7 +58,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             self.make_documents(root)
             with patch.object(check_repository, "ROOT", root), patch.object(
                 check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 21
-            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 24):
+            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 27):
                 check_repository.check_distribution_documentation()
 
     def test_rejects_expected_files_change_without_documentation_update(self) -> None:
@@ -67,7 +67,7 @@ class DistributionDocumentationTest(unittest.TestCase):
             self.make_documents(root)
             with patch.object(check_repository, "ROOT", root), patch.object(
                 check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 22
-            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 24), redirect_stderr(io.StringIO()):
+            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 27), redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     check_repository.check_distribution_documentation()
 
@@ -80,28 +80,39 @@ class DistributionDocumentationTest(unittest.TestCase):
                 self.make_documents(root, {stale_document: 16})
                 with patch.object(check_repository, "ROOT", root), patch.object(
                     check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 21
-                ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 24), redirect_stderr(io.StringIO()):
+                ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 27), redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit):
                         check_repository.check_distribution_documentation()
 
 
 class PluginStructureTest(unittest.TestCase):
-    def make_plugin(self, root: Path, *, version: str = "0.3.0-alpha.1") -> None:
+    def make_plugin(self, root: Path, *, version: str = "0.3.0-alpha.2") -> None:
         (root / ".codex-plugin").mkdir(parents=True)
+        (root / ".claude-plugin").mkdir(parents=True)
         (root / "hooks").mkdir()
         (root / "skills/socratic/agents").mkdir(parents=True)
-        (root / "VERSION").write_text("0.3.0-alpha.1\n", encoding="utf-8")
+        (root / "VERSION").write_text("0.3.0-alpha.2\n", encoding="utf-8")
+        (root / ".claude-plugin/plugin.json").write_text(
+            json.dumps({"name": "socratic", "version": version}), encoding="utf-8"
+        )
         (root / ".codex-plugin/plugin.json").write_text(
             json.dumps(
                 {
                     "name": "socratic",
                     "version": version,
                     "skills": "./skills/",
-                    "hooks": "./hooks/hooks.json",
+                    "hooks": "./hooks/codex-hooks.json",
                 }
             ),
             encoding="utf-8",
         )
+        codex_hooks = {
+            "hooks": {"UserPromptSubmit": [{"hooks": [{
+                "type": "command",
+                "command": 'python3 "$PLUGIN_ROOT/hooks/socratic_preflight.py"',
+            }]}]}
+        }
+        (root / "hooks/codex-hooks.json").write_text(json.dumps(codex_hooks), encoding="utf-8")
         (root / "hooks/hooks.json").write_text(
             json.dumps(
                 {
@@ -111,7 +122,7 @@ class PluginStructureTest(unittest.TestCase):
                                 "hooks": [
                                     {
                                         "type": "command",
-                                        "command": 'python3 "$PLUGIN_ROOT/hooks/socratic_preflight.py"',
+                                        "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py"',
                                     }
                                 ]
                             }
@@ -122,6 +133,7 @@ class PluginStructureTest(unittest.TestCase):
             encoding="utf-8",
         )
         (root / "hooks/socratic_preflight.py").write_text("# fixture\n", encoding="utf-8")
+        (root / "hooks/claude_preflight.py").write_text("# fixture\n", encoding="utf-8")
         (root / "skills/socratic/agents/openai.yaml").write_text(
             "policy:\n  allow_implicit_invocation: false\n", encoding="utf-8"
         )
