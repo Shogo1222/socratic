@@ -11,6 +11,13 @@ from pathlib import Path
 from typing import Any
 
 
+DRAFT_FILENAMES = {
+    "intent-contract.draft.json",
+    "mutation-report.draft.json",
+    "canonical-review.draft.json",
+}
+
+
 def _host_module():
     path = Path(__file__).resolve().parent.parent / "scripts/claude_host.py"
     spec = importlib.util.spec_from_file_location("socratic_claude_host_gate", path)
@@ -37,7 +44,10 @@ def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
         return False
     try:
         candidate.resolve(strict=False).relative_to(root)
-        return True
+        return (
+            candidate.resolve(strict=False).parent == root
+            and candidate.name in DRAFT_FILENAMES
+        )
     except (OSError, ValueError):
         return False
 

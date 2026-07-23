@@ -17,6 +17,14 @@ class ArtifactError(ValueError):
 
 
 CONTRACT_ID_PATTERN = re.compile(r"\b(?:DEC|INV|FX)-[0-9]{3,}\b")
+ARTIFACT_SCHEMAS = (
+    "intent-contract.schema.json",
+    "mutation-result.schema.json",
+    "mutation-report.schema.json",
+    "mutation-report-draft.schema.json",
+    "test-handoff.schema.json",
+    "canonical-review.schema.json",
+)
 
 
 def load_strict_json(path: Path) -> dict[str, Any]:
@@ -165,10 +173,35 @@ def decision_options(options: list[str], *, answerer_has_authority: bool | None)
     return result
 
 
-def validate_with_schemas(
-    contract: dict[str, Any],
-    report: dict[str, Any],
-    review: dict[str, Any],
+def _schema_paths(schema_root: Path | None) -> dict[str, Path]:
+    if schema_root is not None:
+        return {name: schema_root / name for name in ARTIFACT_SCHEMAS}
+    skills_root = Path(__file__).resolve().parents[2]
+    return {
+        "intent-contract.schema.json": (
+            skills_root / "elenchus" / "references" / "intent-contract.schema.json"
+        ),
+        "mutation-result.schema.json": (
+            skills_root / "elenchus" / "references" / "mutation-result.schema.json"
+        ),
+        "mutation-report.schema.json": (
+            skills_root / "elenchus" / "references" / "mutation-report.schema.json"
+        ),
+        "mutation-report-draft.schema.json": (
+            skills_root / "socratic" / "references" / "mutation-report-draft.schema.json"
+        ),
+        "test-handoff.schema.json": (
+            skills_root / "elenchus" / "references" / "test-handoff.schema.json"
+        ),
+        "canonical-review.schema.json": (
+            skills_root / "socratic" / "references" / "canonical-review.schema.json"
+        ),
+    }
+
+
+def validate_document(
+    document: dict[str, Any],
+    schema_name: str,
     schema_root: Path | None = None,
 ) -> None:
     try:
@@ -176,39 +209,32 @@ def validate_with_schemas(
         from referencing import Registry, Resource
     except ImportError as error:
         raise ArtifactError("jsonschema and referencing are required for artifact validation") from error
-
-    schema_names = (
-        "intent-contract.schema.json",
-        "mutation-result.schema.json",
-        "mutation-report.schema.json",
-        "test-handoff.schema.json",
-        "canonical-review.schema.json",
-    )
-    if schema_root is not None:
-        schema_paths = {name: schema_root / name for name in schema_names}
-    else:
-        skills_root = Path(__file__).resolve().parents[2]
-        schema_paths = {
-            "intent-contract.schema.json": skills_root / "elenchus" / "references" / "intent-contract.schema.json",
-            "mutation-result.schema.json": skills_root / "elenchus" / "references" / "mutation-result.schema.json",
-            "mutation-report.schema.json": skills_root / "elenchus" / "references" / "mutation-report.schema.json",
-            "test-handoff.schema.json": skills_root / "elenchus" / "references" / "test-handoff.schema.json",
-            "canonical-review.schema.json": skills_root / "socratic" / "references" / "canonical-review.schema.json",
-        }
-    schemas = {name: load_strict_json(schema_paths[name]) for name in schema_names}
+    if schema_name not in ARTIFACT_SCHEMAS:
+        raise ArtifactError(f"unknown artifact schema: {schema_name}")
+    paths = _schema_paths(schema_root)
+    schemas = {name: load_strict_json(paths[name]) for name in ARTIFACT_SCHEMAS}
     registry = Registry().with_resources(
         [(name, Resource.from_contents(schema)) for name, schema in schemas.items()]
     )
+    validator = Draft202012Validator(schemas[schema_name], registry=registry)
+    errors = sorted(validator.iter_errors(document), key=lambda error: list(error.path))
+    if errors:
+        detail = "; ".join(error.message for error in errors)
+        raise ArtifactError(f"{schema_name} validation failed: {detail}")
+
+
+def validate_with_schemas(
+    contract: dict[str, Any],
+    report: dict[str, Any],
+    review: dict[str, Any],
+    schema_root: Path | None = None,
+) -> None:
     for name, document in (
         ("intent-contract.schema.json", contract),
         ("mutation-report.schema.json", report),
         ("canonical-review.schema.json", review),
     ):
-        validator = Draft202012Validator(schemas[name], registry=registry)
-        errors = sorted(validator.iter_errors(document), key=lambda error: list(error.path))
-        if errors:
-            detail = "; ".join(error.message for error in errors)
-            raise ArtifactError(f"{name} validation failed: {detail}")
+        validate_document(document, name, schema_root)
     validate_cross_artifact(contract, report)
     rendered = render_review(review)
     canonical_output = report.get("canonical_output", {})

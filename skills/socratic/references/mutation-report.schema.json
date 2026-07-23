@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Elenchus Mutation Report",
+  "type": "object",
+  "required": [
+    "version",
+    "mode",
+    "write_mode",
+    "run",
+    "intent_contract",
+    "baseline",
+    "assessment",
+    "mutations",
+    "not_challenged",
+    "unresolved",
+    "test_changes",
+    "test_handoff",
+    "authorized_workspace_changes",
+    "isolation",
+    "persistent_side_effects",
+    "canonical_output",
+    "postflight"
+  ],
+  "properties": {
+    "version": { "const": 7 },
+    "mode": { "enum": ["assessment", "harden", "catch"] },
+    "write_mode": { "enum": ["review-only", "apply-tests"] },
+    "run": {
+      "type": "object",
+      "required": ["id", "entrypoint", "host_adapter", "run_nonce", "manifest_sha256", "ledger_head"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "entrypoint": { "const": "socratic/scripts/run_review.py" },
+        "host_adapter": { "type": "string", "minLength": 1 },
+        "run_nonce": { "type": "string", "minLength": 32 },
+        "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "ledger_head": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "intent_contract": {
+      "type": "object",
+      "required": ["path", "status"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["provisional", "needs-decision", "confirmed", "tested", "challenged", "hardened"] }
+      },
+      "additionalProperties": false
+    },
+    "baseline": {
+      "type": "object",
+      "description": "When a cohort comparison exists, this baseline and each mutations[].result record the changed cohort; existing-cohort outcomes appear only in assessment.comparisons.",
+      "required": ["command", "status", "attempts", "stable_tests", "excluded_tests"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["green", "baseline-red", "flaky-reduced", "not-runnable"] },
+        "attempts": { "type": "integer", "minimum": 1 },
+        "stable_tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "excluded_tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "assessment": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": [
+            "selected_scope",
+            "selection_reason",
+            "production_files",
+            "existing_tests",
+            "changed_tests",
+            "excluded_scope",
+            "comparisons"
+          ],
+          "properties": {
+            "selected_scope": { "enum": ["current-change", "changed-tests", "broader-target"] },
+            "selection_reason": { "type": "string", "minLength": 1 },
+            "production_files": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "existing_tests": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "changed_tests": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "excluded_scope": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "comparisons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["mutation_id", "existing_result", "changed_result", "classification"],
+                "properties": {
+                  "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+                  "existing_result": {
+                    "enum": ["killed", "survived", "not-run", "not-comparable", "inconclusive"]
+                  },
+                  "changed_result": {
+                    "enum": ["killed", "survived", "not-run", "not-comparable", "inconclusive"]
+                  },
+                  "classification": {
+                    "enum": [
+                      "existing-protection",
+                      "incremental-protection",
+                      "protection-regression",
+                      "unprotected",
+                      "not-comparable",
+                      "inconclusive"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "mutations": {
+      "type": "array",
+      "items": { "$ref": "mutation-result.schema.json" }
+    },
+    "not_challenged": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["contract_id", "reason", "residual_risk"],
+        "properties": {
+          "contract_id": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+          "reason": { "enum": ["budget", "not-observable", "not-applicable", "deferred", "blocked"] },
+          "residual_risk": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^UNR-[0-9]{3,}$" },
+      "uniqueItems": true
+    },
+    "test_changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "disposition"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "disposition": { "enum": ["existing", "proposed", "applied"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "test_handoff": {
+      "oneOf": [
+        { "$ref": "test-handoff.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "authorized_workspace_changes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "isolation": {
+      "type": "object",
+      "required": ["execution_strategy", "primary_root", "sandbox_root", "host_protection", "write_monitor", "mutation_targets", "write_events"],
+      "properties": {
+        "execution_strategy": { "enum": ["guarded-file-write", "prebuilt-mutant", "comparison-only"] },
+        "primary_root": { "type": "string", "minLength": 1 },
+        "sandbox_root": { "type": "string", "minLength": 1 },
+        "host_protection": {
+          "type": "object",
+          "required": ["mode", "verified", "details"],
+          "properties": {
+            "mode": { "enum": ["os-read-only", "permission-read-only", "unavailable"] },
+            "verified": { "type": "boolean", "description": "Schema v7 compatibility field: true means the Runner accepted a trusted Host attestation; it does not assert independent OS verification by the Runner." },
+            "details": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "write_monitor": {
+          "type": "object",
+          "required": ["mode", "verified", "details"],
+          "properties": {
+            "mode": { "enum": ["host-events", "os-audit", "unavailable"] },
+            "verified": { "type": "boolean", "description": "Schema v7 compatibility field: true means the Runner accepted a trusted Host attestation; it does not assert independent OS verification by the Runner." },
+            "details": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "mutation_targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mutation_id", "requested_path", "resolved_path", "within_sandbox"],
+            "properties": {
+              "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
+              "requested_path": { "type": "string", "minLength": 1 },
+              "resolved_path": { "type": "string", "minLength": 1 },
+              "within_sandbox": { "const": true }
+            },
+            "additionalProperties": false
+          }
+        },
+        "write_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["target", "bytes", "within_sandbox"],
+            "properties": {
+              "target": { "type": "string", "minLength": 1 },
+              "bytes": { "type": "integer", "minimum": 0 },
+              "within_sandbox": { "const": true }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "execution_strategy": { "const": "guarded-file-write" } } },
+          "then": { "properties": { "mutation_targets": { "minItems": 1 } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "persistent_side_effects": {
+      "type": "object",
+      "required": ["authorization", "writes"],
+      "properties": {
+        "authorization": { "enum": ["not-requested", "explicitly-authorized"] },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "kind", "authorized"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["memory", "profile", "persistent-learning", "other"] },
+              "authorized": { "const": true }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "writes": { "minItems": 1 } }, "required": ["writes"] },
+          "then": { "properties": { "authorization": { "const": "explicitly-authorized" } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "canonical_output": {
+      "type": "object",
+      "required": ["renderer", "sha256", "extra_prose"],
+      "properties": {
+        "renderer": { "const": "socratic/scripts/validate_and_render.py" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "extra_prose": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "postflight": {
+      "type": "object",
+      "required": [
+        "primary_written_during_run",
+        "primary_final_hash_unchanged",
+        "working_tree_final_status",
+        "production_mutation_free",
+        "sandbox_destroyed",
+        "notes"
+      ],
+      "properties": {
+        "primary_written_during_run": { "type": "boolean" },
+        "primary_final_hash_unchanged": { "type": "boolean" },
+        "working_tree_final_status": { "type": "string" },
+        "production_mutation_free": { "type": "boolean" },
+        "sandbox_destroyed": { "type": "boolean" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "assessment" } }, "required": ["mode"] },
+      "then": { "properties": { "assessment": { "type": "object" } } }
+    },
+    {
+      "if": { "properties": { "write_mode": { "const": "review-only" } }, "required": ["write_mode"] },
+      "then": {
+        "properties": {
+          "authorized_workspace_changes": { "maxItems": 0 },
+          "test_changes": {
+            "items": { "properties": { "disposition": { "enum": ["existing", "proposed"] } } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "write_mode": { "const": "review-only" } }, "required": ["write_mode"] },
+      "then": {
+        "properties": {
+          "postflight": {
+            "properties": { "primary_written_during_run": { "const": false } }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -5,7 +5,8 @@
   "required": [
     "version", "run_id", "status", "write_mode", "socratic_version",
     "entrypoint", "skill_root", "primary_root", "sandbox_root", "host",
-    "protection", "environment", "ledger_path"
+    "protection", "environment", "ledger_path", "artifact_root",
+    "artifact_index_path", "primary_sha256"
   ],
   "properties": {
     "version": { "const": 1 },
@@ -49,7 +50,10 @@
       },
       "additionalProperties": false
     },
-    "ledger_path": { "type": "string", "minLength": 1 }
+    "ledger_path": { "type": "string", "minLength": 1 },
+    "artifact_root": { "type": "string", "minLength": 1 },
+    "artifact_index_path": { "type": "string", "minLength": 1 },
+    "primary_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
   },
   "allOf": [
     {
