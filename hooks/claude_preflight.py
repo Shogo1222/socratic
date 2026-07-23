@@ -19,8 +19,9 @@ SOCRATIC_INVOCATION = re.compile(
 )
 
 
-def _blocked() -> dict[str, str]:
-    return {"decision": "block", "reason": BLOCKED_REASON}
+def _blocked(detail: str | None = None) -> dict[str, str]:
+    reason = f"blocked: {detail}" if detail else BLOCKED_REASON
+    return {"decision": "block", "reason": reason}
 
 
 def _host_module():
@@ -66,7 +67,9 @@ def evaluate(payload: Any) -> dict[str, str]:
                 session_id, Path(cwd), prompt
             )
             runtime_python = _runtime_python()
-        except (OSError, RuntimeError):
+        except RuntimeError as error:
+            return _blocked(str(error))
+        except OSError:
             return _blocked()
         assert state is not None
         runner = Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"

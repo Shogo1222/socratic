@@ -128,6 +128,25 @@ class CursorHostTest(unittest.TestCase):
         self.assertFalse(decision["continue"])
         self.assertIn("blocked", decision["agent_message"])
 
+    def test_materialization_failure_is_reported_by_the_hook(self) -> None:
+        with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
+            self.host,
+            "prepare_or_retarget_session",
+            side_effect=RuntimeError(
+                "Host could not materialize the exact pull-request base commit"
+            ),
+        ):
+            decision = self.hook.evaluate({
+                "hook_event_name": "beforeSubmitPrompt",
+                "prompt": "$socratic PR #438",
+                "conversation_id": "cursor-materialization-error",
+                "workspace_roots": [str(ROOT)],
+            })
+        self.assertEqual(
+            decision["agent_message"],
+            "blocked: Host could not materialize the exact pull-request base commit",
+        )
+
     def test_late_pull_request_selection_is_host_retargeted(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repository = Path(directory) / "repository"

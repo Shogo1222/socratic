@@ -166,10 +166,24 @@ def materialize_pull_request(
     mirror = storage / "materialized.git"
     subprocess.run(["git", "init", "--bare", str(mirror)], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    fetch = subprocess.run(
+    fetch_base = subprocess.run(
         [
             "git", "--git-dir", str(mirror), "fetch", "--no-tags", remote,
-            f"+refs/heads/{metadata['baseRefName']}:refs/socratic/base",
+            f"+{metadata['baseRefOid']}:refs/socratic/base",
+        ],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=120,
+    )
+    if fetch_base.returncode != 0:
+        raise RuntimeError(
+            "Host could not materialize the exact pull-request base commit"
+        )
+    fetch_head = subprocess.run(
+        [
+            "git", "--git-dir", str(mirror), "fetch", "--no-tags", remote,
             f"+refs/pull/{number}/head:refs/socratic/head",
         ],
         check=False,
@@ -178,8 +192,10 @@ def materialize_pull_request(
         text=True,
         timeout=120,
     )
-    if fetch.returncode != 0:
-        raise RuntimeError("Host could not materialize the requested pull request")
+    if fetch_head.returncode != 0:
+        raise RuntimeError(
+            "Host could not materialize the exact pull-request head commit"
+        )
     for reference, expected in (
         ("refs/socratic/base", metadata["baseRefOid"]),
         ("refs/socratic/head", metadata["headRefOid"]),
