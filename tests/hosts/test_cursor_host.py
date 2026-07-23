@@ -38,6 +38,12 @@ class CursorHostTest(unittest.TestCase):
                 self.assertTrue(decision["continue"])
                 self.assertIn("Trusted Socratic Host is ready", decision["agent_message"])
                 self.assertIn("Host review context:", decision["agent_message"])
+                self.assertIn("Start by stating the injected Mission", decision["agent_message"])
+                self.assertIn("recommended Review Type", decision["agent_message"])
+                self.assertIn(
+                    "problem, changed behavior, preserved behavior",
+                    decision["agent_message"],
+                )
                 state = self.host.load_session(session_id)
                 adapter = self.runner.ClaudeSocketHostAdapter(
                     Path(state["socket_path"]), state["token"]

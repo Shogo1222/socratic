@@ -112,7 +112,7 @@ def materialize_pull_request(
         [
             "gh", "pr", "view", str(requested),
             "--json",
-            "number,url,baseRefName,baseRefOid,headRefName,headRefOid",
+            "number,url,title,baseRefName,baseRefOid,headRefName,headRefOid",
         ],
         cwd=primary,
         check=False,
@@ -250,6 +250,7 @@ def materialize_pull_request(
         "source": "github-pull-request",
         "number": number,
         "url": metadata["url"],
+        "title": metadata.get("title", ""),
         "base_ref": metadata["baseRefName"],
         "base_sha": metadata["baseRefOid"],
         "head_ref": metadata["headRefName"],
@@ -264,7 +265,35 @@ def materialize_pull_request(
     return provenance
 
 
-def build_review_context(change: dict[str, Any]) -> dict[str, Any]:
+REVIEW_TYPES = (
+    "Bug Fix Review",
+    "Feature Review",
+    "Refactor Guard",
+    "Test Assessment",
+)
+
+MISSION = (
+    "Infer the intended observable behavior from repository evidence, expose only "
+    "consequential uncertainty, and design realistic accidents that test whether "
+    "the suite protects that intent. The Runner owns commands, mutation mechanics, "
+    "JSON schemas, hashes, ledgers, reports, and cleanup."
+)
+
+
+def recommend_review_type(change: dict[str, Any], prompt: str = "") -> str:
+    """Recommend a workflow without turning the recommendation into specification."""
+    title = str(change.get("title", ""))
+    signal = f"{prompt}\n{title}".casefold()
+    if re.search(r"\btest(?:s|ing)? assessment\b|テスト(?:評価|アセスメント)", signal):
+        return "Test Assessment"
+    if re.search(r"\brefactor(?:ing)?\b|リファクタ", signal):
+        return "Refactor Guard"
+    if re.search(r"\b(?:fix|bug|regression|hotfix)\b|修正|不具合|バグ", signal):
+        return "Bug Fix Review"
+    return "Feature Review"
+
+
+def build_review_context(change: dict[str, Any], prompt: str = "") -> dict[str, Any]:
     head = Path(str(change["head_root"]))
     package_manager = next(
         (
@@ -283,15 +312,30 @@ def build_review_context(change: dict[str, Any]) -> dict[str, Any]:
     )
     target = {
         key: change[key]
-        for key in ("source", "number", "url", "base_sha", "head_sha")
+        for key in ("source", "number", "url", "title", "base_sha", "head_sha")
         if key in change
     }
     return {
+        "mission": MISSION,
         "target": target,
         "changed_files": change.get("changed_files", []),
         "environment_hints": {"package_manager": package_manager},
+        "review_type": {
+            "recommended": recommend_review_type(change, prompt),
+            "options": list(REVIEW_TYPES),
+            "requires_human_confirmation": True,
+        },
+        "checkpoints": [
+            "review-type",
+            "diff-understanding",
+            "intent-oracle",
+            "final-interpretation",
+        ],
         "fast_path": [
-            "infer intent from Host context and repository evidence",
+            "state the Mission, then obtain review-type confirmation",
+            "inspect the change with bounded read-only evidence gathering",
+            "present problem, changed behavior, preserved behavior, new observable, "
+            "and uncertainty; obtain diff-understanding confirmation",
             "stage intent-contract.draft.json before any mutation",
             "ask a structured question and stop if an observable oracle is unresolved",
             "run one baseline through the guarded Runner",
@@ -341,6 +385,9 @@ def prepare_session(
     except (OSError, RuntimeError, subprocess.SubprocessError):
         shutil.rmtree(root, ignore_errors=True)
         raise
+    manifest_change = {
+        key: value for key, value in change.items() if key != "title"
+    }
     state = {
         "session_id": session_id,
         "primary_root": str(primary),
@@ -354,8 +401,8 @@ def prepare_session(
         "artifact_root": str(artifacts),
         "protection_mode": "host-events",
         "protection_details": f"{host_name} tool gate denies Primary writes and unguarded execution",
-        "change_context": change,
-        "review_context": build_review_context(change),
+        "change_context": manifest_change,
+        "review_context": build_review_context(change, prompt),
     }
     state_path = root / "state.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")

@@ -35,6 +35,12 @@ class CodexHostTest(unittest.TestCase):
                 self.assertTrue(decision["continue"])
                 self.assertIn("Trusted Socratic Host is ready", decision["systemMessage"])
                 self.assertIn("Host review context:", decision["systemMessage"])
+                self.assertIn("Start by stating the injected Mission", decision["systemMessage"])
+                self.assertIn("recommended Review Type", decision["systemMessage"])
+                self.assertIn(
+                    "problem, changed behavior, preserved behavior",
+                    decision["systemMessage"],
+                )
                 state = self.host.load_session(session_id)
                 self.assertIsNotNone(state)
                 adapter = self.runner.ClaudeSocketHostAdapter(

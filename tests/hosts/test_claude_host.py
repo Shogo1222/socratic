@@ -46,11 +46,33 @@ class ClaudeHostTest(unittest.TestCase):
                 context = decision["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("Trusted Socratic Host is ready", context)
                 self.assertIn("Host review context:", context)
+                self.assertIn("Start by stating the injected Mission", context)
+                self.assertIn("recommended Review Type", context)
+                self.assertIn("problem, changed behavior, preserved behavior", context)
                 self.assertIn(
                     "Do not launch subagents for deterministic diff", context
                 )
                 state = self.host.load_session(session_id)
                 self.assertIsNotNone(state)
+                review_context = state["review_context"]
+                self.assertEqual(review_context["mission"], self.host.MISSION)
+                self.assertEqual(
+                    review_context["review_type"],
+                    {
+                        "recommended": "Feature Review",
+                        "options": list(self.host.REVIEW_TYPES),
+                        "requires_human_confirmation": True,
+                    },
+                )
+                self.assertEqual(
+                    review_context["checkpoints"],
+                    [
+                        "review-type",
+                        "diff-understanding",
+                        "intent-oracle",
+                        "final-interpretation",
+                    ],
+                )
                 adapter = self.runner.ClaudeSocketHostAdapter(
                     Path(state["socket_path"]), state["token"]
                 )
@@ -209,6 +231,32 @@ class ClaudeHostTest(unittest.TestCase):
         self.assertEqual(self.host.requested_pull_request("PR438 日本語で"), 438)
         self.assertIsNone(self.host.requested_pull_request("review local changes"))
 
+    def test_review_type_recommendation_is_routing_not_specification(self) -> None:
+        change = {"head_root": str(ROOT), "title": "fix: prevent phantom errors"}
+        self.assertEqual(
+            self.host.recommend_review_type(change, "日本語で"),
+            "Bug Fix Review",
+        )
+        self.assertEqual(
+            self.host.recommend_review_type(
+                {"head_root": str(ROOT), "title": "refactor request lifecycle"}
+            ),
+            "Refactor Guard",
+        )
+        self.assertEqual(
+            self.host.recommend_review_type(
+                {"head_root": str(ROOT), "title": "add tests"},
+                "Test Assessment Modeで評価",
+            ),
+            "Test Assessment",
+        )
+        self.assertEqual(
+            self.host.recommend_review_type(
+                {"head_root": str(ROOT), "title": "add streaming events"}
+            ),
+            "Feature Review",
+        )
+
     def test_late_pull_request_selection_replaces_local_session(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repository = Path(directory) / "repository"
@@ -226,6 +274,7 @@ class ClaudeHostTest(unittest.TestCase):
                         "source": "github-pull-request",
                         "number": requested,
                         "url": f"https://github.com/Shogo1222/socratic/pull/{requested}",
+                        "title": "fix: navigation signal phantom error",
                         "base_ref": "main",
                         "base_sha": "1" * 40,
                         "head_ref": "feature",
@@ -246,6 +295,15 @@ class ClaudeHostTest(unittest.TestCase):
                 state = self.host.load_session(session_id)
                 self.assertNotEqual(state["run_id"], first["run_id"])
                 self.assertEqual(state["change_context"]["number"], 438)
+                self.assertNotIn("title", state["change_context"])
+                self.assertEqual(
+                    state["review_context"]["review_type"]["recommended"],
+                    "Bug Fix Review",
+                )
+                self.assertEqual(
+                    state["review_context"]["target"]["title"],
+                    "fix: navigation signal phantom error",
+                )
                 self.assertFalse(sentinel.exists())
                 context = decision["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("Discard all scope, findings, plans", context)
@@ -312,6 +370,7 @@ class ClaudeHostTest(unittest.TestCase):
             metadata = {
                 "number": 7,
                 "url": "https://github.com/Shogo1222/socratic/pull/7",
+                "title": "fix: preserve historical base",
                 "baseRefName": "main",
                 "baseRefOid": base_sha,
                 "headRefName": "feature",
@@ -330,6 +389,7 @@ class ClaudeHostTest(unittest.TestCase):
                 )
             self.assertEqual(provenance["base_sha"], base_sha)
             self.assertEqual(provenance["head_sha"], head_sha)
+            self.assertEqual(provenance["title"], metadata["title"])
             self.assertEqual(provenance["changed_files"], ["value.txt"])
             self.assertEqual(
                 (Path(provenance["base_root"]) / "value.txt").read_text(), "base\n"
