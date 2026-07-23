@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import importlib.util
 import json
@@ -19,7 +20,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.3.0-alpha.9"
+SOCRATIC_VERSION = "0.3.0-alpha.10"
 ARTIFACT_FILES = {
     "contract": "intent-contract.draft.json",
     "report": "mutation-report.draft.json",
@@ -715,6 +716,185 @@ def execute(
     return completed.returncode
 
 
+def _batch_command(
+    challenge: dict[str, Any],
+    registration: dict[str, Any],
+    inherited_environment: dict[str, str],
+) -> dict[str, Any]:
+    sandbox = Path(registration["sandbox_root"])
+    runtime_environment = _runtime_environment(sandbox)
+    environment = dict(inherited_environment)
+    environment.update(runtime_environment)
+    command = challenge["command"]
+    timeout_seconds = challenge["timeout_seconds"]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=sandbox,
+            env=environment,
+            timeout=timeout_seconds,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        result = "completed"
+        returncode: int | None = completed.returncode
+        stdout = completed.stdout
+        stderr = completed.stderr
+    except subprocess.TimeoutExpired as error:
+        result = "timeout"
+        returncode = None
+        stdout = error.stdout or b""
+        stderr = error.stderr or b""
+    limit = 16 * 1024
+    return {
+        "mutation_id": challenge["id"],
+        "argv": command,
+        "timeout_seconds": timeout_seconds,
+        "result": result,
+        "returncode": returncode,
+        "environment": runtime_environment,
+        "sandbox_root": str(sandbox),
+        "stdout_sha256": _sha256_bytes(stdout),
+        "stderr_sha256": _sha256_bytes(stderr),
+        "stdout": stdout[-limit:].decode("utf-8", errors="replace"),
+        "stderr": stderr[-limit:].decode("utf-8", errors="replace"),
+        "output_truncated": len(stdout) > limit or len(stderr) > limit,
+    }
+
+
+def challenge_batch(
+    manifest_path: Path, schema_root: Path | None = None
+) -> dict[str, Any]:
+    manifest = _ready_manifest(manifest_path)
+    plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
+    if (
+        not plan_path.is_file()
+        or plan_path.is_symlink()
+        or plan_path.parent.resolve(strict=True)
+        != Path(manifest["artifact_root"]).resolve(strict=True)
+    ):
+        raise RunGateError("challenge plan is missing from the fixed Host staging path")
+    plan = _load_json(plan_path)
+    if not isinstance(plan, dict):
+        raise RunGateError("challenge plan root must be an object")
+    validator = _validator_module()
+    try:
+        validator.validate_document(plan, "challenge-plan.schema.json", schema_root)
+    except validator.ArtifactError as error:
+        _record_validation_error(manifest, "challenge-plan", str(error))
+        raise RunGateError(str(error)) from error
+    ids = [item["id"] for item in plan["challenges"]]
+    if len(ids) != len(set(ids)):
+        raise RunGateError("challenge plan mutation IDs must be unique")
+    existing = {
+        item.get("mutation_id")
+        for item in _ledger_events(manifest)
+        if item.get("kind") in {"guarded-write", "prebuilt"}
+    }
+    duplicates = sorted(set(ids) & existing)
+    if duplicates:
+        raise RunGateError(f"challenge plan reuses mutation IDs: {duplicates}")
+    plan_sha256 = _sha256_path(plan_path)
+    registrations: dict[str, dict[str, Any]] = {}
+    for challenge in plan["challenges"]:
+        mutation = challenge["mutation"]
+        if mutation["kind"] == "write":
+            registration = mutate(
+                manifest_path,
+                challenge["id"],
+                mutation["relative_target"],
+                mutation["content_utf8"].encode("utf-8"),
+            )
+        else:
+            registration = register_prebuilt(
+                manifest_path, challenge["id"], mutation["relative_path"]
+            )
+        registrations[challenge["id"]] = registration
+
+    inherited_environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "LANG"} or key.startswith("LC_")
+    }
+    results_by_id: dict[str, dict[str, Any]] = {}
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(plan["max_parallel"], len(plan["challenges"]))
+    ) as executor:
+        futures = {
+            executor.submit(
+                _batch_command,
+                challenge,
+                registrations[challenge["id"]],
+                inherited_environment,
+            ): challenge["id"]
+            for challenge in plan["challenges"]
+        }
+        for future in concurrent.futures.as_completed(futures):
+            mutation_id = futures[future]
+            try:
+                results_by_id[mutation_id] = future.result()
+            except BaseException as error:
+                results_by_id[mutation_id] = {
+                    "mutation_id": mutation_id,
+                    "argv": next(
+                        item["command"]
+                        for item in plan["challenges"]
+                        if item["id"] == mutation_id
+                    ),
+                    "timeout_seconds": next(
+                        item["timeout_seconds"]
+                        for item in plan["challenges"]
+                        if item["id"] == mutation_id
+                    ),
+                    "result": "runner-error",
+                    "returncode": None,
+                    "environment": {},
+                    "sandbox_root": registrations[mutation_id]["sandbox_root"],
+                    "stdout_sha256": _sha256_bytes(b""),
+                    "stderr_sha256": _sha256_bytes(str(error).encode("utf-8")),
+                    "stdout": "",
+                    "stderr": str(error),
+                    "output_truncated": False,
+                }
+
+    public_results: list[dict[str, Any]] = []
+    for challenge in plan["challenges"]:
+        result = results_by_id[challenge["id"]]
+        ledger_event = {
+            key: value
+            for key, value in result.items()
+            if key not in {"stdout", "stderr", "output_truncated"}
+        }
+        ledger_event.update({
+            "run_id": manifest["run_id"],
+            "kind": "command",
+            "phase": "mutation",
+            "batch_plan_sha256": plan_sha256,
+        })
+        _append_event(manifest, ledger_event)
+        public_results.append({
+            "mutation_id": result["mutation_id"],
+            "outcome": (
+                "timeout"
+                if result["result"] == "timeout"
+                else "passed"
+                if result["result"] == "completed" and result["returncode"] == 0
+                else "failed"
+            ),
+            "returncode": result["returncode"],
+            "stdout": result["stdout"],
+            "stderr": result["stderr"],
+            "output_truncated": result["output_truncated"],
+        })
+    return {
+        "status": "completed",
+        "plan_sha256": plan_sha256,
+        "max_parallel": plan["max_parallel"],
+        "results": public_results,
+    }
+
+
 def _attested_report(
     manifest: dict[str, Any],
     contract: dict[str, Any],
@@ -943,6 +1123,9 @@ def finish_document(
             if item.get("result", "completed") == "completed"
         ]
         timed_out = any(item.get("result") == "timeout" for item in mutation_executions)
+        runner_failed = any(
+            item.get("result") == "runner-error" for item in mutation_executions
+        )
         interpretation = mutation.get("outcome_interpretation", {}).get("kind")
         failed = any(code != 0 for code in completed_codes)
         passed = bool(completed_codes) and all(code == 0 for code in completed_codes)
@@ -955,7 +1138,7 @@ def finish_document(
             "infrastructure-failure",
             "process-crash",
             "unparseable",
-        } and not failed:
+        } and not (failed or runner_failed):
             raise RunGateError(
                 f"failure interpretation has no failing execution: {mutation_id}"
             )
@@ -1200,6 +1383,9 @@ def main() -> int:
     execute_parser.add_argument("--mutation-id")
     execute_parser.add_argument("--timeout", type=int, default=120)
     execute_parser.add_argument("argv", nargs=argparse.REMAINDER)
+    batch_parser = commands.add_parser("challenge-batch")
+    batch_parser.add_argument("--manifest", required=True, type=Path)
+    batch_parser.add_argument("--schema-root", type=Path)
     stage_parser = commands.add_parser("stage-artifact")
     stage_parser.add_argument("--manifest", required=True, type=Path)
     stage_parser.add_argument(
@@ -1234,7 +1420,7 @@ def main() -> int:
             "next": "stage contract, report, and review drafts after guarded executions",
             "allowed_operations": [
                 "mutate", "register-prebuilt", "execute", "stage-artifact",
-                "finish", "cleanup",
+                "challenge-batch", "finish", "cleanup",
             ],
         }, sort_keys=True))
         return 0
@@ -1248,6 +1434,10 @@ def main() -> int:
                 raise RunGateError("execute requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
             return execute(args.manifest, args.phase, args.mutation_id, argv, args.timeout)
+        elif args.command == "challenge-batch":
+            print(json.dumps(
+                challenge_batch(args.manifest, args.schema_root), sort_keys=True
+            ))
         elif args.command == "stage-artifact":
             print(json.dumps(
                 stage_artifact(args.manifest, args.kind, args.schema_root),

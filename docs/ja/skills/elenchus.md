@@ -184,9 +184,9 @@ Raw Command Outcomeと解釈を分離する。Nonzero ExitだけではBehavioral
 
 Primary Rootは変更Packageではなく、それを含むGit Repository Rootへ解決する。Repository内へ解決するSandbox Symlinkはすべて拒否する。Test Cache、一時Directory、Framework出力はSandbox内へ置く。`primary_written_during_run: false`の主張には、HostがAttestしたRead-only保護またはWrite-event Monitorが必要である。Schema v9の`verified: true`はそのHost Assertionの受理を記録するもので、Runnerによる独立したOS検証ではない。
 
-### 4. Mutantを1件ずつ実行する
+### 4. 各Mutantを独立Batch Sandboxで実行する
 
-各Mutantを依存導入後にSealされたSnapshotの新しい使い捨てCloneへ単独適用し、変更ファイルを確認して、安定した最小テストをTimeout付きで実行・分類する。次のMutant前に状態を破棄する。
+独立したMutantには検証済み`challenge-batch`を優先する。定義とCommandを一括投入し、RunnerがFresh Sandboxで並列実行した全Raw Outcomeを返してから分類する。各Mutantは依存導入後にSealされたSnapshotの新しい使い捨てCloneへ単独適用する。
 
 - `killed`: 安定した関連テストが意図した振る舞い理由で失敗し、観測した失敗理由を記録し、観測可能なContract違反を確認
 - `survived`: 安定した関連テストが成功

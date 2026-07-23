@@ -79,9 +79,10 @@ def evaluate(payload: Any) -> dict[str, Any]:
         f"--host-socket {shlex.quote(state['socket_path'])} "
         f"--host-token {shlex.quote(state['token'])}\n"
         "All mutations and tests must use that Runner manifest. "
-        "Write only intent-contract.draft.json, mutation-report.draft.json, and "
+        "Write only challenge-plan.json, intent-contract.draft.json, "
+        "mutation-report.draft.json, and "
         f"canonical-review.draft.json directly under {shlex.quote(state['artifact_root'])}; "
-        "stage each with run_review.py stage-artifact, then call finish. "
+        "run challenge-batch for each plan, stage the three Drafts, then call finish. "
         "Do not hand-write run identity, Host evidence, postflight, or renderer hashes."
     )
     return {"continue": True, "systemMessage": context}

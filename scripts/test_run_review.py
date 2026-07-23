@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import subprocess
+import time
 import unittest
 from pathlib import Path
 from contextlib import redirect_stdout
@@ -248,6 +249,117 @@ class RunReviewTest(unittest.TestCase):
                 if item.get("kind") == "prepared-snapshot"
             ]
             self.assertEqual(len(prepared_events), 1)
+
+    def test_challenge_batch_runs_fresh_mutants_in_parallel_and_records_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            challenges = []
+            for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
+                challenges.append({
+                    "id": mutation_id,
+                    "mutation": {
+                        "kind": "prebuilt",
+                        "relative_path": f"packages/app/mutant-{index}.ts",
+                    },
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        f"import time; time.sleep(0.4); print('{mutation_id}')",
+                    ],
+                    "timeout_seconds": 10,
+                })
+            plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
+            plan_path.write_text(json.dumps({
+                "version": 1,
+                "max_parallel": 3,
+                "challenges": challenges,
+            }))
+            started = time.monotonic()
+            result = self.runner.challenge_batch(
+                manifest_path, ROOT / "schemas"
+            )
+            elapsed = time.monotonic() - started
+            self.assertLess(elapsed, 1.0)
+            self.assertEqual(
+                [item["mutation_id"] for item in result["results"]],
+                ["MUT-001", "MUT-002", "MUT-003"],
+            )
+            self.assertEqual(
+                [item["outcome"] for item in result["results"]],
+                ["passed", "passed", "passed"],
+            )
+            command_events = [
+                item
+                for item in self.runner._ledger_events(manifest)
+                if item.get("kind") == "command" and item.get("phase") == "mutation"
+            ]
+            self.assertEqual(
+                [item["mutation_id"] for item in command_events],
+                ["MUT-001", "MUT-002", "MUT-003"],
+            )
+            self.assertEqual(
+                len({item["sandbox_root"] for item in command_events}), 3
+            )
+            self.assertTrue(
+                all(item["batch_plan_sha256"] == result["plan_sha256"]
+                    for item in command_events)
+            )
+
+    def test_challenge_batch_isolates_timeout_from_other_mutants(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            plan = {
+                "version": 1,
+                "max_parallel": 2,
+                "challenges": [
+                    {
+                        "id": "MUT-001",
+                        "mutation": {
+                            "kind": "prebuilt",
+                            "relative_path": "packages/app/mutant-1.ts",
+                        },
+                        "command": [
+                            sys.executable, "-c", "import time; time.sleep(2)"
+                        ],
+                        "timeout_seconds": 1,
+                    },
+                    {
+                        "id": "MUT-002",
+                        "mutation": {
+                            "kind": "prebuilt",
+                            "relative_path": "packages/app/mutant-2.ts",
+                        },
+                        "command": [sys.executable, "-c", "print('still ran')"],
+                        "timeout_seconds": 10,
+                    },
+                ],
+            }
+            (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(
+                json.dumps(plan)
+            )
+            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            self.assertEqual(
+                [item["outcome"] for item in result["results"]],
+                ["timeout", "passed"],
+            )
+            events = [
+                item
+                for item in self.runner._ledger_events(manifest)
+                if item.get("phase") == "mutation"
+            ]
+            self.assertEqual(
+                [item["result"] for item in events], ["timeout", "completed"]
+            )
 
     def test_execute_forces_home_temp_and_caches_into_sandbox(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

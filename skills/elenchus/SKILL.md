@@ -200,9 +200,9 @@ Keep raw command outcomes separate from interpretation. A nonzero exit is not by
 
 Resolve the primary root to the enclosing Git repository, not merely the changed package. Reject every sandbox symlink that resolves into that repository. Keep test caches, temporary directories, and framework output inside the sandbox. A claim of `primary_written_during_run: false` requires an accepted Host attestation for read-only protection or write-event monitoring. In schema v9, `verified: true` records that acceptance; it is not an independent OS verification performed by the Runner.
 
-### 4. Execute one mutant at a time
+### 4. Execute each mutant in an isolated batch sandbox
 
-For each mutant:
+Prefer Socratic's validated `challenge-batch` for independent mutants. Submit definitions and commands together, let the Runner execute their fresh sandboxes concurrently, then classify only after every raw outcome returns. For each mutant:
 
 1. start from a fresh disposable clone of the sealed, dependency-prepared snapshot;
 2. apply only that mutant and inspect the changed files;
