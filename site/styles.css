@@ -100,6 +100,13 @@ nav a:not(.nav-cta):not(.nav-star):hover { color: var(--orange); }
   border-radius: 50%;
   top: 4%;
   right: -130px;
+  animation: hero-ring-drift 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes hero-ring-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-18px, 12px, 0); }
 }
 
 .hero-grid {
@@ -510,5 +517,6 @@ footer { padding: 58px 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .hero-glow { animation: none; }
   .terminal-stage { opacity: 1 !important; transform: none !important; animation: none !important; }
 }
