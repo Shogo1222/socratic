@@ -25,26 +25,26 @@ python3 -m pip install jsonschema referencing
 
 ## Releaseの検証
 
-Immutableな公開Releaseを使い、Installする正確なTagを固定してください。以下の`v0.5.0-alpha.7`は、承認済みReleaseへ置き換えます。
+Immutableな公開Releaseを使い、Installする正確なTagを固定してください。以下の`v0.5.0-beta.1`は、承認済みReleaseへ置き換えます。
 
 ```bash
-gh release verify v0.5.0-alpha.7 --repo Shogo1222/socratic
-gh release download v0.5.0-alpha.7 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
+gh release verify v0.5.0-beta.1 --repo Shogo1222/socratic
+gh release download v0.5.0-beta.1 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
 ```
 
 Install前にFileと権限をPreviewします。
 
 ```bash
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-alpha.7
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-alpha.7
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-alpha.7
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-beta.1
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-beta.1
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-beta.1
 ```
 
 <!-- socratic-distribution-file-count: 31 -->
 <!-- socratic-plugin-file-count: 51 -->
 Standalone Skill配布物は31個のUTF-8 Text Fileで、そのうち4個はPython Source Helperで、現行Run Schemaと実験的なPlan・Evidence・Interpretation Schemaも含みます。監査対象Multi-Host Plugin Component SetはClaude Code・Codex・ローカルCursor Desktop統合とPlugin管理Python Runtime Bootstrapを含む51個のUTF-8 Text Fileです。Claude MarketplaceはRepository RootをSourceにするため、Source Checkoutには追加のRepository Level Fileが含まれますが、それらは51 Fileの監査対象Plugin Release Assetには含まれません。HelperにPOSIX Execute Bitはありませんが、Python Interpreterから実行されます。配布Auditの「実行可能」拒否は、具体的にはPOSIXの`0o111` Execute-bit Maskを検査します。監査対象配布物にBinaryやSymbolic Linkは含まれません。PreviewをReleaseのManifestとChecksumと比較してください。
 
-Managed Codex導入では、ユーザーが変更できるPlugin Hook Trustへ依存しません。OS管理のAbsolute PathからPre-agent Gateを`requirements.toml`で配布し、`[features].hooks = true`を強制し、`allow_managed_hooks_only = true`を設定してください。対象環境でManaged Host IntegrationとReady-run Capability Pathを検証するまで、現行のAlpha Previewを完成扱いにしません。
+Managed Codex導入では、ユーザーが変更できるPlugin Hook Trustへ依存しません。OS管理のAbsolute PathからPre-agent Gateを`requirements.toml`で配布し、`[features].hooks = true`を強制し、`allow_managed_hooks_only = true`を設定してください。対象環境でManaged Host IntegrationとReady-run Capability Pathを検証するまで、現行のBeta Previewを完成扱いにしません。
 
 ## Project ScopeでのInstall
 
@@ -55,7 +55,7 @@ GH_TELEMETRY=false gh skill install Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.5.0-alpha.7
+  --pin v0.5.0-beta.1
 ```
 
 Project Scopeが制限するのはSkill FileのInstall先です。Host Agentが読める範囲や、Model ProviderへSource Codeが送信されるかどうかは制限しません。それらはHost、OS、Network、組織Accountで制御してください。
