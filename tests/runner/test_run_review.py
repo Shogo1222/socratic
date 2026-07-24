@@ -1923,6 +1923,36 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(missing["status"], "blocked")
             self.assertIn("absolute path", missing["hint"])
 
+    def test_hash_walkers_remain_byte_compatible(self) -> None:
+        # Digests pinned before the walker-internals dedup; a change here means
+        # hashes sealed by earlier Runner versions would no longer verify.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            (root / "packages/app").mkdir(parents=True)
+            (root / "packages/app/source.ts").write_text("original\n")
+            (root / "packages/app/data.bin").write_bytes(b"\x00\x01")
+            (root / ".env").write_text("SECRET=x\n")
+            (root / "module.pyc").write_bytes(b"pyc")
+            (root / "node_modules/pkg").mkdir(parents=True)
+            (root / "node_modules/pkg/index.js").write_text("x\n")
+            (root / ".venv").mkdir()
+            (root / ".venv/pyvenv.cfg").write_text("home = /usr\n")
+            (root / ".venv/lib.py").write_text("v\n")
+            os.symlink("packages/app/source.ts", root / "link.ts")
+            (root / "empty").mkdir()
+            self.assertEqual(
+                self.runner._tree_hash(root),
+                "d94114899c1e5828b7904df80c8213da7e777f4613bbe3a6452a0765977d794e",
+            )
+            self.assertEqual(
+                self.runner._prepared_hash(root),
+                "bda07632c009d837409b42c4ecd5d38c3b98940177885bf2db19400819f62c43",
+            )
+            self.assertEqual(
+                self.runner._dependency_hash(root / "node_modules"),
+                "a491111b193ae8c620c6ee6e26725c0f2eff3e19d9c0554146021808f069e319",
+            )
+
     def test_doctor_reports_toolchain_requirements_and_last_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
