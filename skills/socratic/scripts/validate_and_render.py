@@ -261,7 +261,22 @@ def validate_document(
     validator = Draft202012Validator(schemas[schema_name], registry=registry)
     errors = sorted(validator.iter_errors(document), key=lambda error: list(error.path))
     if errors:
-        detail = "; ".join(error.message for error in errors)
+        def describe(error) -> str:
+            path = "$"
+            for part in error.absolute_path:
+                path += f"[{part}]" if isinstance(part, int) else f".{part}"
+            hint = ""
+            if error.validator == "enum":
+                hint = f"; choose one of {json.dumps(error.validator_value)}"
+            elif error.validator == "type":
+                hint = f"; use type {json.dumps(error.validator_value)}"
+            elif error.validator == "required":
+                hint = "; add the missing required key shown in the message"
+            elif error.validator == "additionalProperties":
+                hint = "; remove or rename the unexpected key"
+            return f"{path}: {error.message}{hint}"
+
+        detail = "; ".join(describe(error) for error in errors)
         raise ArtifactError(f"{schema_name} validation failed: {detail}")
 
 

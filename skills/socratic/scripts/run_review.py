@@ -893,6 +893,9 @@ SCAFFOLD_EDITABLE_FIELDS = {
         "challenges[*].code_location", "challenges[*].mutation",
     ],
     "analysis": [
+        "stable_tests[*]",
+        "excluded_tests[*]",
+        "assessment",
         "classifications[*].source_intent",
         "classifications[*].changed_intent",
         "classifications[*].result",
@@ -901,8 +904,262 @@ SCAFFOLD_EDITABLE_FIELDS = {
         "classifications[*].contract_violation_observed",
         "classifications[*].follow_up",
         "classifications[*].outcome_interpretation",
-        "review",
+        "classifications[*].equivalence_evidence",
+        "classifications[*].catch",
+        "not_challenged[*]",
+        "test_changes[*]",
+        "test_handoff",
+        "persistent_side_effects",
+        "review.review_this[*]",
+        "review.we_verified[*]",
+        "review.still_at_risk[*]",
+        "review.copy_ready_comments[*]",
     ],
+}
+
+SCAFFOLD_FIELD_GUIDES = {
+    "contract": {
+        "status": {
+            "allowed": [
+                "provisional", "needs-decision", "confirmed",
+                "tested", "challenged", "hardened",
+            ],
+            "rule": (
+                "Use needs-decision exactly when unresolved has an item; a "
+                "resolved pre-test Contract normally remains provisional or confirmed."
+            ),
+        },
+        "intent.confidence": {"allowed": ["high", "medium", "low"]},
+        "intent.evidence[*]": {
+            "required_keys": ["source", "supports"],
+            "template": {
+                "source": "path/to/repository-evidence",
+                "supports": "What this evidence establishes",
+            },
+        },
+        "decisions[*]": {
+            "required_keys": ["id", "question", "expected", "provenance"],
+            "allowed_provenance": [
+                "user-confirmed",
+                "repository-established",
+                "reviewer-selected-benchmark-assumption",
+            ],
+            "template": {
+                "id": "DEC-001",
+                "question": "What observable behavior is expected?",
+                "expected": "Describe the expected observable behavior",
+                "provenance": "repository-established",
+            },
+        },
+        "invariants[*]": {
+            "required_keys": ["id", "statement", "severity"],
+            "allowed_severity": ["critical", "high", "medium", "low"],
+            "template": {
+                "id": "INV-001",
+                "statement": "Describe behavior that must remain unchanged",
+                "severity": "high",
+            },
+        },
+        "side_effects.required[*]": {
+            "required_keys": ["id", "statement"],
+            "template": {
+                "id": "FX-001",
+                "statement": "Describe a required observable side effect",
+            },
+        },
+        "side_effects.prohibited[*]": {
+            "required_keys": ["id", "statement"],
+            "template": {
+                "id": "FX-002",
+                "statement": "Describe a prohibited observable side effect",
+            },
+        },
+        "unresolved[*]": {
+            "required_keys": ["id", "statement", "test_impact"],
+            "optional_keys": ["blocked_contract_ids"],
+            "rule": (
+                "Adding an item requires status=needs-decision. Include "
+                "blocked_contract_ids when the affected DEC/INV/FX IDs are known."
+            ),
+            "template": {
+                "id": "UNR-001",
+                "statement": "Describe the unresolved observable decision",
+                "test_impact": "Explain how the answer changes the oracle",
+                "blocked_contract_ids": ["DEC-001"],
+            },
+        },
+        "coverage[*]": {
+            "required_keys": ["contract_id", "tests"],
+            "rule": "tests is a non-empty array of test names or paths, never a disposition object.",
+            "template": {
+                "contract_id": "DEC-001",
+                "tests": ["path/to/test: test name"],
+            },
+        },
+    },
+    "plan": {
+        "max_parallel": {"type": "integer", "minimum": 1, "maximum": 8},
+        "challenges[*]": {
+            "required_keys": [
+                "id", "contract_ids", "accident", "expected_detection",
+                "severity", "likelihood", "code_location", "mutation",
+            ],
+            "allowed_severity": ["low", "medium", "high", "critical"],
+            "allowed_likelihood": ["low", "medium", "high"],
+            "rule": (
+                "contract_ids is a non-empty DEC/INV/FX array. Use only an "
+                "exact anchored mutation; never embed a full source file."
+            ),
+        },
+        "challenges[*].mutation": {
+            "variants": {
+                "replace-exact": {
+                    "required_keys": ["kind", "relative_path", "before", "after"],
+                    "template": {
+                        "kind": "replace-exact",
+                        "relative_path": "path/to/source",
+                        "before": "exact unique source anchor",
+                        "after": "mutated source anchor",
+                    },
+                },
+                "delete-exact": {
+                    "required_keys": ["kind", "relative_path", "before"],
+                    "template": {
+                        "kind": "delete-exact",
+                        "relative_path": "path/to/source",
+                        "before": "exact unique source anchor",
+                    },
+                },
+            },
+        },
+    },
+    "analysis": {
+        "stable_tests[*]": {"item_type": "non-empty string"},
+        "excluded_tests[*]": {"item_type": "non-empty string"},
+        "assessment": {
+            "rule": (
+                "Required as an object in assessment mode; leave null in harden "
+                "or catch unless a cohort comparison is being reported."
+            ),
+            "required_keys": [
+                "selected_scope", "selection_reason", "production_files",
+                "existing_tests", "changed_tests", "excluded_scope", "comparisons",
+            ],
+            "allowed_selected_scope": [
+                "current-change", "changed-tests", "broader-target",
+            ],
+            "comparison_required_keys": [
+                "mutation_id", "existing_result", "changed_result", "classification",
+            ],
+            "allowed_comparison_results": [
+                "killed", "survived", "not-run", "not-comparable", "inconclusive",
+            ],
+            "allowed_comparison_classification": [
+                "existing-protection", "incremental-protection",
+                "protection-regression", "unprotected",
+                "not-comparable", "inconclusive",
+            ],
+            "comparison_template": {
+                "mutation_id": "MUT-001",
+                "existing_result": "not-run",
+                "changed_result": "killed",
+                "classification": "incremental-protection",
+            },
+        },
+        "classifications[*]": {
+            "runner_created": True,
+            "allowed_result": [
+                "killed", "survived", "timeout", "invalid", "equivalent",
+                "inconclusive", "weak-catch", "strong-catch",
+                "false-positive", "not-comparable", "no-catch",
+            ],
+            "allowed_follow_up": [
+                "none", "harden-test", "clarify-intent",
+                "replace-mutant", "investigate-flake", "fix-infrastructure",
+            ],
+            "allowed_outcome_kind": [
+                "passed", "behavioral-failure", "infrastructure-failure",
+                "process-crash", "timeout", "unparseable",
+            ],
+            "rules": [
+                "killed requires outcome kind behavioral-failure, at least one detecting test, and contract_violation_observed=true",
+                "survived requires outcome kind passed",
+                "timeout requires outcome kind timeout",
+                "inconclusive uses infrastructure-failure, process-crash, timeout, or unparseable",
+                "equivalent requires equivalence_evidence",
+            ],
+        },
+        "classifications[*].catch": {
+            "required_in_mode": "catch",
+            "allowed_outcome": ["pass", "fail", "not-runnable"],
+            "allowed_human_verdict": [
+                "intended", "unintended", "unanswered", "not-requested",
+            ],
+            "template": {
+                "parent_outcome": "not-runnable",
+                "mutant_outcome": "not-runnable",
+                "change_outcome": "not-runnable",
+                "human_verdict": "unanswered",
+            },
+        },
+        "not_challenged[*]": {
+            "required_keys": ["contract_id", "reason", "residual_risk"],
+            "allowed_reason": [
+                "budget", "not-observable", "not-applicable", "deferred", "blocked",
+            ],
+            "template": {
+                "contract_id": "INV-001",
+                "reason": "not-applicable",
+                "residual_risk": "Describe what remains unverified",
+            },
+        },
+        "test_changes[*]": {
+            "required_keys": ["name", "disposition"],
+            "allowed_disposition": ["existing", "proposed"],
+            "template": {
+                "name": "path/to/test: test name",
+                "disposition": "existing",
+            },
+        },
+        "test_handoff": {
+            "rule": (
+                "Leave null in Review-only unless the Runner produced a Proven "
+                "Test Handoff through an explicitly authorized test-change workflow."
+            ),
+        },
+        "persistent_side_effects": {
+            "rule": (
+                "Keep authorization=not-requested and writes=[] unless the human "
+                "separately authorized a persistent memory/profile/learning write."
+            ),
+        },
+        "review.review_this[*]": {
+            "required_keys": ["kind", "body", "contract_ids"],
+            "allowed_kind": [
+                "confirmed-behavior", "behavior-difference",
+                "test-gap", "needs-decision",
+            ],
+            "template": {
+                "kind": "test-gap",
+                "body": "Describe the reviewer decision or gap",
+                "contract_ids": ["INV-001"],
+            },
+        },
+        "review.we_verified[*]": {"item_type": "non-empty string"},
+        "review.still_at_risk[*]": {"item_type": "non-empty string"},
+        "review.copy_ready_comments[*]": {
+            "required_keys": ["tag", "file", "line", "body", "evidence"],
+            "allowed_tag": ["Intent decision", "Behavior difference", "Test gap"],
+            "maximum_items": 3,
+            "template": {
+                "tag": "Test gap",
+                "file": "path/to/source",
+                "line": 1,
+                "body": "Copy-ready review comment",
+                "evidence": "Repository or mutation evidence supporting the comment",
+            },
+        },
+    },
 }
 
 
@@ -955,7 +1212,7 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
         ],
         "hard_rules": [
             "run every Runner command synchronously in the foreground; never background one",
-            "never read schema files; every JSON you edit starts from a Runner scaffold",
+            "never read schema files; every JSON starts from a Runner scaffold and follows its field_guide",
             "follow next.argv verbatim; never guess or reorder arguments",
             "do not delegate deterministic discovery to subagents",
             "one challenge-batch per run",
@@ -2408,12 +2665,25 @@ def scaffold_analysis(
                 "human_verdict": "unanswered",
             }
         classifications.append(classification)
+    assessment = (
+        {
+            "selected_scope": "current-change",
+            "selection_reason": "replace-me: why this assessment scope was selected",
+            "production_files": [],
+            "existing_tests": [],
+            "changed_tests": [],
+            "excluded_scope": [],
+            "comparisons": [],
+        }
+        if mode == "assessment"
+        else None
+    )
     document = {
         "version": 1,
         "mode": mode,
         "stable_tests": [],
         "excluded_tests": [],
-        "assessment": None,
+        "assessment": assessment,
         "classifications": classifications,
         "not_challenged": [],
         "test_changes": [],
@@ -2830,6 +3100,7 @@ def main() -> int:
             print(json.dumps({
                 "artifact": ARTIFACT_FILES["contract"],
                 "editable_fields": SCAFFOLD_EDITABLE_FIELDS["contract"],
+                "field_guide": SCAFFOLD_FIELD_GUIDES["contract"],
                 "document": scaffold_contract(args.manifest, args.schema_root),
                 "next": _next_step(
                     "stage-artifact", "--manifest", str(args.manifest),
@@ -2841,6 +3112,7 @@ def main() -> int:
             print(json.dumps({
                 "artifact": "challenge-plan.json",
                 "editable_fields": SCAFFOLD_EDITABLE_FIELDS["plan"],
+                "field_guide": SCAFFOLD_FIELD_GUIDES["plan"],
                 "document": scaffold_plan(args.manifest, args.schema_root),
                 "next": _next_step(
                     "challenge-batch", "--manifest", str(args.manifest),
@@ -2848,10 +3120,13 @@ def main() -> int:
                 ),
             }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-analysis":
+            scaffold = scaffold_analysis(args.manifest, args.mode, args.schema_root)
             print(json.dumps({
                 "artifact": "review-analysis.json",
                 "editable_fields": SCAFFOLD_EDITABLE_FIELDS["analysis"],
-                "document": scaffold_analysis(args.manifest, args.mode, args.schema_root),
+                "field_guide": SCAFFOLD_FIELD_GUIDES["analysis"],
+                "document": _load_json(Path(scaffold["path"])),
+                "scaffold": scaffold,
                 "next": _next_step(
                     "complete", "--manifest", str(args.manifest),
                     "--retention", "discard",
