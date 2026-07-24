@@ -428,29 +428,54 @@ def inspect_review(
     raise RunGateError(f"unsupported inspection kind: {kind}")
 
 
+def _inherited_environment() -> dict[str, str]:
+    """Allowlist the host environment a sandbox command may inherit."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "LANG"} or key.startswith("LC_")
+    }
+
+
+def _ignored_file(filename: str, ignored: set[str]) -> bool:
+    return (
+        filename in ignored
+        or filename.startswith(".env.")
+        or filename.endswith(".pyc")
+    )
+
+
+def _digest_entry(digest: Any, relative: str, path: Path) -> bool:
+    """Digest one entry's name and content marker; True when it was consumed.
+
+    Symlink and file markers are identical across all three walkers; each
+    walker keeps its own traversal order and directory/other markers because
+    those differences are part of the sealed digest format.
+    """
+    digest.update(relative.encode("utf-8") + b"\0")
+    if path.is_symlink():
+        digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
+        return True
+    if path.is_file():
+        digest.update(b"file\0")
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return True
+    return False
+
+
 def _tree_hash(root: Path) -> str:
     digest = hashlib.sha256()
     for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
         names[:] = sorted(name for name in names if name not in IGNORED_NAMES)
         relative_directory = Path(directory).relative_to(root)
         for filename in sorted(filenames):
-            if (
-                filename in IGNORED_NAMES
-                or filename.startswith(".env.")
-                or filename.endswith(".pyc")
-            ):
+            if _ignored_file(filename, IGNORED_NAMES):
                 continue
             path = Path(directory) / filename
             relative = (relative_directory / filename).as_posix()
-            digest.update(relative.encode("utf-8") + b"\0")
-            if path.is_symlink():
-                digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
-            elif path.is_file():
-                digest.update(b"file\0")
-                with path.open("rb") as stream:
-                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                        digest.update(chunk)
-            else:
+            if not _digest_entry(digest, relative, path):
                 digest.update(b"other\0")
     return digest.hexdigest()
 
@@ -480,18 +505,11 @@ def _prepared_hash(root: Path) -> str:
         )
         relative_directory = Path(directory).relative_to(root)
         for filename in sorted(filenames):
-            if filename in ignored or filename.startswith(".env.") or filename.endswith(".pyc"):
+            if _ignored_file(filename, ignored):
                 continue
             path = Path(directory) / filename
             relative = (relative_directory / filename).as_posix()
-            digest.update(relative.encode("utf-8") + b"\0")
-            if path.is_symlink():
-                digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
-            elif path.is_file():
-                digest.update(b"file\0")
-                with path.open("rb") as stream:
-                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                        digest.update(chunk)
+            _digest_entry(digest, relative, path)
     return digest.hexdigest()
 
 
@@ -503,18 +521,13 @@ def _dependency_hash(root: Path) -> str:
         directory = directories.pop()
         for path in sorted(directory.iterdir(), key=lambda item: item.name):
             relative = path.relative_to(root).as_posix()
-            digest.update(relative.encode("utf-8") + b"\0")
             if path.is_symlink():
-                digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
+                _digest_entry(digest, relative, path)
             elif path.is_dir():
+                digest.update(relative.encode("utf-8") + b"\0")
                 digest.update(b"directory\0")
                 directories.append(path)
-            elif path.is_file():
-                digest.update(b"file\0")
-                with path.open("rb") as stream:
-                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                        digest.update(chunk)
-            else:
+            elif not _digest_entry(digest, relative, path):
                 digest.update(b"other\0")
     return digest.hexdigest()
 
@@ -1155,11 +1168,7 @@ def doctor(manifest_path: Path) -> dict[str, Any]:
     """
     manifest = _ready_manifest(manifest_path)
     prepared = Path(manifest["prepared_root"])
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key in {"PATH", "LANG"} or key.startswith("LC_")
-    }
+    environment = _inherited_environment()
     environment.update(_runtime_environment(prepared))
     path_value = environment.get("PATH", "")
     tools: dict[str, Any] = {}
@@ -1789,6 +1798,25 @@ def _authorize_contract_challenge(
         raise RunGateError(str(error)) from error
 
 
+def _begin_guarded_mutation(
+    manifest_path: Path, mutation_id: str, contract_ids: list[str]
+) -> dict[str, Any]:
+    """Shared entry gate for every mutation registration path."""
+    manifest = _ready_manifest(manifest_path)
+    _authorize_contract_challenge(manifest, contract_ids)
+    if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
+        raise RunGateError(
+            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
+        )
+    return manifest
+
+
+def _isolation_gate_module():
+    return _load_module(
+        "socratic_isolation_gate", _skills_root() / "elenchus/scripts/isolation_gate.py"
+    )
+
+
 def mutate(
     manifest_path: Path,
     mutation_id: str,
@@ -1796,17 +1824,12 @@ def mutate(
     relative_target: str,
     content: bytes,
 ) -> dict[str, Any]:
-    manifest = _ready_manifest(manifest_path)
-    _authorize_contract_challenge(manifest, contract_ids)
-    if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
-        raise RunGateError(
-            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
-        )
+    manifest = _begin_guarded_mutation(manifest_path, mutation_id, contract_ids)
     sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     if Path(relative_target).is_absolute() or ".." in Path(relative_target).parts:
         shutil.rmtree(sandbox, ignore_errors=True)
         raise RunGateError("mutation target must be a safe sandbox-relative path")
-    isolation = _load_module("socratic_isolation_gate", _skills_root() / "elenchus/scripts/isolation_gate.py")
+    isolation = _isolation_gate_module()
     try:
         evidence = isolation.IsolationGate(
             Path(manifest["primary_root"]), sandbox
@@ -1844,22 +1867,14 @@ def mutate_anchored(
     mutation: dict[str, Any],
 ) -> dict[str, Any]:
     """Apply a bounded exact edit without accepting a caller-built full file."""
-    manifest = _ready_manifest(manifest_path)
-    _authorize_contract_challenge(manifest, contract_ids)
-    if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
-        raise RunGateError(
-            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
-        )
+    manifest = _begin_guarded_mutation(manifest_path, mutation_id, contract_ids)
     relative_target, content = _anchored_postimage(
         Path(manifest["prepared_root"]), mutation
     )
     sandbox, clone_strategy, prepared_sha256 = _clone_prepared(
         manifest, mutation_id
     )
-    isolation = _load_module(
-        "socratic_isolation_gate",
-        _skills_root() / "elenchus/scripts/isolation_gate.py",
-    )
+    isolation = _isolation_gate_module()
     try:
         evidence = isolation.IsolationGate(
             Path(manifest["primary_root"]), sandbox
@@ -1890,16 +1905,11 @@ def register_prebuilt(
     contract_ids: list[str],
     relative_path: str,
 ) -> dict[str, Any]:
-    manifest = _ready_manifest(manifest_path)
-    _authorize_contract_challenge(manifest, contract_ids)
-    if not mutation_id.startswith("MUT-") or not mutation_id[4:].isdigit():
-        raise RunGateError(
-            f"invalid mutation id: {mutation_id}; expected MUT-<digits>, e.g. MUT-001"
-        )
+    manifest = _begin_guarded_mutation(manifest_path, mutation_id, contract_ids)
     relative = Path(relative_path)
     sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     unresolved = sandbox / relative
-    isolation = _load_module("socratic_isolation_gate", _skills_root() / "elenchus/scripts/isolation_gate.py")
+    isolation = _isolation_gate_module()
     try:
         evidence = isolation.IsolationGate(
             Path(manifest["primary_root"]), sandbox
@@ -1956,11 +1966,7 @@ def execute(
     registered = set(registrations)
     if phase == "mutation" and mutation_id not in registered:
         raise RunGateError(f"mutation execution has no guarded mutation evidence: {mutation_id}")
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key in {"PATH", "LANG"} or key.startswith("LC_")
-    }
+    environment = _inherited_environment()
     execution_root = (
         Path(manifest["prepared_root"])
         if phase in {"prepare", "baseline"}
@@ -2101,11 +2107,7 @@ def probe_command(
     with _timed(runner_timings, "clone"):
         strategy = _copy_prepared(prepared, probe_root)
     runtime_environment = _runtime_environment(probe_root)
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key in {"PATH", "LANG"} or key.startswith("LC_")
-    }
+    environment = _inherited_environment()
     environment.update(runtime_environment)
     started = time.monotonic()
     try:
@@ -2357,11 +2359,7 @@ def challenge_batch(
             )
             registrations[challenge["id"]] = registration
 
-    inherited_environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key in {"PATH", "LANG"} or key.startswith("LC_")
-    }
+    inherited_environment = _inherited_environment()
     results_by_id: dict[str, dict[str, Any]] = {}
     execution_started = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(
