@@ -106,7 +106,7 @@ def evaluate(payload: Any) -> dict[str, str]:
             f"{shlex.quote(state['artifact_root'])}; "
             "the v0.4 prototype may instead write experiment-plan.json there, "
             "but only the Runner may create evidence-bundle.json. "
-            "For canonical runs, use inspect, scaffold-contract, execute --phase prepare, probe-command, scaffold-plan, "
+            "For canonical runs, run each step synchronously in the foreground (never in a background task): inspect, scaffold-contract, execute --phase prepare, probe-command, scaffold-plan, "
             "one challenge-batch, scaffold-analysis, then complete. The challenge plan contains only exact "
             "anchored edits and a validated command ID; never embed a complete source file. "
             "The Runner generates Report and Review Drafts, renders, and cleans up. "
