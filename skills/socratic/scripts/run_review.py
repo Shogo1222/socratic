@@ -63,7 +63,34 @@ SANDBOX_ENV_DEFAULTS = {
     "CI": "true",
     "npm_config_verify_deps_before_run": "false",
     "PYTHONDONTWRITEBYTECODE": "1",
+    # The prepared snapshot intentionally contains no .git, so VCS-based
+    # version backends cannot compute a version. setuptools-scm and hatch-vcs
+    # honor this variable; versioningit has no env override and needs its
+    # project-side default-version (surfaced through _infrastructure_hint).
+    "SETUPTOOLS_SCM_PRETEND_VERSION": "0.0.0",
 }
+
+GITLESS_BUILD_SIGNATURES = (
+    "versioningit",
+    "setuptools-scm",
+    "setuptools_scm",
+    "hatch-vcs",
+    "not a git repository",
+    "NotVCSError",
+    "unable to detect version",
+)
+
+PYTHON_MISMATCH_SIGNATURES = (
+    "Requires-Python",
+    "requires-python",
+    "requires a different Python",
+    "python_requires",
+)
+
+MISSING_EXECUTABLE_SIGNATURES = (
+    "No such file or directory",
+    "command not found",
+)
 
 
 class RunGateError(RuntimeError):
@@ -1003,6 +1030,41 @@ def _staged_artifacts(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return documents
 
 
+def _infrastructure_hint(output: str, argv: list[str] | None = None) -> str | None:
+    """Map a sandbox failure to the environment cause the agent cannot inspect.
+
+    The tool gate correctly blocks ad-hoc diagnostics inside a hosted run, so
+    the Runner must name the sandbox-environment causes itself: the .git-less
+    prepared snapshot, an interpreter the project rejects, and HOME-based tool
+    shims that do not resolve after HOME redirection.
+    """
+    hints: list[str] = []
+    if any(signature in output for signature in GITLESS_BUILD_SIGNATURES):
+        hints.append(
+            "the prepared snapshot intentionally contains no .git directory, so "
+            "VCS-based version backends cannot compute a version; "
+            "SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 is preset for setuptools-scm "
+            "and hatch-vcs, while versioningit has no env override and needs "
+            "tool.versioningit.default-version in the project or an install "
+            "path that does not rebuild version metadata from the source tree"
+        )
+    if any(signature in output for signature in PYTHON_MISMATCH_SIGNATURES):
+        hints.append(
+            "the command ran with an interpreter the project rejects; rerun "
+            "with the project's own interpreter by absolute path — the "
+            "injected plugin runtime Python exists only for run_review.py"
+        )
+    if any(signature in output for signature in MISSING_EXECUTABLE_SIGNATURES):
+        name = argv[0] if argv else "the command"
+        hints.append(
+            f"{name} was not found in the sandbox environment; the sandbox "
+            "inherits only PATH, LANG, and LC_* and redirects HOME into the "
+            "sandbox, so HOME-based tool shims (uv, nvm, pyenv) may not "
+            "resolve — invoke the tool by absolute path"
+        )
+    return "; ".join(hints) if hints else None
+
+
 def _runtime_environment(root: Path) -> dict[str, str]:
     environment_root = root / ".socratic-runtime"
     paths = {
@@ -1422,6 +1484,7 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
             "do not delegate deterministic discovery to subagents",
             "one challenge-batch per run",
             "present the renderer output verbatim; never translate, summarize, or append",
+            "sandbox commands use the project's own toolchain by absolute path; the injected runtime Python exists only for run_review.py",
         ],
         "execution_plan": [
             {"id": "inspect", "label": "Review what changed"},
@@ -1982,12 +2045,17 @@ def probe_command(
                 note="the plan binds this validated command; fill the challenges, then follow next.argv",
             )
         else:
+            hint = _infrastructure_hint(
+                public["stdout"] + "\n" + public["stderr"], command
+            )
+            if hint:
+                public["hint"] = hint
             public["next"] = _next_step(
                 "probe-command", "--manifest", str(manifest_path),
                 "--command-id", command_id, "--", "<corrected-focused-argv>",
                 note=(
-                    "the probe did not pass; inspect stdout and stderr above, fix "
-                    "the focused command or its cwd, then probe again"
+                    "the probe did not pass; inspect stdout, stderr, and any hint "
+                    "above, fix the focused command or its cwd, then probe again"
                 ),
             )
         if public["status"] == "ready":
@@ -3422,11 +3490,36 @@ def main() -> int:
                 args.manifest, args.phase, args.mutation_id, argv, args.timeout,
                 cwd_relative=args.cwd,
             )
-            if args.phase == "prepare" and returncode == 0:
-                print(json.dumps({
-                    "phase": "prepare", "returncode": returncode,
-                    "next": _probe_next(args.manifest),
-                }, ensure_ascii=False, sort_keys=True))
+            if args.phase == "prepare":
+                if returncode == 0:
+                    print(json.dumps({
+                        "phase": "prepare", "returncode": returncode,
+                        "next": _probe_next(args.manifest),
+                    }, ensure_ascii=False, sort_keys=True))
+                else:
+                    print(json.dumps({
+                        "phase": "prepare", "returncode": returncode,
+                        "status": "prepare-failed",
+                        "hint": (
+                            "read the command output above; if it mentions "
+                            "versioningit, setuptools-scm, hatch-vcs, or 'not a "
+                            "git repository', the prepared snapshot intentionally "
+                            "has no .git — SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 "
+                            "is preset, and versioningit projects need "
+                            "tool.versioningit.default-version; if it mentions "
+                            "Requires-Python, rerun with the project's own "
+                            "interpreter by absolute path instead of the plugin "
+                            "runtime Python; if the tool itself was not found, "
+                            "HOME redirection hides HOME-based shims (uv, nvm, "
+                            "pyenv) — invoke it by absolute path"
+                        ),
+                        "next": _next_step(
+                            "execute", "--phase", "prepare",
+                            "--manifest", str(args.manifest),
+                            "--", "<corrected-install-argv>",
+                            note="fix the environment cause, then rerun prepare",
+                        ),
+                    }, ensure_ascii=False, sort_keys=True))
             return returncode
         elif args.command == "probe-command":
             if not args.argv:
