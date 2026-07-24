@@ -93,6 +93,19 @@ class PluginHostGateTest(unittest.TestCase):
                     self.fixture["expected_hook_output"],
                 )
 
+    def test_quoted_code_mentions_are_not_intercepted(self) -> None:
+        for prompt in (
+            "The agent report quoted `$maieutic` while reviewing the hooks.",
+            "```text\n/socratic https://github.com/owner/repo/pull/1\n```\nSummarize this.",
+        ):
+            with self.subTest(prompt=prompt):
+                self.assertEqual(
+                    self.hook.evaluate(
+                        {"hook_event_name": "UserPromptSubmit", "prompt": prompt}
+                    ),
+                    {"continue": True},
+                )
+
     def test_malformed_hook_input_fails_closed(self) -> None:
         self.assertEqual(self.hook.evaluate({}), self.fixture["expected_hook_output"])
 

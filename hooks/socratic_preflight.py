@@ -13,6 +13,17 @@ BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
 SOCRATIC_INVOCATION = re.compile(
     r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
 )
+QUOTED_CODE = re.compile(r"```.*?```|`[^`\n]+`", re.DOTALL)
+
+
+def _invoked(prompt: str) -> bool:
+    """Detect an invocation while ignoring skill names quoted as code.
+
+    A fenced block or inline code span mentions a skill without requesting it;
+    pasted documentation or an injected task report must not intercept an
+    unrelated prompt.
+    """
+    return SOCRATIC_INVOCATION.search(QUOTED_CODE.sub(" ", prompt)) is not None
 
 
 def _blocked() -> dict[str, Any]:
@@ -28,7 +39,7 @@ def evaluate(payload: Any) -> dict[str, Any]:
     prompt = payload.get("prompt")
     if not isinstance(prompt, str):
         return _blocked()
-    if SOCRATIC_INVOCATION.search(prompt) is None:
+    if not _invoked(prompt):
         return {"continue": True}
     return _blocked()
 

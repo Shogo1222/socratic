@@ -35,11 +35,14 @@ def _deny(reason: str) -> dict[str, str]:
 def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
     if not isinstance(raw_path, str) or not raw_path:
         return False
-    root = Path(state.get("artifact_root", "/__missing_artifact_root__")).resolve(strict=True)
+    raw_root = state.get("artifact_root")
+    if not isinstance(raw_root, str) or not raw_root:
+        return False
     candidate = Path(raw_path)
     if not candidate.is_absolute():
         return False
     try:
+        root = Path(raw_root).resolve(strict=True)
         candidate.resolve(strict=False).relative_to(root)
         return (
             candidate.resolve(strict=False).parent == root
@@ -69,7 +72,14 @@ def _session_id(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _plugin_runner_path() -> Path:
+    return (
+        Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"
+    )
+
+
 def _runner_command(command: Any, tool_input: Any = None) -> bool:
+    """Trust only this Plugin's own Runner by exact resolved path, never by basename."""
     if not isinstance(command, str):
         return False
     if isinstance(tool_input, dict) and any(
@@ -83,16 +93,24 @@ def _runner_command(command: Any, tool_input: Any = None) -> bool:
         argv = shlex.split(command)
     except ValueError:
         return False
-    return (
-        "&" not in argv
-        and len(argv) >= 2
-        and Path(argv[1]).name == "run_review.py"
-        and Path(argv[0]).name.startswith("python")
-    )
+    if "&" in argv or len(argv) < 2 or not Path(argv[0]).name.startswith("python"):
+        return False
+    candidate = Path(argv[1])
+    if not candidate.is_absolute():
+        return False
+    try:
+        return candidate.resolve(strict=True) == _plugin_runner_path()
+    except OSError:
+        return False
 
 
-def _read_only_git_command(command: Any) -> bool:
+def _read_only_git_command(command: Any, tool_input: Any = None) -> bool:
     if not isinstance(command, str):
+        return False
+    if isinstance(tool_input, dict) and any(
+        tool_input.get(key) is True
+        for key in ("run_in_background", "background")
+    ):
         return False
     if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
         return False
@@ -100,7 +118,7 @@ def _read_only_git_command(command: Any) -> bool:
         argv = shlex.split(command)
     except ValueError:
         return False
-    if len(argv) < 3 or argv[:2] != ["git", "--no-pager"]:
+    if "&" in argv or len(argv) < 3 or argv[:2] != ["git", "--no-pager"]:
         return False
     subcommand, arguments = argv[2], argv[3:]
     forbidden = {
@@ -120,7 +138,8 @@ def _read_only_git_command(command: Any) -> bool:
         )
     if subcommand in {"diff", "show", "log"}:
         return "--no-ext-diff" in arguments and "--no-textconv" in arguments
-    if subcommand in {"rev-parse", "merge-base", "ls-files", "archive"}:
+    # "archive" is excluded: `archive -o <path>` writes an arbitrary file.
+    if subcommand in {"rev-parse", "merge-base", "ls-files"}:
         return True
     return False
 
@@ -137,7 +156,7 @@ def evaluate(payload: Any) -> dict[str, str]:
         return {"permission": "allow"}
     tool = payload.get("tool_name")
     tool_input = payload.get("tool_input", {})
-    if tool in {"Write", "StrReplace", "Delete", "Edit"}:
+    if tool in {"Write", "StrReplace", "Delete", "Edit", "MultiEdit", "NotebookEdit"}:
         path = None
         if isinstance(tool_input, dict):
             path = tool_input.get("file_path") or tool_input.get("path")
@@ -164,7 +183,7 @@ def evaluate(payload: Any) -> dict[str, str]:
         command = payload.get("command")
         if command is None and isinstance(tool_input, dict):
             command = tool_input.get("command")
-        if _runner_command(command, tool_input) or _read_only_git_command(command):
+        if _runner_command(command, tool_input) or _read_only_git_command(command, tool_input):
             return {"permission": "allow"}
         return _deny("Socratic tests and mutations must run through run_review.py")
     return {"permission": "allow"}

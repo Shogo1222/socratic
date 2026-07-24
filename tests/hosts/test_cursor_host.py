@@ -134,9 +134,26 @@ class CursorHostTest(unittest.TestCase):
                 allowed_runner = self.gate.evaluate({
                     "hook_event_name": "beforeShellExecution",
                     "conversation_id": session_id,
-                    "command": "python3 /plugin/skills/socratic/scripts/run_review.py preflight",
+                    "command": (
+                        "python3 "
+                        f"{ROOT / 'skills/socratic/scripts/run_review.py'} preflight"
+                    ),
                 })
                 self.assertEqual(allowed_runner["permission"], "allow")
+                planted_runner = repository / "run_review.py"
+                planted_runner.write_text("print('planted')\n", encoding="utf-8")
+                denied_foreign_runner = self.gate.evaluate({
+                    "hook_event_name": "beforeShellExecution",
+                    "conversation_id": session_id,
+                    "command": f"python3 {planted_runner} preflight",
+                })
+                self.assertEqual(denied_foreign_runner["permission"], "deny")
+                denied_archive = self.gate.evaluate({
+                    "hook_event_name": "beforeShellExecution",
+                    "conversation_id": session_id,
+                    "command": "git --no-pager archive -o /tmp/leak.tar HEAD",
+                })
+                self.assertEqual(denied_archive["permission"], "deny")
                 denied_background = self.gate.evaluate({
                     "hook_event_name": "beforeShellExecution",
                     "conversation_id": session_id,
