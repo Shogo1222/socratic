@@ -65,15 +65,15 @@ Release conditions CI cannot prove — live per-Host fresh-install E2E runs — 
 
 The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
 
-For a new version such as `0.5.0`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.5.0` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes. Prerelease identifiers such as `0.5.0-alpha.7` are marked as prereleases automatically.
+For a new version such as `0.5.0`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.5.0` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes. Prerelease identifiers such as `0.5.0-beta.1` are marked as prereleases automatically.
 
 The release workflow does not modify source files. The Git tag is the immutable identity of a published release. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
 
 Verify a published release and a downloaded asset with GitHub CLI:
 
 ```bash
-gh release verify v0.5.0-alpha.7 --repo Shogo1222/socratic
-gh release verify-asset v0.5.0-alpha.7 ./socratic-v0.5.0-alpha.7.zip \
+gh release verify v0.5.0-beta.1 --repo Shogo1222/socratic
+gh release verify-asset v0.5.0-beta.1 ./socratic-v0.5.0-beta.1.zip \
   --repo Shogo1222/socratic
 ```
 
