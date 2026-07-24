@@ -5,11 +5,11 @@ Treat every mutation as destructive temporary state.
 ## Non-negotiable rules
 
 - Never apply a mutation directly to the primary working tree.
-- Under Socratic, a Review-only mutation is valid only through the mandatory `socratic/scripts/run_review.py` manifest, guarded mutation ledger, and finish command. Missing gates mean `blocked`, not a manual fallback.
+- Under Socratic, a Review-only mutation is valid only through the mandatory `socratic/scripts/run_review.py` manifest, guarded mutation ledger, and terminal `complete` command (which renders and cleans; the lower-level `finish` is never called directly). Missing gates mean `blocked`, not a manual fallback.
 - Capture a scoped filesystem manifest and content hashes before execution and compare them afterward.
 - Use a fresh disposable workspace for each mutant.
 - Preserve the exact code-under-test state, including authorized uncommitted changes.
-- Run one mutant at a time.
+- Give every mutant its own sandbox: the Runner's validated `challenge-batch` may execute those sandboxes concurrently, but never interleave mutants in a shared workspace or reuse a mutated tree.
 - Bound builds and tests with timeouts.
 - Do not run production deployment, migration, destructive integration, or live-service commands.
 - Assume tests may have external side effects; inspect repository instructions and test configuration first.
@@ -20,12 +20,12 @@ Treat every mutation as destructive temporary state.
 - Resolve and validate every target immediately before writing. A target outside the sandbox, inside the primary root, or reached through a sandbox-local symlink is a hard abort; backup and restore is never isolation.
 - Resolve the primary root to the enclosing Git repository. Reject any symlink anywhere in the sandbox that resolves into that repository, including dependency and build-tool links.
 - Redirect caches, temporary directories, package-manager state, and framework build output into the disposable sandbox.
-- Record `primary_written_during_run: false` only with an accepted Host attestation for read-only protection or OS/Host write-event monitoring covering the entire repository root. Schema v7's `verified: true` records acceptance of that Host assertion, not independent OS verification by the Runner.
+- Record `primary_written_during_run: false` only with an accepted Host attestation for read-only protection or OS/Host write-event monitoring covering the entire repository root. Schema v10's `verified: true` records acceptance of that Host assertion, not independent OS verification by the Runner.
 - Restoration, final cleanliness, and matching final hashes never erase a Primary write that occurred during the run.
 
 ## Git boundary
 
-Local Git use is limited to read-only evidence and snapshot export through `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`.
+Local Git use is limited to read-only evidence through `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, and `git ls-files`; `git archive` is not read-only (`-o` writes a file) and the Host gate denies it — materialize snapshots by filesystem copy instead. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`.
 
 Never run `git add`, `commit`, `amend`, `push`, `pull`, `fetch`, `checkout`, `switch`, `reset`, `stash`, `merge`, `rebase`, `cherry-pick`, `branch`, `tag`, or `worktree`. Never invoke `gh`, create a pull request, post a review comment, or call a code-host write API. If a Base or Head object is not available locally, report it as unavailable instead of fetching it.
 

@@ -34,7 +34,7 @@ Schema v10はv7で導入したJSON Field名`verified`を維持します。Protec
 
 ## Agent開始前のHost Gate
 
-v0.3.0 Claude Code・Codex Pluginは、Socratic、Maieutic、Elenchusの明示的な起動時に`UserPromptSubmit`からSession単位のHost brokerを起動し、`PreToolUse`でReview-onlyを強制します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収し、broker死亡後に残った期限切れStateは次のHost Eventで削除します。TTL前に異常終了したbrokerは、次の明示PromptがSessionを置き換えるまでFail-closedを維持します。ローカルCursor Desktop PluginはNativeな`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`、`stop`を同じActive-run維持規則で使用します。Host Eventが不足・不正な場合はSocratic開始前にFail-closedで停止します。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。現行Lifecycle coverageで同じ保証を確立できないCursor CLI、Remote Workspace、Cloud Agentは対象外です。
+Claude Code・Codex Pluginは、Socratic、Maieutic、Elenchusの明示的な起動時に`UserPromptSubmit`からSession単位のHost brokerを起動し、`PreToolUse`でReview-onlyを強制します。Run Manifestが存在する間は`Stop`後もbrokerを維持して人間の判断をTurn間で継続し、FinishまたはAbort後にCleanupします。放棄されたbrokerはIdle TTLで回収し、broker死亡後に残った期限切れStateは次のHost Eventで削除します。TTL前に異常終了したbrokerは、次の明示PromptがSessionを置き換えるまでFail-closedを維持します。ローカルCursor Desktop PluginはNativeな`beforeSubmitPrompt`、`preToolUse`、`beforeShellExecution`、`stop`を同じActive-run維持規則で使用します。Host Eventが不足・不正な場合はSocratic開始前にFail-closedで停止します。この境界ですべての対応Invocationを識別できるよう、Socraticの暗黙Invocationは無効にします。現行Lifecycle coverageで同じ保証を確立できないCursor CLI、Remote Workspace、Cloud Agentは対象外です。
 
 Hook-host実行中のShellによる証拠収集は、Guarded Runnerと明示的にParseされるLocal Git Commandに限定します。Git Commandは`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`も付けます。Shell合成、出力Path、Remote Archive、Repository Path Override、Git設定Overrideは拒否します。
 
@@ -73,5 +73,7 @@ Base・Head比較とMutationは、BranchやGit Worktreeを変更せず、Disposa
 ## 限界と残存Risk
 
 同梱Isolation GateはGateを通る書き込みを機械的に保護しますが、広いFilesystem権限を持つHostやAgentがHelperを迂回することまでは防げません。完全な境界にはHost側のRead-only Mountまたは同等の最小権限強制が必要です。RepositoryのTestを実行すればRepository管理下のCodeも動き、Modelの挙動も完全には決定的でありません。
+
+RepositoryのTest実行は、そのRepositoryのCodeを起動ユーザーのOS権限で実行することです。RunnerはAgentの行動を制約し、Primaryの改変を事後に検出しますが、OSレベルの封じ込め自体は提供しません。悪意あるTest Suiteは、Networkへ到達し、ユーザーが読めるファイルを読み、絶対PathでSandbox外へ書き込み、MemoryやDiskを枯渇させ、Processを残すことができます。Socraticは、手元でTest Suiteを実行できると既に信頼しているRepositoryにだけ使ってください——必要な信頼は、そのTest Suiteを手動実行する場合と同じです。未知または敵対的なPR Codeの安全な実行には、HostまたはOSレベルのSandbox(Read-only Mount、Network Egress制限、Resource制限)がさらに必要であり、本Previewはそれを提供しません。
 
 組織はSkillとは独立して、最小権限のFilesystem Access、Network Egress制限、Disposable実行、秘密情報の隔離、承認済みModel Provider設定、人間によるReviewを適用してください。広く導入する前に、機密情報を含まないPilot Repositoryで試してください。境界の回避を発見した場合は[セキュリティポリシー](../../SECURITY.ja.md)から報告してください。

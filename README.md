@@ -178,10 +178,10 @@ To receive a published version bump, refresh the catalog and update the Plugin:
 /reload-plugins
 ```
 
-Then start Claude normally in a trusted Git repository and invoke the Marketplace command shown as `/socratic`. Include a PR target in the first invocation when reviewing a GitHub pull request so the Host can materialize its exact historical Base and Head before the run starts:
+Then start Claude normally in a trusted Git repository and invoke the plugin-namespaced command Claude Code actually displays, `/socratic:socratic`, at the start of the prompt. Include a PR target in the first invocation when reviewing a GitHub pull request so the Host can materialize its exact historical Base and Head before the run starts:
 
 ```text
-/socratic https://github.com/owner/repository/pull/123
+/socratic:socratic https://github.com/owner/repository/pull/123
 ```
 
 The Plugin automatically starts a session-scoped Host broker before Claude processes the request and denies direct Primary writes and unguarded Bash through `PreToolUse`. Direct Maieutic and Elenchus invocation uses the same gate. A `Stop` event preserves the broker while a run manifest exists so human decisions can span turns, then cleans it after finish or abort; an idle TTL and later Host events collect abandoned or stale brokers. No separate launcher command is required.

@@ -14,14 +14,14 @@
       property="og:description"
       content="Turn large diffs into the few decisions that matter. A human-centered review workflow for AI-generated pull requests."
     >
-    <meta property="og:image" content="https://shogo1222.github.io/socratic/og-social-20260722.png">
+    <meta property="og:image" content="https://shogo1222.github.io/socratic/og-social-20260724.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Socratic — Feature Review, Refactor Guard, Test Assessment. All in one.">
+    <meta property="og:image:alt" content="Socratic — Bug Fix Review, Feature Review, Refactor Guard, Test Assessment. All in one.">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://shogo1222.github.io/socratic/og-social-20260722.png">
-    <meta name="twitter:image:alt" content="Socratic — Feature Review, Refactor Guard, Test Assessment. All in one.">
+    <meta name="twitter:image" content="https://shogo1222.github.io/socratic/og-social-20260724.png">
+    <meta name="twitter:image:alt" content="Socratic — Bug Fix Review, Feature Review, Refactor Guard, Test Assessment. All in one.">
     <title>Socratic — Focus AI code review on the decisions that matter</title>
     <link rel="canonical" href="https://shogo1222.github.io/socratic/en/">
     <link rel="alternate" hreflang="en" href="https://shogo1222.github.io/socratic/en/">
@@ -56,14 +56,15 @@
           <div class="hero-copy">
             <p class="eyebrow"><span></span> Open source Agent Skills for AI code review</p>
             <h1 class="product-headline">
+              <span>Bug Fix Review</span>
               <span>Feature Review</span>
               <span>Refactor Guard</span>
               <span>Test Assessment</span>
               <strong>ALL IN ONE.</strong>
             </h1>
             <p class="hero-lead">
-              Clarify feature intent, guard refactors against behavior drift, and assess whether tests can detect real risks.<br>
-              <strong>Three review modes. One workflow.</strong>
+              Confirm bug fixes without overcorrection, clarify feature intent, guard refactors against behavior drift, and assess whether tests can detect real risks.<br>
+              <strong>Four review types. One workflow.</strong>
             </p>
             <div class="hero-actions">
               <a class="button button-primary" href="#how">See How It Works <span aria-hidden="true">↓</span></a>
@@ -236,6 +237,19 @@
           </div>
           <div class="case-grid">
             <article>
+              <span class="case-label">00 / BUG FIX</span>
+              <h3>Bug Fix Review</h3>
+              <p class="case-ja">Confirm the failure is removed without overcorrection</p>
+              <p>Establish the reported failure and the behavior to preserve, then challenge both the regression fix and plausible overcorrections with accident mutations.</p>
+              <div class="case-visual terminal-question" role="img" aria-label="A terminal confirms that the reported failure is removed while the surrounding behavior is preserved">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · bug fix review</span></div>
+                <div class="terminal-question-body">
+                  <code><span>›</span> Verify the <strong>reported failure</strong> is gone<span class="terminal-cursor" aria-hidden="true"></span></code>
+                  <p><b>✓</b> Reintroducing the bug makes the focused test fail; preserved behavior stays green.</p>
+                </div>
+              </div>
+            </article>
+            <article>
               <span class="case-label">01 / SPECIFICATION</span>
               <h3>Feature Review</h3>
               <p class="case-ja">Decide what new behavior should mean</p>
@@ -258,7 +272,7 @@
               <span class="case-label">02 / REGRESSION</span>
               <h3>Refactor Guard</h3>
               <p class="case-ja">Find behavior drift in a refactor</p>
-              <p>Run the same behavior test against Base and Head. If results differ, ask whether the change was intended or is a regression.</p>
+              <p>Establish the observable invariant from the Host-materialized Base/Head diff, prove the focused Head baseline, then require a realistic mutant to fail. When a stable comparison reveals a difference, ask whether it was intended or is a regression.</p>
               <div class="case-visual animated-terminal compare-terminal" role="img" aria-label="A terminal runs the same behavior test against Base and Head in sequence and detects a difference in the test results">
                 <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · refactor guard</span></div>
                 <div class="animated-terminal-body" aria-hidden="true">

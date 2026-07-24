@@ -41,38 +41,39 @@ gh skill publish --dry-run
 
 Fixture検証には`jsonschema`と`referencing`が必要です(`python3 -m pip install jsonschema referencing`)。それ以外は標準ライブラリだけで動作します。
 
-Distribution Auditでは、配布するStandalone Skill Fileを21個、Codex Plugin Bundleを24個のUTF-8 Text Fileへ意図的に固定しています。Skill、Plugin Manifest、Host Hook、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
+Distribution Auditでは、配布するStandalone Skill Fileを31個、Plugin Bundleを51個のUTF-8 Text Fileへ意図的に固定しています。Skill、Plugin Manifest、Host Hook、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
 
-## v0.2の範囲
+## 現在の範囲
 
-v0.2では、次の条件へ対象を絞ります。
+v0.5 Integration Previewでは、次の条件へ対象を絞ります。
 
-- 既存のテスト環境がある
-- BaseとHeadをローカルで実行できる
+- 信頼されたHost(Claude Code、Codex、ローカルCursor Desktop)がSession BrokerとTool Gateを起動できる
+- 既存のテスト環境があり、Focused Test Commandをローカルでプローブできる
 - 戻り値、例外、状態、副作用を決定的に観測できる
-- Feature Review、Refactor Guard、Test Assessmentのいずれかを目的として判断できる
-- 重要なBehavior Probeを最大3〜5件に限定する
-- BaseとHeadへ同一テストを実行する
-- 重要なMutationだけを選択する
+- Bug Fix Review、Feature Review、Refactor Guard、Test Assessmentのいずれかを目的として判断できる
+- Command、使い捨てClone、Mutation、Schema、Hash、Report、CleanupはRunnerが所有する——依存準備1回、Focused Commandのプローブ1回、並列challenge-batch 1回
+- Intentに結び付いた重要なMutationだけを選択する
 - GitHubへ自動投稿しない
 - ファイル名と行番号付きのコメント候補を生成する
 - 未検証範囲とテスト戦略上のトレードオフを報告する
 
 ## CIとRelease
 
-GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、本書に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills MetadataとPre-agent Plugin Gate、配布監査Test、両配布物の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、一時Directoryへ実際に21個のStandalone Skill FileをInstallします。21-file Skillと24-file PluginのManifest・File単位Hashを別々のCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
+GitHub Actionsは、すべてのPull Requestと`main`へのPushに対して、本書に記載したものと同じリポジトリ整合性Checkを実行します。さらにAgent Skills MetadataとPre-agent Plugin Gate、配布監査Test、両配布物の想定外File・実行権限・Binary・Symbolic Link、外部URL Host、必須安全規則を検証し、監査済みFile一式のStandalone Skill Installを一時Directoryへ実際に実行します。SkillとPluginの配布Manifest・File単位Hashを別々のCI証跡としてUploadします。第三者ActionはすべてCommit SHAへ固定します。
+
+CIでは証明できないRelease条件——Hostごとの実機Fresh-install E2E——は[Release Checklist](docs/release-checklist.md)で管理し、Version Lineごとの主要変更は[Changelog](CHANGELOG.md)に要約します。
 
 Rootの[`VERSION`](VERSION) Fileで次に公開するRelease Versionを宣言します。Pull Requestで次のSemantic Versionへ更新してください。そのPull Requestが`main`へMergeされ、CIが成功すると、Release Workflowは検証済みの正確なCommitをCheckoutし、新Versionを自動公開します。対応するTagが既に存在する場合は、重複Releaseを作らず正常終了します。障害復旧用のManual Workflow Dispatchも`main`で利用でき、同じ`VERSION` Fileを読み取ります。
 
-`0.2.1`のような新Versionに対して、WorkflowはRepository、配布物、Install結果、Versionを検証し、Annotated Tag `v0.2.1`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。
+`0.5.0`のような新Versionに対して、WorkflowはRepository、配布物、Install結果、Versionを検証し、Annotated Tag `v0.5.0`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。`0.5.0-alpha.7`のようなPrerelease識別子は自動的にPrereleaseとして公開されます。
 
 Release WorkflowはSource Fileを変更しません。Git Tagを公開済みReleaseのImmutableな識別子とします。公開ReleaseではRepositoryのImmutable Releasesを必須とし、Workflow完了前にReleaseと全添付Assetを検証します。最初のReleaseでは、Actionsへ秘密署名鍵を保持させず、Immutable Release Attestationを信頼の基点にします。
 
 公開済みReleaseとDownloadしたAssetはGitHub CLIで検証できます。
 
 ```bash
-gh release verify v0.2.3 --repo Shogo1222/socratic
-gh release verify-asset v0.2.3 ./socratic-v0.2.3.zip \
+gh release verify v0.5.0-alpha.7 --repo Shogo1222/socratic
+gh release verify-asset v0.5.0-alpha.7 ./socratic-v0.5.0-alpha.7.zip \
   --repo Shogo1222/socratic
 ```
 

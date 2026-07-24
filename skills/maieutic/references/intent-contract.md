@@ -21,7 +21,7 @@ decisions:
   - id: DEC-001
     question: <decision that changes the oracle>
     expected: <confirmed expectation>
-    provenance: user-confirmed | repository-established
+    provenance: user-confirmed | repository-established | reviewer-selected-benchmark-assumption
 
 invariants:
   - id: INV-001
@@ -59,6 +59,10 @@ Use this default precedence while respecting repository-specific authority:
 6. current implementation.
 
 Edited, weak, flaky, contradictory, or implementation-coupled tests cannot establish an oracle. Treat them as supporting evidence only. Conflicting evidence creates an unresolved decision; it does not authorize choosing the current implementation.
+
+## Status lifecycle
+
+`provisional` and `needs-decision` precede confirmation; `confirmed` requires every mapped oracle resolved. `tested` requires mapped passing tests that persist beyond the run. Elenchus advances the contract further: set `challenged` when risk-directed mutations have executed against those stable tests, and `hardened` when the selected high-risk mutants are killed and every unchallenged risk is explicit in the report. A Review-only proof that rests only on proposed, disposable tests never advances past `confirmed`.
 
 ## Contract quality checks
 

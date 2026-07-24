@@ -8,11 +8,11 @@
 
 ## 必須の参照資料
 
-Mutant生成前に[Intent駆動Mutation設計](elenchus-mutation-design.md)、コード変更・実行前に[Mutation安全Contract](elenchus-safety.md)を読む。提案テストを証明または適用する場合は[証明済みテストの引き渡し](elenchus-test-handoff.md)も読む。同梱したIntent Contract、Mutation Result、Mutation Report、Test HandoffのSchemaで入出力を検証する。
+Mutant生成前に[Intent駆動Mutation設計](elenchus-mutation-design.md)、コード変更・実行前に[Mutation安全Contract](elenchus-safety.md)を読む。提案テストを証明または適用する場合は[証明済みテストの引き渡し](elenchus-test-handoff.md)も読む。単独利用の場合に限り、同梱したIntent Contract、Mutation Result、Mutation Report、Test HandoffのSchemaで入出力を検証する。SocraticにHostされたRunではSchemaファイルを決して開かない——すべての文書はRunner Scaffoldから始まり、その`editable_fields`と`field_guide`が正式な構造を伝え、検証はRunnerが行う。
 
 ## Git安全境界
 
-ローカルGitは、厳密に読み取り専用の根拠収集とImmutable Snapshotの出力にだけ使う。許可するコマンドは`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`に限定する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。ローカルまたはRemoteのGit状態を決して変更しない。Stage、Commit、Amend、Push、Pull、Fetch、Checkout、Switch、Reset、Stash、Merge、Rebase、Cherry-pick、Branch、Tag、Worktreeの操作を行わない。`gh`またはCode HostのWrite APIを呼び出さず、禁止操作の許可を求めない。
+ローカルGitは、厳密に読み取り専用の根拠収集にだけ使う。許可するコマンドは`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`に限定する。`git archive`は読み取り専用ではなく(`-o`がファイルを書く)、Host Gateが拒否する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。ローカルまたはRemoteのGit状態を決して変更しない。Stage、Commit、Amend、Push、Pull、Fetch、Checkout、Switch、Reset、Stash、Merge、Rebase、Cherry-pick、Branch、Tag、Worktreeの操作を行わない。`gh`またはCode HostのWrite APIを呼び出さず、禁止操作の許可を求めない。
 
 BaseとHeadは、Branch切替やGit Worktreeを使わず、使い捨てFilesystem Snapshotとして展開する。必要なObjectがローカルになく、取得に`fetch`が必要なら停止し、Snapshotを利用不能として報告する。
 
@@ -27,7 +27,7 @@ Repository定義のCommandを実行する前に、そのCommandと呼び出すSc
 次の順序で取得する。
 
 1. ユーザー、Maieutic、またはSocratic Orchestratorから明示されたPath(一時的な実行Artifactを含む)
-2. リポジトリ内の`.socratic/intent-contract.json`(過去の実行でローカル保存を選んだ場合に存在)
+2. リポジトリ内の`.socratic/intent-contract.json`——そのファイルが別の変更を記述している場合は`.socratic/contracts/<change-id>.json`——(過去の実行でローカル保存を選んだ場合に存在)
 3. 現在の会話にある完全なContract
 
 存在しない場合、Test Assessment Modeでは、明示的なユーザー依頼、公開された振る舞いとRepository Document、観測可能な変更根拠から、一時的な**暫定Assessment Contract**を作成してよい。実装やテストを確認済み仕様として扱わない。各項目を暫定とし、受容可否が未確定Intentに依存する結果はMaieuticへ戻し、暫定根拠だけからTestが確認済みIntentを保護すると主張しない。Harden ModeとCatch Modeでは、後述するContract Statusを引き続き必須とする。満たさない場合は停止し、`$maieutic`、統合された`$socratic` Workflowの実行、またはContract指定を求める。
@@ -176,9 +176,9 @@ ParentとDiffの最小の振る舞い差をMaieutic経由で提示する。Socra
 
 ### 3. 隔離環境とBaselineを確立する
 
-Safety規則に従い、主要Workspaceの対象範囲についてFilesystem ManifestとContent Hashを記録する。正確な対象状態を含む使い捨てFilesystem Snapshotを作り、`.socratic-disposable`でMarker付けする。すべてのMutation書き込みは同梱`IsolationGate.write_bytes`または`write_text`を通し、認可後に別の無Guard書き込みを行わない。**そのSnapshot内で**Baseline Policyを適用し、Git Status、Branch切替、Git Worktreeを隔離や復元へ使わない。
+Safety規則に従う。単独利用の場合(Socratic配下では決して行わない): 主要Workspaceの対象範囲についてFilesystem ManifestとContent Hashを記録する。正確な対象状態を含む使い捨てFilesystem Snapshotを作り、`.socratic-disposable`でMarker付けする。すべてのMutation書き込みは同梱`IsolationGate.write_bytes`または`write_text`を通し、認可後に別の無Guard書き込みを行わない。**そのSnapshot内で**Baseline Policyを適用し、Git Status、Branch切替、Git Worktreeを隔離や復元へ使わない。この手動Standalone Pathの結果は助言的であり、Host Attestationを持たない。Socratic Runまたは正準のAttested Reportとして提示してはならない。
 
-Socraticから呼ばれた場合は、信頼されたHost Adapter APIが発行したReady Manifestだけを受け入れる。各Mutationを`mutate`または`register_prebuilt`へ通し、同じMutation IDを付けた`phase=mutation`の`execute`でTestを行う。別の成功Baseline実行も必須とする。Host連携、保護Storage、受理済みHost Protection Attestation、Phase付き実行のいずれかがなければMutationせず`blocked`を返す。
+Socraticから呼ばれた場合は、信頼されたHost Adapter APIが発行したReady Manifestだけを受け入れ、Runnerの固定Pipelineを唯一のMutation機構として使う: 成功した1回の`probe-command`がBaselineを記録し、検証済みの単一`challenge-batch`が各Anchor Editをそれぞれ新しいCopy-on-write Sandboxへ適用する。Mutantごとの`mutate`/`register-prebuilt`と`execute --phase mutation`は、Anchor Editとして表現できないChallengeのためだけに存在する。Batchを優先し、同じMutation IDで両機構を混在させない。Host連携、保護Storage、受理済みHost Protection Attestation、Phase付き実行のいずれかがなければMutationせず`blocked`を返す。
 
 Raw Command Outcomeと解釈を分離する。Nonzero ExitだけではBehavioral Killとしない。Assertion Evidenceが対象Contract違反を示す場合だけ`outcome_interpretation.kind`を`behavioral-failure`とする。Infrastructure Failure、Process Crash、Timeout、Unparseable Outputは該当Kindを記録し、Mutationを`inconclusive`と分類する。
 
@@ -186,7 +186,7 @@ Primary Rootは変更Packageではなく、それを含むGit Repository Rootへ
 
 ### 4. 各Mutantを独立Batch Sandboxで実行する
 
-独立したMutantには検証済み`challenge-batch`を優先する。定義とCommandを一括投入し、RunnerがFresh Sandboxで並列実行した全Raw Outcomeを返してから分類する。各Mutantは依存導入後にSealされたSnapshotの新しい使い捨てCloneへ単独適用する。
+独立したMutantには検証済み`challenge-batch`を優先する。定義とCommandを一括投入し、RunnerがFresh Sandboxで並列実行した全Raw Outcomeを返してから分類する。各Mutantは依存導入後にSealされたSnapshotの新しい使い捨てCloneへ単独適用し、Raw Outcomeを記録したらそのSandboxを破棄する——Sandboxの並行実行は問題ないが、共有Workspaceでの編集の交互適用は決して行わない。
 
 - `killed`: 安定した関連テストが意図した振る舞い理由で失敗し、観測した失敗理由を記録し、観測可能なContract違反を確認
 - `survived`: 安定した関連テストが成功
@@ -232,7 +232,7 @@ Apply testsでは、明示許可後かつPatch Hash、全ファイルPreconditio
 
 ## Reportの成果物
 
-同梱Schemaに適合するReportを一時的な実行Artifactとして作成する。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test Assessment、Mutation分類、Catch結果、Write Mode、Test Change、引き渡し、許可されたWorkspace変更、全`not_challenged` ID、未解決判断に加え、Resolve済みRoot、Host Protection、Mutation Target、Write Eventを含む隔離証跡を記録する。Postflightでは実行中の主要Workspace書き込み、最終Hash一致、Working Tree Status、Mutation除去、Sandbox破棄を別々に記録する。
+SocraticにHostされたRunでは、RunnerがReportを生成・検証・Attestする。そのRun Identity、Nonce、Manifest Hash、Ledger Fieldを決して手書きしない。単独利用ではRunner発行のRun Nonce、Manifest Hash、Ledger Headが存在しないため、正準のAttested Reportは成立し得ない: 以下のFieldを持つStandalone Assessment Recordを一時的な実行Artifactとして作成し、Attestedではなく助言的と明示し、正準Schemaを満たすためにRunner発行値を決して捏造しない。`.socratic/elenchus-report.json`への書き込みは、Artifact方針でユーザーがローカル保存を選んだ場合だけ行う。Mode、Contract Path、安定Baseline、Test Assessment、Mutation分類、Catch結果、Write Mode、Test Change、引き渡し、許可されたWorkspace変更、全`not_challenged` ID、未解決判断に加え、Resolve済みRoot、Host Protection、Mutation Target、Write Eventを含む隔離証跡を記録する。Postflightでは実行中の主要Workspace書き込み、最終Hash一致、Working Tree Status、Mutation除去、Sandbox破棄を別々に記録する。
 
 Mutation Scoreは補助情報であり成功基準ではない。予算切れをContract全体のHardening完了とみなさない。
 
