@@ -123,7 +123,7 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertEqual(module.evaluate(self.fixture["hook_input"]), expected)
         self.assertEqual(module.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": "hello"}), {})
         manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.5.0-alpha.7")
+        self.assertEqual(manifest["version"], "0.5.0-beta.1")
         hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
         self.assertIn("${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py", command)

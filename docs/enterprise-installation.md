@@ -25,26 +25,26 @@ If either dependency is unavailable, the mandatory runner fails closed and the r
 
 ## Verify a release
 
-Use an immutable published release and pin the installation to its exact tag. Replace `v0.5.0-alpha.7` below with the approved release.
+Use an immutable published release and pin the installation to its exact tag. Replace `v0.5.0-beta.1` below with the approved release.
 
 ```bash
-gh release verify v0.5.0-alpha.7 --repo Shogo1222/socratic
-gh release download v0.5.0-alpha.7 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
+gh release verify v0.5.0-beta.1 --repo Shogo1222/socratic
+gh release download v0.5.0-beta.1 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
 ```
 
 Preview the files and permissions before installing:
 
 ```bash
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-alpha.7
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-alpha.7
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-alpha.7
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-beta.1
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-beta.1
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-beta.1
 ```
 
 <!-- socratic-distribution-file-count: 31 -->
 <!-- socratic-plugin-file-count: 51 -->
 The standalone Skill distribution contains 31 UTF-8 text files, including four Python source helpers, the current run schemas, and the experimental Plan, Evidence, and Interpretation schemas. The audited multi-Host Plugin component set contains 51 UTF-8 text files across Claude Code, Codex, and local Cursor Desktop integration, including the Plugin-managed Python runtime bootstrap. A Claude Marketplace source checkout can contain additional repository-level files because its source is the repository root; those files are not part of the 51-file audited Plugin release asset. Those helpers have no POSIX execute bits but are run by a Python interpreter. The distribution audit's “executable” rejection specifically checks the POSIX `0o111` execute-bit mask. The audited distribution contains no binaries or symbolic links. Compare the preview with the release manifest and checksums.
 
-For managed Codex deployment, do not rely on user-controlled Plugin hook trust. Deploy the pre-agent gate from an OS-managed absolute path through `requirements.toml`, force `[features].hooks = true`, and set `allow_managed_hooks_only = true`. Treat the current alpha preview as incomplete until that managed Host integration and a ready-run capability path are validated in the target environment.
+For managed Codex deployment, do not rely on user-controlled Plugin hook trust. Deploy the pre-agent gate from an OS-managed absolute path through `requirements.toml`, force `[features].hooks = true`, and set `allow_managed_hooks_only = true`. Treat the current beta preview as incomplete until that managed Host integration and a ready-run capability path are validated in the target environment.
 
 ## Install with project scope
 
@@ -55,7 +55,7 @@ GH_TELEMETRY=false gh skill install Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.5.0-alpha.7
+  --pin v0.5.0-beta.1
 ```
 
 Project scope limits where the skill files are installed. It does not limit what the host agent can read or whether the model provider receives source code. Enforce those controls in the host, operating system, network, and organizational account.

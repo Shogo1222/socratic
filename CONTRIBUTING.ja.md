@@ -65,15 +65,15 @@ CIでは証明できないRelease条件——Hostごとの実機Fresh-install E2
 
 Rootの[`VERSION`](VERSION) Fileで次に公開するRelease Versionを宣言します。Pull Requestで次のSemantic Versionへ更新してください。そのPull Requestが`main`へMergeされ、CIが成功すると、Release Workflowは検証済みの正確なCommitをCheckoutし、新Versionを自動公開します。対応するTagが既に存在する場合は、重複Releaseを作らず正常終了します。障害復旧用のManual Workflow Dispatchも`main`で利用でき、同じ`VERSION` Fileを読み取ります。
 
-`0.5.0`のような新Versionに対して、WorkflowはRepository、配布物、Install結果、Versionを検証し、Annotated Tag `v0.5.0`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。`0.5.0-alpha.7`のようなPrerelease識別子は自動的にPrereleaseとして公開されます。
+`0.5.0`のような新Versionに対して、WorkflowはRepository、配布物、Install結果、Versionを検証し、Annotated Tag `v0.5.0`、Skill別・Suite ZIP、`SHA256SUMS`、`SKILL_SHA256SUMS`、JSON File Manifest、自動生成Release Noteを公開します。`0.5.0-beta.1`のようなPrerelease識別子は自動的にPrereleaseとして公開されます。
 
 Release WorkflowはSource Fileを変更しません。Git Tagを公開済みReleaseのImmutableな識別子とします。公開ReleaseではRepositoryのImmutable Releasesを必須とし、Workflow完了前にReleaseと全添付Assetを検証します。最初のReleaseでは、Actionsへ秘密署名鍵を保持させず、Immutable Release Attestationを信頼の基点にします。
 
 公開済みReleaseとDownloadしたAssetはGitHub CLIで検証できます。
 
 ```bash
-gh release verify v0.5.0-alpha.7 --repo Shogo1222/socratic
-gh release verify-asset v0.5.0-alpha.7 ./socratic-v0.5.0-alpha.7.zip \
+gh release verify v0.5.0-beta.1 --repo Shogo1222/socratic
+gh release verify-asset v0.5.0-beta.1 ./socratic-v0.5.0-beta.1.zip \
   --repo Shogo1222/socratic
 ```
 

@@ -19,7 +19,7 @@ The workflow is delivered as three Agent Skills. Their names follow the Socratic
 - **Maieutic** — the elicitation skill. It converts expectations the implementation alone cannot establish into concrete questions a specification owner can answer, and records the answers in the Intent Contract linked to their tests. **Outcome**: vague unease becomes answerable specification questions and a test-backed record of confirmed intent.
 - **Elenchus** — the refutation skill. It challenges focused behavior tests with realistic, intent-linked mutations. Run standalone, it assesses the protection supplied by existing and changed test cohorts (Test Assessment). **Outcome**: not "the tests are green" but proof that injecting the bug actually makes a test fail.
 
-The current integration preview is **v0.5.0-alpha.7** for Claude Code, Codex, and local Cursor Desktop.
+The current integration preview is **v0.5.0-beta.1** for Claude Code, Codex, and local Cursor Desktop.
 
 ## The problem
 
@@ -159,7 +159,7 @@ The bundled [schemas](schemas/) are the machine-readable authority; the [Intent 
 
 ## Installation
 
-Socratic targets Claude Code, Codex, and local Cursor Desktop. Other agent hosts are not supported by this integration preview. The current preview release is [v0.5.0-alpha.7](https://github.com/Shogo1222/socratic/releases/tag/v0.5.0-alpha.7).
+Socratic targets Claude Code, Codex, and local Cursor Desktop. Other agent hosts are not supported by this integration preview. The current preview release is [v0.5.0-beta.1](https://github.com/Shogo1222/socratic/releases/tag/v0.5.0-beta.1).
 
 ### Claude Code
 
@@ -223,7 +223,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # pin standalone resources to an integration-preview release
-gh skill install Shogo1222/socratic --all --pin v0.5.0-alpha.7
+gh skill install Shogo1222/socratic --all --pin v0.5.0-beta.1
 ```
 
 Alternatively, use the Agent Skills CLI and select Codex or Cursor as the target:
@@ -566,9 +566,9 @@ The skills define reviewable boundaries for Git operations, workspace writes, cr
 
 ## Status
 
-**v0.5.0-alpha.7** is the current integration preview. It includes native Host paths for Claude Code, Codex, and local Cursor Desktop; exact GitHub PR materialization; a Runner-owned runbook and scaffold guides; one-time dependency preparation; a probed focused command; parallel copy-on-write mutation sandboxes; separated runtime caches; strict run-artifact validation; Mutation Report v10; a canonical four-block renderer; and terminal cleanup.
+**v0.5.0-beta.1** is the current integration preview. It includes native Host paths for Claude Code, Codex, and local Cursor Desktop; exact GitHub PR materialization; a Runner-owned runbook and scaffold guides; one-time dependency preparation; a probed focused command; parallel copy-on-write mutation sandboxes; separated runtime caches; strict run-artifact validation; Mutation Report v10; a canonical four-block renderer; and terminal cleanup.
 
-Standalone mutation execution remains intentionally blocked. A trusted Host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability. The preview has been dogfooded on a real pull request, but it is still an alpha: host-specific live runs, more repositories and test runners, failure recovery, and performance remain active validation areas.
+Standalone mutation execution remains intentionally blocked. A trusted Host must issue the run nonce, protected external storage, and repository-wide read-only or write-monitor capability. The preview has been dogfooded on real pull requests, but it is still a beta: per-Host live E2E coverage (tracked in the [release checklist](docs/release-checklist.md)), more repositories and test runners, failure recovery, and performance remain active validation areas, and there is no OS-level containment for untrusted test code — use it only on repositories you already trust to run locally.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the initial contribution boundaries.
 
