@@ -122,6 +122,25 @@ class CursorHostTest(unittest.TestCase):
                     "command": "python3 /plugin/skills/socratic/scripts/run_review.py preflight",
                 })
                 self.assertEqual(allowed_runner["permission"], "allow")
+                denied_background = self.gate.evaluate({
+                    "hook_event_name": "beforeShellExecution",
+                    "conversation_id": session_id,
+                    "command": (
+                        "python3 /plugin/skills/socratic/scripts/"
+                        "run_review.py challenge-batch"
+                    ),
+                    "tool_input": {"run_in_background": True},
+                })
+                self.assertEqual(denied_background["permission"], "deny")
+                denied_shell_background = self.gate.evaluate({
+                    "hook_event_name": "beforeShellExecution",
+                    "conversation_id": session_id,
+                    "command": (
+                        "python3 /plugin/skills/socratic/scripts/"
+                        "run_review.py challenge-batch &"
+                    ),
+                })
+                self.assertEqual(denied_shell_background["permission"], "deny")
                 self.runner.abort(manifest_path)
             finally:
                 self.host.cleanup_session(session_id)

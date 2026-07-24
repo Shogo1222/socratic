@@ -123,10 +123,21 @@ def evaluate(payload: Any) -> dict[str, Any]:
         command = tool_input.get("command") if isinstance(tool_input, dict) else None
         if not isinstance(command, str):
             return _deny("Socratic requires a structured guarded Runner command")
+        if isinstance(tool_input, dict) and any(
+            tool_input.get(key) is True
+            for key in ("run_in_background", "background")
+        ):
+            return _deny(
+                "Socratic Runner commands must finish synchronously in the foreground"
+            )
         try:
             argv = shlex.split(command)
         except ValueError:
             return _deny("Socratic rejected an unparsable shell command")
+        if "&" in argv:
+            return _deny(
+                "Socratic Runner commands must finish synchronously in the foreground"
+            )
         if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
             return _deny("Socratic forbids shell composition outside the guarded Runner")
         if len(argv) >= 2 and Path(argv[1]).name == "run_review.py" and Path(argv[0]).name.startswith("python"):

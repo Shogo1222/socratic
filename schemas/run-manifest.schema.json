@@ -165,6 +165,41 @@
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
     },
+    "review_type": {
+      "type": "object",
+      "required": [
+        "recommended",
+        "options",
+        "requires_human_confirmation"
+      ],
+      "properties": {
+        "recommended": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "Bug Fix Review",
+            "Feature Review",
+            "Refactor Guard",
+            "Test Assessment",
+            null
+          ]
+        },
+        "options": {
+          "const": [
+            "Bug Fix Review",
+            "Feature Review",
+            "Refactor Guard",
+            "Test Assessment"
+          ]
+        },
+        "requires_human_confirmation": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
     "change_context": {
       "oneOf": [
         {

@@ -53,6 +53,11 @@ class RunReviewTest(unittest.TestCase):
                     storage_root=storage,
                     protection_mode="os-read-only",
                     protection_details="fixture host denied a Primary write probe",
+                    review_type={
+                        "recommended": "Bug Fix Review",
+                        "options": list(runner.REVIEW_TYPES),
+                        "requires_human_confirmation": True,
+                    },
                 )
 
         return FixtureHost()
@@ -391,7 +396,14 @@ class RunReviewTest(unittest.TestCase):
                         "hard_rules", "execution_plan", "announcement_rules"):
                 self.assertIn(key, document)
             self.assertEqual(document["run_id"], manifest["run_id"])
-            self.assertIn("scaffold-contract", document["next"]["argv"])
+            self.assertEqual(document["checkpoint"]["id"], "review-type")
+            self.assertTrue(document["checkpoint"]["required_before_next"])
+            self.assertEqual(
+                document["checkpoint"]["recommended"], "Bug Fix Review"
+            )
+            self.assertIn("inspect", document["next"]["argv"])
+            self.assertIn("diff", document["next"]["argv"])
+            self.assertEqual(document["next"]["announce"], "Reviewing what changed")
             self.assertEqual(
                 [step["id"] for step in document["execution_plan"]],
                 ["inspect", "intent", "prepare", "baseline",
@@ -701,6 +713,17 @@ class RunReviewTest(unittest.TestCase):
                 end_line=10,
             )
             self.assertEqual(file_result["text"], "original")
+            self.assertEqual(
+                file_result["checkpoint"]["id"], "diff-understanding"
+            )
+            self.assertTrue(
+                file_result["checkpoint"]["required_before_next"]
+            )
+            self.assertIn("scaffold-contract", file_result["next"]["argv"])
+            self.assertEqual(
+                file_result["next"]["announce"],
+                "Establishing the intended behavior",
+            )
             search = self.runner.inspect_review(
                 manifest_path, "search", query="original"
             )
@@ -714,6 +737,40 @@ class RunReviewTest(unittest.TestCase):
                 self.runner.inspect_review(
                     manifest_path, "file", relative_path=".env"
                 )
+
+    def test_probe_next_has_exact_root_cwd_option_and_announcement(self) -> None:
+        manifest_path = Path("/host/run-manifest.json")
+        step = self.runner._probe_next(manifest_path)
+        self.assertIn("<package-directory-or-dot>", step["argv"])
+        self.assertNotIn("<package-directory-or-omit>", step["argv"])
+        self.assertEqual(step["announce"], "Running the current tests")
+
+    def test_staged_contract_offers_exact_prepare_and_no_install_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            _manifest, manifest_path = self.ready(root, repository)
+            self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
+            stdout = io.StringIO()
+            with patch.object(sys, "argv", [
+                "run_review.py",
+                "stage-artifact",
+                "--manifest", str(manifest_path),
+                "--kind", "contract",
+                "--schema-root", str(ROOT / "schemas"),
+            ]), redirect_stdout(stdout):
+                code = self.runner.main()
+            self.assertEqual(code, 0)
+            result = json.loads(stdout.getvalue())
+            self.assertIn("execute", result["next"]["argv"])
+            self.assertIn(
+                "probe-command",
+                result["skip_if_dependencies_ready"]["argv"],
+            )
+            self.assertEqual(
+                result["skip_if_dependencies_ready"]["announce"],
+                "Running the current tests",
+            )
 
     def test_complete_generates_drafts_renders_and_discards_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

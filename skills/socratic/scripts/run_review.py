@@ -40,6 +40,12 @@ ARTIFACT_SCHEMAS = {
     "report": "mutation-report-draft.schema.json",
     "review": "canonical-review.schema.json",
 }
+REVIEW_TYPES = (
+    "Bug Fix Review",
+    "Feature Review",
+    "Refactor Guard",
+    "Test Assessment",
+)
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -69,6 +75,7 @@ class HostGrant:
     protection_mode: str
     protection_details: str
     change_context: dict[str, Any] | None = None
+    review_type: dict[str, Any] | None = None
 
 
 class HostAdapter(Protocol):
@@ -108,6 +115,11 @@ class ClaudeSocketHostAdapter:
             protection_mode=grant["protection_mode"],
             protection_details=grant["protection_details"],
             change_context=grant.get("change_context"),
+            review_type=(
+                grant.get("review_context", {}).get("review_type")
+                if isinstance(grant.get("review_context"), dict)
+                else None
+            ),
         )
 
 
@@ -243,14 +255,47 @@ def inspect_review(
     manifest = _ready_manifest(manifest_path)
     change = manifest["change_context"]
     head = Path(change["head_root"]).resolve(strict=True)
+
+    def guided(result: dict[str, Any]) -> dict[str, Any]:
+        result["checkpoint"] = {
+            "id": "diff-understanding",
+            "required_before_next": True,
+            "present_in_user_language": [
+                "problem",
+                "changed_behavior",
+                "preserved_behavior",
+                "new_observable_behavior",
+                "consequential_uncertainty",
+            ],
+            "accepted_responses": [
+                "confirm",
+                "correct",
+                "defer-to-specification-owner",
+                "proceed-from-repository-evidence",
+            ],
+            "instruction": (
+                "Continue bounded inspect calls until the evidence is sufficient. "
+                "Then present this checkpoint once and wait for the human response "
+                "before running next.argv."
+            ),
+        }
+        result["next"] = _next_step(
+            "scaffold-contract", "--manifest", str(manifest_path),
+            note=(
+                "run only after the Diff understanding checkpoint is answered; "
+                "incorporate corrections and fill every replace-me value from evidence"
+            ),
+        )
+        return result
+
     if kind == "diff":
         if change["source"] != "github-pull-request":
-            return {
+            return guided({
                 "kind": "diff",
                 "available": False,
                 "reason": "local-workspace has no Host-materialized Base snapshot",
                 "changed_files": [],
-            }
+            })
         base = Path(change["base_root"]).resolve(strict=True)
         selected = (
             [_safe_relative_path(relative_path).as_posix()]
@@ -277,13 +322,13 @@ def inspect_review(
                 truncated = True
                 break
             chunks.append(diff)
-        return {
+        return guided({
             "kind": "diff",
             "available": True,
             "changed_files": selected,
             "text": "".join(chunks),
             "truncated": truncated,
-        }
+        })
     if kind == "file":
         if not relative_path:
             raise RunGateError("file inspection requires --relative-path")
@@ -291,13 +336,13 @@ def inspect_review(
         if start_line < 1 or end_line < start_line or end_line - start_line > 400:
             raise RunGateError("file inspection line range is invalid or too large")
         lines = _bounded_text(head / relative).splitlines()
-        return {
+        return guided({
             "kind": "file",
             "path": relative.as_posix(),
             "start_line": start_line,
             "end_line": min(end_line, len(lines)),
             "text": "\n".join(lines[start_line - 1:end_line]),
-        }
+        })
     if kind == "tests":
         tests: list[str] = []
         for path in _review_files(head):
@@ -311,7 +356,11 @@ def inspect_review(
                 or re.search(r"(?:^|[._-])(?:test|spec)(?:[._-]|$)", name)
             ):
                 tests.append(relative.as_posix())
-        return {"kind": "tests", "paths": tests, "truncated": len(tests) == MAX_INSPECT_MATCHES}
+        return guided({
+            "kind": "tests",
+            "paths": tests,
+            "truncated": len(tests) == MAX_INSPECT_MATCHES,
+        })
     if kind == "search":
         if not query or len(query) > 200:
             raise RunGateError("search requires a query of at most 200 characters")
@@ -333,12 +382,12 @@ def inspect_review(
                     })
                     if len(matches) >= MAX_INSPECT_MATCHES:
                         break
-        return {
+        return guided({
             "kind": "search",
             "query": query,
             "matches": matches,
             "truncated": len(matches) == MAX_INSPECT_MATCHES,
-        }
+        })
     raise RunGateError(f"unsupported inspection kind: {kind}")
 
 
@@ -436,6 +485,24 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
         "source": "local-workspace",
         "head_root": str(primary_root),
     }
+    if grant.review_type is None:
+        review_type = {
+            "recommended": None,
+            "options": list(REVIEW_TYPES),
+            "requires_human_confirmation": True,
+        }
+    elif isinstance(grant.review_type, dict):
+        review_type = grant.review_type
+    else:
+        raise RunGateError(
+            "trusted host adapter returned an invalid Review Type context"
+        )
+    if (
+        review_type.get("recommended") not in (*REVIEW_TYPES, None)
+        or review_type.get("options") != list(REVIEW_TYPES)
+        or review_type.get("requires_human_confirmation") is not True
+    ):
+        raise RunGateError("trusted host adapter returned an invalid Review Type context")
     if Path(change_context["head_root"]).resolve(strict=True) != primary_root:
         raise RunGateError("change context head root differs from the reviewed Primary")
     if change_context["source"] == "github-pull-request":
@@ -509,6 +576,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             "artifact_index_path": str(artifact_index_path),
             "primary_sha256": _tree_hash(primary_root),
             "change_context": change_context,
+            "review_type": review_type,
         }
         _write_exclusive(ledger_path, {"header": {"run_id": grant.run_id, "run_nonce": grant.run_nonce}})
         ledger_created = True
@@ -785,8 +853,23 @@ def _next_step(*arguments: str, note: str | None = None) -> dict[str, Any]:
     Placeholders in angle brackets mark the only parts an agent supplies;
     everything else must not be guessed or reordered.
     """
+    announcements = {
+        "runbook": "Explaining the review plan",
+        "inspect": "Reviewing what changed",
+        "scaffold-contract": "Establishing the intended behavior",
+        "stage-artifact": "Validating the intended behavior",
+        "execute": "Preparing the isolated test environment",
+        "probe-command": "Running the current tests",
+        "scaffold-plan": "Designing realistic accident patterns",
+        "challenge-batch": "Verifying the accident patterns",
+        "scaffold-analysis": "Interpreting what the tests protect",
+        "complete": "Assembling the verified review and cleaning up",
+    }
     step: dict[str, Any] = {
         "argv": [sys.executable, str(Path(__file__).resolve()), *arguments],
+        "announce": announcements.get(
+            arguments[0] if arguments else "", "Continuing the verified review"
+        ),
     }
     if note:
         step["note"] = note
@@ -831,6 +914,11 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
     """
     manifest = _ready_manifest(manifest_path)
     m = str(manifest_path)
+    review_type = manifest.get("review_type") or {
+        "recommended": None,
+        "options": list(REVIEW_TYPES),
+        "requires_human_confirmation": True,
+    }
     return {
         "socratic_version": SOCRATIC_VERSION,
         "run_id": manifest["run_id"],
@@ -884,15 +972,44 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
         ],
         "announcement_rules": [
             "before the first step, show the execution plan to the user in their language",
-            "announce each phase transition as a human goal, not an internal command name",
+            "before each next.argv, translate next.announce into the user's language",
             "if one phase exceeds 30 seconds, say why and report elapsed time",
             "never show an unfounded percentage",
         ],
+        "checkpoint": {
+            "id": "review-type",
+            "required_before_next": True,
+            "recommended": review_type["recommended"],
+            "options": review_type["options"],
+            "instruction": (
+                "State the Mission and execution plan in the user's language, "
+                "then obtain confirmation or correction of the Host-recommended "
+                "Review Type before running next.argv. A null recommendation means "
+                "the Host supplied no routing hint, so ask the human to select one."
+            ),
+        },
         "next": _next_step(
-            "scaffold-contract", "--manifest", m,
-            note="fill every replace-me value from repository evidence, then follow next.argv",
+            "inspect", "--manifest", m, "--kind", "diff",
+            note=(
+                "run after Review Type confirmation; use further bounded inspect "
+                "calls if needed, then complete the Diff understanding checkpoint"
+            ),
         ),
     }
+
+
+def _probe_next(manifest_path: Path) -> dict[str, Any]:
+    return _next_step(
+        "probe-command", "--manifest", str(manifest_path),
+        "--command-id", "CMD-001",
+        "--cwd", "<package-directory-or-dot>",
+        "--", "<focused-test-argv>",
+        note=(
+            "replace placeholders with the package directory (or .) and direct "
+            "test executable located via inspect search; never use a "
+            "package-manager wrapper"
+        ),
+    )
 
 
 @contextlib.contextmanager
@@ -2692,17 +2809,7 @@ def main() -> int:
             if args.phase == "prepare" and returncode == 0:
                 print(json.dumps({
                     "phase": "prepare", "returncode": returncode,
-                    "next": _next_step(
-                        "probe-command", "--manifest", str(args.manifest),
-                        "--command-id", "CMD-001",
-                        "--cwd", "<package-directory-or-omit>",
-                        "--", "<focused-test-argv>",
-                        note=(
-                            "replace the placeholders with the direct test "
-                            "executable located via inspect search; never a "
-                            "package-manager wrapper"
-                        ),
-                    ),
+                    "next": _probe_next(args.manifest),
                 }, ensure_ascii=False, sort_keys=True))
             return returncode
         elif args.command == "probe-command":
@@ -2768,6 +2875,7 @@ def main() -> int:
                         "install, skip straight to probe-command"
                     ),
                 )
+                staged["skip_if_dependencies_ready"] = _probe_next(args.manifest)
             print(json.dumps(staged, ensure_ascii=False, sort_keys=True))
         elif args.command == "finish":
             sys.stdout.write(finish(args.manifest, args.schema_root))

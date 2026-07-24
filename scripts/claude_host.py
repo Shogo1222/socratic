@@ -575,7 +575,14 @@ def launch(primary: Path, plugin: Path, claude: str, extra: list[str]) -> int:
         "storage_root": str(host_storage),
         "protection_mode": "host-events",
         "protection_details": "Claude runs only in a disposable copy; the user Primary is outside the agent workspace",
+        "change_context": {
+            "source": "local-workspace",
+            "head_root": str(workspace),
+        },
     }
+    grant["review_context"] = build_review_context(
+        grant["change_context"], "Socratic review"
+    )
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
     server.listen(8)
