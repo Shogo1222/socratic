@@ -378,6 +378,28 @@ class RunReviewTest(unittest.TestCase):
                 str((mutant_root / "packages/app").resolve()),
             )
 
+    def test_probe_and_batch_expose_runner_timings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            probe = self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
+            )
+            for key in ("prepared_hash", "clone", "external_command"):
+                self.assertIn(key, probe["runner_timings_ms"])
+            self.stage_contract(manifest)
+            plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
+            plan_path.write_text(json.dumps({
+                "version": 2,
+                "command_id": "CMD-001",
+                "max_parallel": 1,
+                "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
+            }))
+            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+            for key in ("staleness_prepared_hash", "clones", "external_commands_window"):
+                self.assertIn(key, result["runner_timings_ms"])
+
     def test_probe_command_rejects_invalid_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

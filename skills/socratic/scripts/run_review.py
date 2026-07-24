@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import contextlib
 import difflib
 import hashlib
 import importlib.util
@@ -24,7 +25,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.5.0-alpha.3"
+SOCRATIC_VERSION = "0.5.0-alpha.5"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -776,6 +777,31 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
     return _append_event(manifest, event)
 
 
+@contextlib.contextmanager
+def _timed(timings: dict, label: str):
+    """Accumulate wall-clock milliseconds for a Runner-internal segment.
+
+    Ledger command events record external subprocess time only; Runner
+    overhead (content hashing, clone creation, sandbox removal, validation)
+    was invisible in every report. Timings stay out of the hash-chained
+    ledger: they are exposed through public command results and stderr.
+    """
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        timings[label] = timings.get(label, 0) + max(
+            0, round((time.monotonic() - started) * 1000)
+        )
+
+
+def _emit_runner_timings(phase: str, timings: dict) -> None:
+    print(
+        json.dumps({"runner_timings_ms": {"phase": phase, **timings}}, sort_keys=True),
+        file=sys.stderr,
+    )
+
+
 def _copy_prepared(prepared: Path, destination: Path) -> str:
     """Create one disposable branch, preferring filesystem copy-on-write.
 
@@ -1116,9 +1142,12 @@ def probe_command(
 
     prepared = Path(manifest["prepared_root"])
     _execution_cwd(prepared, cwd_relative)
-    prepared_sha256 = _prepared_hash(prepared)
+    runner_timings: dict[str, int] = {}
+    with _timed(runner_timings, "prepared_hash"):
+        prepared_sha256 = _prepared_hash(prepared)
     probe_root = Path(manifest["sandbox_root"]) / "command-probes" / command_id
-    strategy = _copy_prepared(prepared, probe_root)
+    with _timed(runner_timings, "clone"):
+        strategy = _copy_prepared(prepared, probe_root)
     runtime_environment = _runtime_environment(probe_root)
     environment = {
         key: value
@@ -1184,6 +1213,7 @@ def probe_command(
         ),
         "returncode": returncode,
         "duration_ms": duration_ms,
+        "runner_timings_ms": {**runner_timings, "external_command": duration_ms},
         "stdout": stdout[-limit:].decode("utf-8", errors="replace"),
         "stderr": stderr[-limit:].decode("utf-8", errors="replace"),
         "output_truncated": len(stdout) > limit or len(stderr) > limit,
@@ -1323,25 +1353,28 @@ def challenge_batch(
     duplicates = sorted(set(ids) & existing)
     if duplicates:
         raise RunGateError(f"challenge plan reuses mutation IDs: {duplicates}")
-    command_record = _validated_command(manifest, plan["command_id"])
+    runner_timings: dict[str, int] = {}
+    with _timed(runner_timings, "staleness_prepared_hash"):
+        command_record = _validated_command(manifest, plan["command_id"])
     for challenge in plan["challenges"]:
         _authorize_contract_challenge(manifest, challenge["contract_ids"])
         _anchored_postimage(Path(manifest["prepared_root"]), challenge["mutation"])
     plan_sha256 = _sha256_path(plan_path)
     registrations: dict[str, dict[str, Any]] = {}
-    for challenge in plan["challenges"]:
-        runtime_challenge = dict(challenge)
-        runtime_challenge["command"] = command_record["argv"]
-        runtime_challenge["cwd"] = command_record.get("cwd")
-        runtime_challenge["timeout_seconds"] = command_record["timeout_seconds"]
-        challenge["_runtime"] = runtime_challenge
-        registration = mutate_anchored(
-            manifest_path,
-            challenge["id"],
-            challenge["contract_ids"],
-            challenge["mutation"],
-        )
-        registrations[challenge["id"]] = registration
+    with _timed(runner_timings, "clones"):
+        for challenge in plan["challenges"]:
+            runtime_challenge = dict(challenge)
+            runtime_challenge["command"] = command_record["argv"]
+            runtime_challenge["cwd"] = command_record.get("cwd")
+            runtime_challenge["timeout_seconds"] = command_record["timeout_seconds"]
+            challenge["_runtime"] = runtime_challenge
+            registration = mutate_anchored(
+                manifest_path,
+                challenge["id"],
+                challenge["contract_ids"],
+                challenge["mutation"],
+            )
+            registrations[challenge["id"]] = registration
 
     inherited_environment = {
         key: value
@@ -1349,6 +1382,7 @@ def challenge_batch(
         if key in {"PATH", "LANG"} or key.startswith("LC_")
     }
     results_by_id: dict[str, dict[str, Any]] = {}
+    execution_started = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=min(plan["max_parallel"], len(plan["challenges"]))
     ) as executor:
@@ -1453,6 +1487,12 @@ def challenge_batch(
         "max_parallel": plan["max_parallel"],
         "results": public_results,
         "details_path": str(details_path),
+        "runner_timings_ms": {
+            **runner_timings,
+            "external_commands_window": max(
+                0, round((time.monotonic() - execution_started) * 1000)
+            ),
+        },
     }
 
 
@@ -2175,100 +2215,117 @@ def complete(
     except validator.ArtifactError as error:
         _record_validation_error(manifest, "complete-input", str(error))
         raise RunGateError(str(error)) from error
-    report, review = _analysis_drafts(manifest, analysis, plan)
-    try:
-        validator.validate_document(
-            report, "mutation-report-draft.schema.json", schema_root
-        )
-        validator.validate_document(
-            review, "canonical-review.schema.json", schema_root
-        )
-    except validator.ArtifactError as error:
-        _record_validation_error(manifest, "complete-generated", str(error))
-        raise RunGateError(str(error)) from error
-    for kind, document in (("report", report), ("review", review)):
-        path = artifact_root / ARTIFACT_FILES[kind]
-        _write_exclusive(path, document)
-        stage_artifact(manifest_path, kind, schema_root)
-    rendered = finish(manifest_path, schema_root)
+    runner_timings: dict[str, int] = {}
+    with _timed(runner_timings, "draft_generation"):
+        report, review = _analysis_drafts(manifest, analysis, plan)
+        try:
+            validator.validate_document(
+                report, "mutation-report-draft.schema.json", schema_root
+            )
+            validator.validate_document(
+                review, "canonical-review.schema.json", schema_root
+            )
+        except validator.ArtifactError as error:
+            _record_validation_error(manifest, "complete-generated", str(error))
+            raise RunGateError(str(error)) from error
+        for kind, document in (("report", report), ("review", review)):
+            path = artifact_root / ARTIFACT_FILES[kind]
+            _write_exclusive(path, document)
+            stage_artifact(manifest_path, kind, schema_root)
+    with _timed(runner_timings, "finish_total"):
+        rendered = finish(manifest_path, schema_root)
     if retention == "discard":
-        cleanup(manifest_path)
+        with _timed(runner_timings, "artifact_cleanup"):
+            cleanup(manifest_path)
+    _emit_runner_timings("complete", runner_timings)
     return rendered
 
 
 def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
     manifest = _ready_manifest(manifest_path)
     sandbox = Path(manifest["sandbox_root"])
+    runner_timings: dict[str, int] = {}
     try:
-        documents = _staged_artifacts(manifest)
-        if documents["contract"].get("unresolved"):
-            raise RunGateError(
-                "finish is blocked until every unresolved Intent decision is answered"
-            )
-        ledger = _ledger_events(manifest)
-        current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
+        with _timed(runner_timings, "load_and_validate"):
+            documents = _staged_artifacts(manifest)
+            if documents["contract"].get("unresolved"):
+                raise RunGateError(
+                    "finish is blocked until every unresolved Intent decision is answered"
+                )
+            ledger = _ledger_events(manifest)
+        with _timed(runner_timings, "primary_postflight_hash"):
+            current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
         if current_primary_hash != manifest["primary_sha256"]:
             raise RunGateError("Primary content hash changed during the Review-only run")
         prepared_events = [
             item for item in ledger if item.get("kind") == "prepared-snapshot"
         ]
-        if len(prepared_events) != 1 or _prepared_hash(
-            Path(manifest["prepared_root"])
-        ) != prepared_events[0].get("sha256"):
+        with _timed(runner_timings, "prepared_snapshot_verify"):
+            prepared_unchanged = len(prepared_events) == 1 and _prepared_hash(
+                Path(manifest["prepared_root"])
+            ) == prepared_events[0].get("sha256")
+        if not prepared_unchanged:
             raise RunGateError("prepared snapshot changed after it was sealed")
-        if sandbox.exists():
-            shutil.rmtree(sandbox)
+        with _timed(runner_timings, "sandbox_cleanup"):
+            if sandbox.exists():
+                shutil.rmtree(sandbox)
         if sandbox.exists():
             raise RunGateError("disposable sandbox still exists after cleanup")
-        report = _attested_report(
-            manifest,
-            documents["contract"],
-            documents["report"],
-            ledger,
-            manifest_sha256=_sha256_path(manifest_path),
-            ledger_head=_ledger_head(manifest),
-        )
-        finish_document(
-            manifest, report, documents["review"], ledger,
-            manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
-        )
+        with _timed(runner_timings, "report_generation"):
+            report = _attested_report(
+                manifest,
+                documents["contract"],
+                documents["report"],
+                ledger,
+                manifest_sha256=_sha256_path(manifest_path),
+                ledger_head=_ledger_head(manifest),
+            )
+            finish_document(
+                manifest, report, documents["review"], ledger,
+                manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
+            )
         validator = _validator_module()
         try:
-            validator.validate_document(
-                documents["contract"], "intent-contract.schema.json", schema_root
-            )
-            validator.validate_document(
-                report, "mutation-report.schema.json", schema_root
-            )
-            validator.validate_document(
-                documents["review"], "canonical-review.schema.json", schema_root
-            )
-            validator.validate_cross_artifact(
-                documents["contract"], report, documents["review"]
-            )
-            rendered = validator.render_review(documents["review"])
+            with _timed(runner_timings, "schema_validation"):
+                validator.validate_document(
+                    documents["contract"], "intent-contract.schema.json", schema_root
+                )
+                validator.validate_document(
+                    report, "mutation-report.schema.json", schema_root
+                )
+                validator.validate_document(
+                    documents["review"], "canonical-review.schema.json", schema_root
+                )
+                validator.validate_cross_artifact(
+                    documents["contract"], report, documents["review"]
+                )
+            with _timed(runner_timings, "render"):
+                rendered = validator.render_review(documents["review"])
             report["canonical_output"]["sha256"] = _sha256_bytes(
                 rendered.encode("utf-8")
             )
-            validator.validate_with_schemas(
-                documents["contract"], report, documents["review"], schema_root
-            )
+            with _timed(runner_timings, "schema_validation"):
+                validator.validate_with_schemas(
+                    documents["contract"], report, documents["review"], schema_root
+                )
         except validator.ArtifactError as error:
             raise RunGateError(str(error)) from error
-        _record_host_output(
-            manifest,
-            "attested-report",
-            "mutation-report.attested.json",
-            _canonical_bytes(report),
-            "mutation-report.schema.json",
-        )
-        _record_host_output(
-            manifest,
-            "renderer-output",
-            "renderer-output.txt",
-            rendered.encode("utf-8"),
-            "canonical renderer stdout",
-        )
+        with _timed(runner_timings, "host_output"):
+            _record_host_output(
+                manifest,
+                "attested-report",
+                "mutation-report.attested.json",
+                _canonical_bytes(report),
+                "mutation-report.schema.json",
+            )
+            _record_host_output(
+                manifest,
+                "renderer-output",
+                "renderer-output.txt",
+                rendered.encode("utf-8"),
+                "canonical renderer stdout",
+            )
+        _emit_runner_timings("finish", runner_timings)
         return rendered
     except BaseException as failure:
         try:
