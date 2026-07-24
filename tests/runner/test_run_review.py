@@ -187,8 +187,10 @@ class RunReviewTest(unittest.TestCase):
                 self.assertFalse(path.resolve().is_relative_to(repository.resolve()))
             sandbox = Path(manifest["sandbox_root"])
             self.assertTrue((sandbox / ".socratic-disposable").is_file())
-            self.assertFalse((sandbox / ".env").exists())
-            self.assertFalse((sandbox / "node_modules").exists())
+            prepared = Path(manifest["prepared_root"])
+            self.assertTrue((prepared / "packages/app/source.ts").is_file())
+            self.assertFalse((prepared / ".env").exists())
+            self.assertFalse((prepared / "node_modules").exists())
 
     def test_host_storage_inside_primary_is_rejected_before_writes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -326,7 +328,7 @@ class RunReviewTest(unittest.TestCase):
             self.runner.probe_command(
                 manifest_path,
                 "CMD-001",
-                [sys.executable, "-c", "import time; time.sleep(0.4)"],
+                [sys.executable, "-c", "import time; time.sleep(0.6)"],
                 10,
             )
             self.stage_contract(manifest)
@@ -348,7 +350,9 @@ class RunReviewTest(unittest.TestCase):
                 manifest_path, ROOT / "schemas"
             )
             elapsed = time.monotonic() - started
-            self.assertLess(elapsed, 1.0)
+            # Serial execution of three 0.6s commands needs at least 1.8s, so
+            # staying under 1.2s proves concurrency with slack for a busy CI.
+            self.assertLess(elapsed, 1.2)
             self.assertEqual(
                 [item["mutation_id"] for item in result["results"]],
                 ["MUT-001", "MUT-002", "MUT-003"],
@@ -1234,7 +1238,7 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             timeout = subprocess.TimeoutExpired(["test-command"], 5)
-            with patch.object(self.runner.subprocess, "run", side_effect=timeout):
+            with patch.object(self.runner, "_run_sandboxed", side_effect=timeout):
                 with self.assertRaisesRegex(self.runner.RunGateError, "timed out"):
                     self.runner.execute(manifest_path, "baseline", None, ["test-command"], 5)
             event = self.runner._ledger_events(manifest)[-1]
@@ -1786,6 +1790,108 @@ class RunReviewTest(unittest.TestCase):
                 self.runner.finish(manifest_path, ROOT / "schemas")
             self.assertFalse(manifest_path.exists())
             self.assertFalse(Path(manifest["artifact_root"]).exists())
+
+    def test_finish_failure_leaves_a_secret_free_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.stage_demo_artifacts(manifest)
+            (repository / "packages/app/source.ts").write_text("changed\n")
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "failure receipt remains in Host storage"
+            ):
+                self.runner.finish(manifest_path, ROOT / "schemas")
+            receipt_path = (
+                Path(manifest["host"]["storage_root"]) / "failure-receipt.json"
+            )
+            self.assertTrue(receipt_path.is_file())
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            self.assertEqual(receipt["phase"], "finish")
+            self.assertEqual(receipt["run_id"], manifest["run_id"])
+            self.assertEqual(receipt["error_class"], "RunGateError")
+            self.assertTrue(receipt["cleanup_ok"])
+            self.assertFalse(receipt["primary_postflight_ok"])
+            self.assertFalse(manifest_path.exists())
+            self.assertFalse(Path(manifest["artifact_root"]).exists())
+
+    def test_timeout_kills_the_whole_sandbox_process_group(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            script = (
+                "import subprocess, sys, time; "
+                "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
+                "time.sleep(30)"
+            )
+            started = time.monotonic()
+            result = self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", script], 1
+            )
+            elapsed = time.monotonic() - started
+            self.assertEqual(result["outcome"], "timeout")
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn("next", result)
+            # A surviving grandchild holding the stdout pipe used to block the
+            # Runner for the grandchild's full 30s lifetime.
+            self.assertLess(elapsed, 10)
+
+    def test_mutation_execution_requires_untampered_guarded_content(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            self.runner.execute(
+                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
+            )
+            self.stage_contract(manifest)
+            registration = self.runner.register_prebuilt(
+                manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
+            )
+            tampered = Path(registration["sandbox_root"]) / "packages/app/mutant-1.ts"
+            tampered.write_text("tampered after registration\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "no longer matches its guarded evidence"
+            ):
+                self.runner.execute(
+                    manifest_path, "mutation", "MUT-001",
+                    [sys.executable, "-c", "pass"], 10,
+                )
+
+    def test_cli_preflight_on_non_repository_prints_blocked_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "not-a-repository"
+            target.mkdir()
+            completed = subprocess.run(
+                [
+                    sys.executable, str(MODULE), "preflight",
+                    "--primary", str(target),
+                    "--host-socket", str(Path(directory) / "missing.sock"),
+                    "--host-token", "fixture-token",
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertNotIn("Traceback", completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["status"], "blocked")
+            self.assertIn("Git repository", payload["blocked_reason"])
+
+    def test_cli_runtime_error_returns_guided_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "missing-manifest.json"
+            completed = subprocess.run(
+                [sys.executable, str(MODULE), "runbook", "--manifest", str(missing)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertNotIn("Traceback", completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["status"], "error")
+            self.assertEqual(payload["command"], "runbook")
+            self.assertIn("argv", payload["next"])
+            self.assertIn("ERROR:", completed.stderr)
 
 
 if __name__ == "__main__":

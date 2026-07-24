@@ -186,7 +186,14 @@ def _bounded_output(value: bytes) -> dict[str, Any]:
     }
 
 
-def _failed_tests(stdout: bytes, stderr: bytes) -> list[str] | None:
+def _failed_tests(stdout: bytes, stderr: bytes, failed: bool) -> list[str] | None:
+    """Extract failing test ids; None means a failure whose list could not be parsed.
+
+    A passing run always reports an empty list, even when its own output prints
+    a line that merely looks like a unittest failure summary.
+    """
+    if not failed:
+        return []
     text = (stdout + b"\n" + stderr).decode("utf-8", errors="replace")
     matches = sorted(set(match.group("id") for match in FAILED_TEST.finditer(text)))
     if matches:
@@ -280,7 +287,10 @@ def _execute_tests(
         exit_code: int | None = process.returncode
         outcome = "passed" if exit_code == 0 else "failed"
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
         stdout, stderr = process.communicate()
         exit_code = None
         outcome = "timeout"
@@ -288,7 +298,7 @@ def _execute_tests(
     return {
         "outcome": outcome,
         "exit_code": exit_code,
-        "failed_tests": _failed_tests(stdout, stderr),
+        "failed_tests": _failed_tests(stdout, stderr, outcome != "passed"),
         "duration_ms": duration_ms,
         "stdout": _bounded_output(stdout),
         "stderr": _bounded_output(stderr),
