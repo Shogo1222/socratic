@@ -1923,6 +1923,70 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(missing["status"], "blocked")
             self.assertIn("absolute path", missing["hint"])
 
+    def test_doctor_reports_toolchain_requirements_and_last_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            (repository / "pyproject.toml").write_text(
+                '[build-system]\n'
+                'requires = ["versioningit"]\n'
+                'build-backend = "setuptools.build_meta"\n'
+                '[project]\n'
+                'requires-python = ">=3.10"\n',
+                encoding="utf-8",
+            )
+            manifest, manifest_path = self.ready(root, repository)
+            failing = self.runner.probe_command(
+                manifest_path, "CMD-001",
+                [sys.executable, "-c", "import sys; sys.exit(3)"], 10,
+            )
+            self.assertEqual(failing["status"], "blocked")
+            report = self.runner.doctor(manifest_path)
+            self.assertEqual(report["status"], "ok")
+            self.assertTrue(report["sandbox_path"])
+            python_tool = report["tools"]["python3"]
+            self.assertTrue(python_tool["path"])
+            self.assertIn("Python", python_tool["version"])
+            self.assertEqual(report["project"]["requires_python"], ">=3.10")
+            self.assertIn("versioningit", report["project"]["vcs_version_backends"])
+            self.assertFalse(report["vcs_metadata"]["prepared_snapshot_has_git"])
+            self.assertEqual(
+                report["vcs_metadata"]["pretend_version_preset"], "0.0.0"
+            )
+            failure = report["last_failed_command"]
+            self.assertEqual(failure["kind"], "command-probe")
+            self.assertEqual(failure["returncode"], 3)
+
+    def test_blocked_results_offer_the_doctor_diagnose_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            result = self.runner.probe_command(
+                manifest_path, "CMD-001",
+                [sys.executable, "-c", "import sys; sys.exit(1)"], 10,
+            )
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn("doctor", result["diagnose"]["argv"])
+
+    def test_cli_doctor_prints_a_read_only_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            before = self.runner._tree_hash(Path(manifest["primary_root"]))
+            completed = subprocess.run(
+                [sys.executable, str(MODULE), "doctor", "--manifest", str(manifest_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 0)
+            report = json.loads(completed.stdout)
+            self.assertEqual(report["status"], "ok")
+            self.assertIn("tools", report)
+            self.assertEqual(
+                self.runner._tree_hash(Path(manifest["primary_root"])), before
+            )
+
     def test_cli_preflight_on_non_repository_prints_blocked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "not-a-repository"
