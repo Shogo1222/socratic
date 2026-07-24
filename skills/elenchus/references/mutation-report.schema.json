@@ -221,6 +221,21 @@
         "root": { "type": "string", "minLength": 1 },
         "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "protection": { "const": "host-managed-hash-verified" },
+        "dependency_layer": {
+          "type": "object",
+          "required": ["root", "sha256", "attached_paths", "protection"],
+          "properties": {
+            "root": { "type": "string", "minLength": 1 },
+            "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "attached_paths": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "protection": { "const": "runner-shared-hash-verified" }
+          },
+          "additionalProperties": false
+        },
         "clones": {
           "type": "array",
           "items": {

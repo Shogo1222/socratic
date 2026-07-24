@@ -27,7 +27,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.5.0-alpha.5"
+SOCRATIC_VERSION = "0.5.0-alpha.6"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -50,6 +50,9 @@ IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
 }
+DEPENDENCY_DIRECTORY_NAMES = {"node_modules"}
+VIRTUAL_ENV_DIRECTORY_NAMES = {".venv", "venv"}
+RUNTIME_DIRECTORY_NAME = ".socratic-runtime"
 SANDBOX_ENV_DEFAULTS = {
     # Sandbox executions are non-interactive, and dependency state is sealed by
     # the prepared snapshot: package managers must neither prompt nor reinstall.
@@ -57,6 +60,7 @@ SANDBOX_ENV_DEFAULTS = {
     # rebuilds dependencies once per mutant clone.
     "CI": "true",
     "npm_config_verify_deps_before_run": "false",
+    "PYTHONDONTWRITEBYTECODE": "1",
 }
 
 
@@ -419,10 +423,28 @@ def _tree_hash(root: Path) -> str:
 
 
 def _prepared_hash(root: Path) -> str:
+    """Hash mutable review source without traversing attached dependencies.
+
+    Dependency trees are sealed separately.  Directory symlinks created by
+    `_materialize_dependency_layer` are intentionally excluded here so a
+    staleness check remains proportional to source size.
+    """
     digest = hashlib.sha256()
-    ignored = {".git", ".hg", ".svn", ".env", "__pycache__"}
+    ignored = {
+        ".git", ".hg", ".svn", ".env", "__pycache__",
+        RUNTIME_DIRECTORY_NAME,
+    }
     for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
-        names[:] = sorted(name for name in names if name not in ignored)
+        names[:] = sorted(
+            name
+            for name in names
+            if name not in ignored
+            and name not in DEPENDENCY_DIRECTORY_NAMES
+            and not (
+                name in VIRTUAL_ENV_DIRECTORY_NAMES
+                and (Path(directory) / name / "pyvenv.cfg").is_file()
+            )
+        )
         relative_directory = Path(directory).relative_to(root)
         for filename in sorted(filenames):
             if filename in ignored or filename.startswith(".env.") or filename.endswith(".pyc"):
@@ -438,6 +460,148 @@ def _prepared_hash(root: Path) -> str:
                     for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                         digest.update(chunk)
     return digest.hexdigest()
+
+
+def _dependency_hash(root: Path) -> str:
+    """Hash every dependency-layer entry, including node_modules and venvs."""
+    digest = hashlib.sha256()
+    directories = [root]
+    while directories:
+        directory = directories.pop()
+        for path in sorted(directory.iterdir(), key=lambda item: item.name):
+            relative = path.relative_to(root).as_posix()
+            digest.update(relative.encode("utf-8") + b"\0")
+            if path.is_symlink():
+                digest.update(b"symlink\0" + os.readlink(path).encode("utf-8"))
+            elif path.is_dir():
+                digest.update(b"directory\0")
+                directories.append(path)
+            elif path.is_file():
+                digest.update(b"file\0")
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            else:
+                digest.update(b"other\0")
+    return digest.hexdigest()
+
+
+def _dependency_directories(root: Path) -> list[Path]:
+    """Return top-level dependency trees for the shared verified layer."""
+    dependencies: list[Path] = []
+    for directory, names, _filenames in os.walk(
+        root, topdown=True, followlinks=False
+    ):
+        current = Path(directory)
+        kept: list[str] = []
+        for name in sorted(names):
+            candidate = current / name
+            is_dependency = (
+                name in DEPENDENCY_DIRECTORY_NAMES
+                or (
+                    name in VIRTUAL_ENV_DIRECTORY_NAMES
+                    and (candidate / "pyvenv.cfg").is_file()
+                )
+            )
+            if is_dependency and not candidate.is_symlink():
+                dependencies.append(candidate)
+            else:
+                kept.append(name)
+        names[:] = kept
+    return dependencies
+
+
+def _dependency_layer_event(manifest: dict[str, Any]) -> dict[str, Any] | None:
+    events = [
+        item
+        for item in _ledger_events(manifest)
+        if item.get("kind") == "dependency-layer-sealed"
+    ]
+    if len(events) > 1:
+        raise RunGateError("dependency layer was materialized more than once")
+    return events[0] if events else None
+
+
+def _materialize_dependency_layer(
+    manifest: dict[str, Any], timings: dict[str, int] | None = None
+) -> dict[str, Any]:
+    """Move installed dependencies out of the cloned source tree once.
+
+    Each source branch receives only stable symlinks into this Runner-owned
+    layer plus a fresh `.socratic-runtime`.  The layer is content-hashed when
+    created and verified again before formal completion.
+    """
+    materialized = [
+        item
+        for item in _ledger_events(manifest)
+        if item.get("kind") == "dependency-layer-materialized"
+    ]
+    if len(materialized) > 1:
+        raise RunGateError("dependency layer was materialized more than once")
+    if materialized:
+        return materialized[0]
+
+    measured = timings if timings is not None else {}
+    prepared = Path(manifest["prepared_root"])
+    dependency_root = Path(manifest["dependency_root"])
+    attached: list[str] = []
+    with _timed(measured, "dependency_layer_move"):
+        trees_root = dependency_root / "trees"
+        trees_root.mkdir(parents=True, exist_ok=False)
+        for source in _dependency_directories(prepared):
+            relative = source.relative_to(prepared)
+            destination = trees_root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            source.replace(destination)
+            source.symlink_to(destination, target_is_directory=True)
+            attached.append(relative.as_posix())
+
+        runtime_source = prepared / RUNTIME_DIRECTORY_NAME
+        runtime_seed = dependency_root / "install-runtime"
+        if runtime_source.exists():
+            runtime_source.replace(runtime_seed)
+        _runtime_environment(prepared)
+
+    event = {
+        "run_id": manifest["run_id"],
+        "kind": "dependency-layer-materialized",
+        "root": str(dependency_root),
+        "attached_paths": sorted(attached),
+        "protection": "runner-shared-hash-verified",
+    }
+    return _append_event(manifest, event)
+
+
+def _seal_dependency_layer(
+    manifest: dict[str, Any], timings: dict[str, int] | None = None
+) -> dict[str, Any]:
+    sealed = _dependency_layer_event(manifest)
+    if sealed is not None:
+        return sealed
+    materialized = _materialize_dependency_layer(manifest, timings)
+    measured = timings if timings is not None else {}
+    with _timed(measured, "dependency_layer_hash"):
+        dependency_sha256 = _dependency_hash(Path(manifest["dependency_root"]))
+    return _append_event(
+        manifest,
+        {
+            **materialized,
+            "kind": "dependency-layer-sealed",
+            "sha256": dependency_sha256,
+        },
+    )
+
+
+def _verify_dependency_layer(
+    manifest: dict[str, Any], evidence: dict[str, Any]
+) -> None:
+    dependency_root = Path(manifest["dependency_root"])
+    if (
+        evidence.get("root") != str(dependency_root)
+        or evidence.get("protection") != "runner-shared-hash-verified"
+        or _dependency_hash(dependency_root) != evidence.get("sha256")
+    ):
+        raise RunGateError("shared dependency layer changed after it was sealed")
 
 
 def _write_exclusive(path: Path, value: Any) -> None:
@@ -536,7 +700,9 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
         sandbox = Path(tempfile.mkdtemp(prefix=f"workspace-{grant.run_id}-", dir=storage_root))
         _outside(sandbox, primary_root, "sandbox", strict=True)
         prepared = sandbox / "prepared"
+        dependency_root = sandbox / "dependencies"
         shutil.copytree(primary_root, prepared, symlinks=True, ignore=_ignored)
+        dependency_root.mkdir(mode=0o700)
         (sandbox / ".socratic-disposable").write_text(f"{grant.run_id}\n", encoding="utf-8")
         environment_root = prepared / ".socratic-runtime"
         environment = {
@@ -559,6 +725,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             "primary_root": str(primary_root),
             "sandbox_root": str(sandbox.resolve()),
             "prepared_root": str(prepared.resolve()),
+            "dependency_root": str(dependency_root.resolve()),
             "host": {
                 "adapter_id": grant.adapter_id,
                 "run_nonce": grant.run_nonce,
@@ -631,6 +798,23 @@ def _ready_manifest(
         "prepared snapshot",
         strict=not allow_missing_sandbox,
     )
+    dependency_root = manifest.get("dependency_root")
+    if dependency_root is not None:
+        resolved_dependency_root = _outside(
+            Path(dependency_root),
+            primary_root,
+            "dependency layer",
+            strict=not allow_missing_sandbox,
+        )
+        sandbox_root = Path(manifest["sandbox_root"]).resolve(
+            strict=not allow_missing_sandbox
+        )
+        if allow_missing_sandbox and not sandbox_root.exists():
+            pass
+        elif not resolved_dependency_root.is_relative_to(sandbox_root):
+            raise RunGateError(
+                "dependency layer must be inside the disposable sandbox"
+            )
     storage_root = _outside(
         Path(manifest["host"]["storage_root"]), primary_root, "host storage", strict=True
     )
@@ -837,12 +1021,19 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
     ):
         raise RunGateError("a successful baseline must precede prepared snapshot sealing")
     prepared = Path(manifest["prepared_root"])
+    dependency = _dependency_layer_event(manifest)
+    if dependency is None:
+        dependency = _seal_dependency_layer(manifest)
     event = {
         "run_id": manifest["run_id"],
         "kind": "prepared-snapshot",
         "root": str(prepared),
         "sha256": _prepared_hash(prepared),
         "protection": "host-managed-hash-verified",
+        "dependency_layer": {
+            key: dependency[key]
+            for key in ("root", "sha256", "attached_paths", "protection")
+        },
     }
     return _append_event(manifest, event)
 
@@ -1295,17 +1486,14 @@ def _emit_runner_timings(phase: str, timings: dict) -> None:
 
 
 def _copy_prepared(prepared: Path, destination: Path) -> str:
-    """Create one disposable branch, preferring filesystem copy-on-write.
+    """Create one disposable source branch, preferring filesystem copy-on-write.
 
-    The whole prepared tree is carried into the branch, including installed
-    dependencies and the .socratic-runtime package-manager store: pnpm resolves
-    through the store at execution time, so a branch without it cannot run the
-    focused test command without reinstalling.
+    Installed dependencies have already been replaced by stable symlinks into
+    one Runner-owned dependency layer. Only source, configuration, those
+    symlinks, and a fresh runtime skeleton are cloned per mutant.
 
-    On APFS a single clonefile(2) call clones the entire directory recursively
-    inside the kernel. `cp -cR` walks the tree and clones one file at a time,
-    which took ~87s on a monorepo with installed node_modules; the kernel
-    directory clone of the same tree took ~4s.
+    On APFS clonefile(2) still avoids copying source file data. More
+    importantly, it no longer traverses node_modules or virtual environments.
     """
     destination.parent.mkdir(mode=0o700, exist_ok=True)
     if destination.exists():
@@ -1361,11 +1549,7 @@ def _clone_prepared(
     (destination / ".socratic-disposable").write_text(
         f"{manifest['run_id']}:{mutation_id}\n", encoding="utf-8"
     )
-    # Keep the cloned .socratic-runtime: it carries the package-manager store
-    # populated during prepare, and pnpm resolves through it at execution time,
-    # so wiping it forces every mutant clone to rebuild dependencies. Each
-    # clone is a private copy-on-write branch, so mutants cannot contaminate
-    # each other through it.
+    # Runtime/cache paths stay private even though dependency code is shared.
     _runtime_environment(destination)
     return destination, strategy, snapshot["sha256"]
 
@@ -1651,7 +1835,8 @@ def probe_command(
     prepared = Path(manifest["prepared_root"])
     _execution_cwd(prepared, cwd_relative)
     runner_timings: dict[str, int] = {}
-    with _timed(runner_timings, "prepared_hash"):
+    _materialize_dependency_layer(manifest, runner_timings)
+    with _timed(runner_timings, "source_snapshot_hash"):
         prepared_sha256 = _prepared_hash(prepared)
     probe_root = Path(manifest["sandbox_root"]) / "command-probes" / command_id
     with _timed(runner_timings, "clone"):
@@ -1708,6 +1893,10 @@ def probe_command(
         "stderr_sha256": _sha256_bytes(stderr),
     }
     _append_event(manifest, event)
+    if result == "completed" and returncode == 0:
+        # The probe may legitimately warm dependency-owned tool caches. Seal
+        # the shared layer only after that baseline behavior has completed.
+        _seal_dependency_layer(manifest, runner_timings)
     limit = 16 * 1024
     public = {
         "status": "ready" if result == "completed" and returncode == 0 else "blocked",
@@ -1867,7 +2056,7 @@ def challenge_batch(
     if duplicates:
         raise RunGateError(f"challenge plan reuses mutation IDs: {duplicates}")
     runner_timings: dict[str, int] = {}
-    with _timed(runner_timings, "staleness_prepared_hash"):
+    with _timed(runner_timings, "staleness_source_hash"):
         command_record = _validated_command(manifest, plan["command_id"])
     for challenge in plan["challenges"]:
         _authorize_contract_challenge(manifest, challenge["contract_ids"])
@@ -2103,6 +2292,7 @@ def _attested_report(
             "root": prepared["root"],
             "sha256": prepared["sha256"],
             "protection": prepared["protection"],
+            "dependency_layer": prepared["dependency_layer"],
             "clones": [
                 {
                     "mutation_id": item["mutation_id"],
@@ -2329,6 +2519,7 @@ def finish_document(
         "root": prepared_event["root"],
         "sha256": prepared_event["sha256"],
         "protection": prepared_event["protection"],
+        "dependency_layer": prepared_event["dependency_layer"],
         "clones": [
             {
                 "mutation_id": item["mutation_id"],
@@ -2791,12 +2982,19 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
         prepared_events = [
             item for item in ledger if item.get("kind") == "prepared-snapshot"
         ]
-        with _timed(runner_timings, "prepared_snapshot_verify"):
-            prepared_unchanged = len(prepared_events) == 1 and _prepared_hash(
+        with _timed(runner_timings, "source_snapshot_verify"):
+            source_unchanged = len(prepared_events) == 1 and _prepared_hash(
                 Path(manifest["prepared_root"])
             ) == prepared_events[0].get("sha256")
-        if not prepared_unchanged:
-            raise RunGateError("prepared snapshot changed after it was sealed")
+        if not source_unchanged:
+            raise RunGateError("prepared source snapshot changed after it was sealed")
+        dependency_evidence = (
+            prepared_events[0].get("dependency_layer", {})
+            if prepared_events
+            else {}
+        )
+        with _timed(runner_timings, "dependency_layer_verify"):
+            _verify_dependency_layer(manifest, dependency_evidence)
         with _timed(runner_timings, "sandbox_cleanup"):
             if sandbox.exists():
                 shutil.rmtree(sandbox)
@@ -3028,6 +3226,7 @@ def main() -> int:
             "manifest_path": str(manifest_path),
             "sandbox_root": manifest["sandbox_root"],
             "prepared_root": manifest["prepared_root"],
+            "dependency_root": manifest["dependency_root"],
             "artifact_root": manifest["artifact_root"],
             "next": _next_step(
                 "runbook", "--manifest", str(manifest_path),
