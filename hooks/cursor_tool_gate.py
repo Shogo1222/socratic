@@ -69,8 +69,13 @@ def _session_id(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _runner_command(command: Any) -> bool:
+def _runner_command(command: Any, tool_input: Any = None) -> bool:
     if not isinstance(command, str):
+        return False
+    if isinstance(tool_input, dict) and any(
+        tool_input.get(key) is True
+        for key in ("run_in_background", "background")
+    ):
         return False
     if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
         return False
@@ -78,7 +83,12 @@ def _runner_command(command: Any) -> bool:
         argv = shlex.split(command)
     except ValueError:
         return False
-    return len(argv) >= 2 and Path(argv[1]).name == "run_review.py" and Path(argv[0]).name.startswith("python")
+    return (
+        "&" not in argv
+        and len(argv) >= 2
+        and Path(argv[1]).name == "run_review.py"
+        and Path(argv[0]).name.startswith("python")
+    )
 
 
 def _read_only_git_command(command: Any) -> bool:
@@ -143,7 +153,7 @@ def evaluate(payload: Any) -> dict[str, str]:
         command = payload.get("command")
         if command is None and isinstance(tool_input, dict):
             command = tool_input.get("command")
-        if _runner_command(command) or _read_only_git_command(command):
+        if _runner_command(command, tool_input) or _read_only_git_command(command):
             return {"permission": "allow"}
         return _deny("Socratic tests and mutations must run through run_review.py")
     return {"permission": "allow"}

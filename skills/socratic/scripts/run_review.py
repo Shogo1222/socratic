@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import contextlib
 import ctypes
 import ctypes.util
 import difflib
@@ -26,7 +27,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.5.0-alpha.4"
+SOCRATIC_VERSION = "0.5.0-alpha.5"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -39,6 +40,12 @@ ARTIFACT_SCHEMAS = {
     "report": "mutation-report-draft.schema.json",
     "review": "canonical-review.schema.json",
 }
+REVIEW_TYPES = (
+    "Bug Fix Review",
+    "Feature Review",
+    "Refactor Guard",
+    "Test Assessment",
+)
 IGNORED_NAMES = {
     ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
@@ -68,6 +75,7 @@ class HostGrant:
     protection_mode: str
     protection_details: str
     change_context: dict[str, Any] | None = None
+    review_type: dict[str, Any] | None = None
 
 
 class HostAdapter(Protocol):
@@ -107,6 +115,11 @@ class ClaudeSocketHostAdapter:
             protection_mode=grant["protection_mode"],
             protection_details=grant["protection_details"],
             change_context=grant.get("change_context"),
+            review_type=(
+                grant.get("review_context", {}).get("review_type")
+                if isinstance(grant.get("review_context"), dict)
+                else None
+            ),
         )
 
 
@@ -242,14 +255,47 @@ def inspect_review(
     manifest = _ready_manifest(manifest_path)
     change = manifest["change_context"]
     head = Path(change["head_root"]).resolve(strict=True)
+
+    def guided(result: dict[str, Any]) -> dict[str, Any]:
+        result["checkpoint"] = {
+            "id": "diff-understanding",
+            "required_before_next": True,
+            "present_in_user_language": [
+                "problem",
+                "changed_behavior",
+                "preserved_behavior",
+                "new_observable_behavior",
+                "consequential_uncertainty",
+            ],
+            "accepted_responses": [
+                "confirm",
+                "correct",
+                "defer-to-specification-owner",
+                "proceed-from-repository-evidence",
+            ],
+            "instruction": (
+                "Continue bounded inspect calls until the evidence is sufficient. "
+                "Then present this checkpoint once and wait for the human response "
+                "before running next.argv."
+            ),
+        }
+        result["next"] = _next_step(
+            "scaffold-contract", "--manifest", str(manifest_path),
+            note=(
+                "run only after the Diff understanding checkpoint is answered; "
+                "incorporate corrections and fill every replace-me value from evidence"
+            ),
+        )
+        return result
+
     if kind == "diff":
         if change["source"] != "github-pull-request":
-            return {
+            return guided({
                 "kind": "diff",
                 "available": False,
                 "reason": "local-workspace has no Host-materialized Base snapshot",
                 "changed_files": [],
-            }
+            })
         base = Path(change["base_root"]).resolve(strict=True)
         selected = (
             [_safe_relative_path(relative_path).as_posix()]
@@ -276,13 +322,13 @@ def inspect_review(
                 truncated = True
                 break
             chunks.append(diff)
-        return {
+        return guided({
             "kind": "diff",
             "available": True,
             "changed_files": selected,
             "text": "".join(chunks),
             "truncated": truncated,
-        }
+        })
     if kind == "file":
         if not relative_path:
             raise RunGateError("file inspection requires --relative-path")
@@ -290,13 +336,13 @@ def inspect_review(
         if start_line < 1 or end_line < start_line or end_line - start_line > 400:
             raise RunGateError("file inspection line range is invalid or too large")
         lines = _bounded_text(head / relative).splitlines()
-        return {
+        return guided({
             "kind": "file",
             "path": relative.as_posix(),
             "start_line": start_line,
             "end_line": min(end_line, len(lines)),
             "text": "\n".join(lines[start_line - 1:end_line]),
-        }
+        })
     if kind == "tests":
         tests: list[str] = []
         for path in _review_files(head):
@@ -310,7 +356,11 @@ def inspect_review(
                 or re.search(r"(?:^|[._-])(?:test|spec)(?:[._-]|$)", name)
             ):
                 tests.append(relative.as_posix())
-        return {"kind": "tests", "paths": tests, "truncated": len(tests) == MAX_INSPECT_MATCHES}
+        return guided({
+            "kind": "tests",
+            "paths": tests,
+            "truncated": len(tests) == MAX_INSPECT_MATCHES,
+        })
     if kind == "search":
         if not query or len(query) > 200:
             raise RunGateError("search requires a query of at most 200 characters")
@@ -332,12 +382,12 @@ def inspect_review(
                     })
                     if len(matches) >= MAX_INSPECT_MATCHES:
                         break
-        return {
+        return guided({
             "kind": "search",
             "query": query,
             "matches": matches,
             "truncated": len(matches) == MAX_INSPECT_MATCHES,
-        }
+        })
     raise RunGateError(f"unsupported inspection kind: {kind}")
 
 
@@ -435,6 +485,24 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
         "source": "local-workspace",
         "head_root": str(primary_root),
     }
+    if grant.review_type is None:
+        review_type = {
+            "recommended": None,
+            "options": list(REVIEW_TYPES),
+            "requires_human_confirmation": True,
+        }
+    elif isinstance(grant.review_type, dict):
+        review_type = grant.review_type
+    else:
+        raise RunGateError(
+            "trusted host adapter returned an invalid Review Type context"
+        )
+    if (
+        review_type.get("recommended") not in (*REVIEW_TYPES, None)
+        or review_type.get("options") != list(REVIEW_TYPES)
+        or review_type.get("requires_human_confirmation") is not True
+    ):
+        raise RunGateError("trusted host adapter returned an invalid Review Type context")
     if Path(change_context["head_root"]).resolve(strict=True) != primary_root:
         raise RunGateError("change context head root differs from the reviewed Primary")
     if change_context["source"] == "github-pull-request":
@@ -508,6 +576,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             "artifact_index_path": str(artifact_index_path),
             "primary_sha256": _tree_hash(primary_root),
             "change_context": change_context,
+            "review_type": review_type,
         }
         _write_exclusive(ledger_path, {"header": {"run_id": grant.run_id, "run_nonce": grant.run_nonce}})
         ledger_created = True
@@ -776,6 +845,196 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
         "protection": "host-managed-hash-verified",
     }
     return _append_event(manifest, event)
+
+
+def _next_step(*arguments: str, note: str | None = None) -> dict[str, Any]:
+    """Exact argv for the next pipeline step. Agents run it verbatim.
+
+    Placeholders in angle brackets mark the only parts an agent supplies;
+    everything else must not be guessed or reordered.
+    """
+    announcements = {
+        "runbook": "Explaining the review plan",
+        "inspect": "Reviewing what changed",
+        "scaffold-contract": "Establishing the intended behavior",
+        "stage-artifact": "Validating the intended behavior",
+        "execute": "Preparing the isolated test environment",
+        "probe-command": "Running the current tests",
+        "scaffold-plan": "Designing realistic accident patterns",
+        "challenge-batch": "Verifying the accident patterns",
+        "scaffold-analysis": "Interpreting what the tests protect",
+        "complete": "Assembling the verified review and cleaning up",
+    }
+    step: dict[str, Any] = {
+        "argv": [sys.executable, str(Path(__file__).resolve()), *arguments],
+        "announce": announcements.get(
+            arguments[0] if arguments else "", "Continuing the verified review"
+        ),
+    }
+    if note:
+        step["note"] = note
+    return step
+
+
+SCAFFOLD_EDITABLE_FIELDS = {
+    "contract": [
+        "status",
+        "change.base", "change.head", "change.summary",
+        "intent.statement", "intent.confidence", "intent.evidence[*]",
+        "decisions[*]", "invariants[*]",
+        "side_effects.required[*]", "side_effects.prohibited[*]",
+        "unresolved[*]", "coverage[*]",
+    ],
+    "plan": [
+        "max_parallel",
+        "challenges[*].id", "challenges[*].contract_ids",
+        "challenges[*].accident", "challenges[*].expected_detection",
+        "challenges[*].severity", "challenges[*].likelihood",
+        "challenges[*].code_location", "challenges[*].mutation",
+    ],
+    "analysis": [
+        "classifications[*].source_intent",
+        "classifications[*].changed_intent",
+        "classifications[*].result",
+        "classifications[*].detecting_tests",
+        "classifications[*].observed_failure_reason",
+        "classifications[*].contract_violation_observed",
+        "classifications[*].follow_up",
+        "classifications[*].outcome_interpretation",
+        "review",
+    ],
+}
+
+
+def runbook(manifest_path: Path) -> dict[str, Any]:
+    """One document that explains the whole run: read once after preflight.
+
+    Generated from the loaded Runner so it cannot drift from the version that
+    actually executes. It explains meaning and order, never raw JSON Schema.
+    """
+    manifest = _ready_manifest(manifest_path)
+    m = str(manifest_path)
+    review_type = manifest.get("review_type") or {
+        "recommended": None,
+        "options": list(REVIEW_TYPES),
+        "requires_human_confirmation": True,
+    }
+    return {
+        "socratic_version": SOCRATIC_VERSION,
+        "run_id": manifest["run_id"],
+        "mission": (
+            "Infer intended observable behavior from repository evidence, expose "
+            "only consequential uncertainty, and design realistic accidents that "
+            "test whether the suite protects that intent. The Runner owns "
+            "commands, mutation mechanics, JSON structure, hashes, ledgers, "
+            "reports, and cleanup."
+        ),
+        "id_glossary": {
+            "DEC": "a settled decision about expected observable behavior",
+            "INV": "existing behavior that must not break after the change",
+            "FX": "a side effect that is required or prohibited",
+            "UNR": "an open question repository evidence cannot settle; blocks its mutations",
+            "CMD": "a focused test command the Runner probed successfully and will reuse",
+            "MUT": "one realistic accident model injected into a disposable clone",
+        },
+        "gates": [
+            "unresolved UNR present -> Contract status needs-decision; mutations for its Contract IDs stay blocked",
+            "Contract staged and resolved -> probe the focused command",
+            "probe success -> CMD issued; scaffold the challenge plan",
+            "challenge-batch complete -> scaffold the analysis and interpret raw outcomes",
+            "classification complete -> complete generates, renders, and cleans up",
+        ],
+        "agent_edits": [
+            "intent", "decisions", "invariants", "side effects",
+            "accident models", "classification reasons", "detecting tests",
+            "reviewer-facing claims",
+        ],
+        "runner_owns": [
+            "JSON structure", "command IDs", "run identity", "hashes",
+            "ledger", "attestation", "report mechanics", "cleanup",
+        ],
+        "hard_rules": [
+            "run every Runner command synchronously in the foreground; never background one",
+            "never read schema files; every JSON you edit starts from a Runner scaffold",
+            "follow next.argv verbatim; never guess or reorder arguments",
+            "do not delegate deterministic discovery to subagents",
+            "one challenge-batch per run",
+            "present the renderer output verbatim; never translate, summarize, or append",
+        ],
+        "execution_plan": [
+            {"id": "inspect", "label": "Review what changed"},
+            {"id": "intent", "label": "Establish the intent and the behavior to protect"},
+            {"id": "prepare", "label": "Prepare the isolated test environment"},
+            {"id": "baseline", "label": "Run the current tests"},
+            {"id": "challenge", "label": "Verify realistic accident patterns"},
+            {"id": "report", "label": "Assemble the verified review"},
+            {"id": "cleanup", "label": "Remove the disposable environment"},
+        ],
+        "announcement_rules": [
+            "before the first step, show the execution plan to the user in their language",
+            "before each next.argv, translate next.announce into the user's language",
+            "if one phase exceeds 30 seconds, say why and report elapsed time",
+            "never show an unfounded percentage",
+        ],
+        "checkpoint": {
+            "id": "review-type",
+            "required_before_next": True,
+            "recommended": review_type["recommended"],
+            "options": review_type["options"],
+            "instruction": (
+                "State the Mission and execution plan in the user's language, "
+                "then obtain confirmation or correction of the Host-recommended "
+                "Review Type before running next.argv. A null recommendation means "
+                "the Host supplied no routing hint, so ask the human to select one."
+            ),
+        },
+        "next": _next_step(
+            "inspect", "--manifest", m, "--kind", "diff",
+            note=(
+                "run after Review Type confirmation; use further bounded inspect "
+                "calls if needed, then complete the Diff understanding checkpoint"
+            ),
+        ),
+    }
+
+
+def _probe_next(manifest_path: Path) -> dict[str, Any]:
+    return _next_step(
+        "probe-command", "--manifest", str(manifest_path),
+        "--command-id", "CMD-001",
+        "--cwd", "<package-directory-or-dot>",
+        "--", "<focused-test-argv>",
+        note=(
+            "replace placeholders with the package directory (or .) and direct "
+            "test executable located via inspect search; never use a "
+            "package-manager wrapper"
+        ),
+    )
+
+
+@contextlib.contextmanager
+def _timed(timings: dict, label: str):
+    """Accumulate wall-clock milliseconds for a Runner-internal segment.
+
+    Ledger command events record external subprocess time only; Runner
+    overhead (content hashing, clone creation, sandbox removal, validation)
+    was invisible in every report. Timings stay out of the hash-chained
+    ledger: they are exposed through public command results and stderr.
+    """
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        timings[label] = timings.get(label, 0) + max(
+            0, round((time.monotonic() - started) * 1000)
+        )
+
+
+def _emit_runner_timings(phase: str, timings: dict) -> None:
+    print(
+        json.dumps({"runner_timings_ms": {"phase": phase, **timings}}, sort_keys=True),
+        file=sys.stderr,
+    )
 
 
 def _copy_prepared(prepared: Path, destination: Path) -> str:
@@ -1134,9 +1393,12 @@ def probe_command(
 
     prepared = Path(manifest["prepared_root"])
     _execution_cwd(prepared, cwd_relative)
-    prepared_sha256 = _prepared_hash(prepared)
+    runner_timings: dict[str, int] = {}
+    with _timed(runner_timings, "prepared_hash"):
+        prepared_sha256 = _prepared_hash(prepared)
     probe_root = Path(manifest["sandbox_root"]) / "command-probes" / command_id
-    strategy = _copy_prepared(prepared, probe_root)
+    with _timed(runner_timings, "clone"):
+        strategy = _copy_prepared(prepared, probe_root)
     runtime_environment = _runtime_environment(probe_root)
     environment = {
         key: value
@@ -1202,10 +1464,16 @@ def probe_command(
         ),
         "returncode": returncode,
         "duration_ms": duration_ms,
+        "runner_timings_ms": {**runner_timings, "external_command": duration_ms},
         "stdout": stdout[-limit:].decode("utf-8", errors="replace"),
         "stderr": stderr[-limit:].decode("utf-8", errors="replace"),
         "output_truncated": len(stdout) > limit or len(stderr) > limit,
     }
+    if public["status"] == "ready":
+        public["next"] = _next_step(
+            "scaffold-plan", "--manifest", str(manifest_path),
+            note="the plan binds this validated command; fill the challenges, then follow next.argv",
+        )
     if public["status"] == "ready":
         _append_event(manifest, {
             "run_id": manifest["run_id"],
@@ -1341,25 +1609,28 @@ def challenge_batch(
     duplicates = sorted(set(ids) & existing)
     if duplicates:
         raise RunGateError(f"challenge plan reuses mutation IDs: {duplicates}")
-    command_record = _validated_command(manifest, plan["command_id"])
+    runner_timings: dict[str, int] = {}
+    with _timed(runner_timings, "staleness_prepared_hash"):
+        command_record = _validated_command(manifest, plan["command_id"])
     for challenge in plan["challenges"]:
         _authorize_contract_challenge(manifest, challenge["contract_ids"])
         _anchored_postimage(Path(manifest["prepared_root"]), challenge["mutation"])
     plan_sha256 = _sha256_path(plan_path)
     registrations: dict[str, dict[str, Any]] = {}
-    for challenge in plan["challenges"]:
-        runtime_challenge = dict(challenge)
-        runtime_challenge["command"] = command_record["argv"]
-        runtime_challenge["cwd"] = command_record.get("cwd")
-        runtime_challenge["timeout_seconds"] = command_record["timeout_seconds"]
-        challenge["_runtime"] = runtime_challenge
-        registration = mutate_anchored(
-            manifest_path,
-            challenge["id"],
-            challenge["contract_ids"],
-            challenge["mutation"],
-        )
-        registrations[challenge["id"]] = registration
+    with _timed(runner_timings, "clones"):
+        for challenge in plan["challenges"]:
+            runtime_challenge = dict(challenge)
+            runtime_challenge["command"] = command_record["argv"]
+            runtime_challenge["cwd"] = command_record.get("cwd")
+            runtime_challenge["timeout_seconds"] = command_record["timeout_seconds"]
+            challenge["_runtime"] = runtime_challenge
+            registration = mutate_anchored(
+                manifest_path,
+                challenge["id"],
+                challenge["contract_ids"],
+                challenge["mutation"],
+            )
+            registrations[challenge["id"]] = registration
 
     inherited_environment = {
         key: value
@@ -1367,6 +1638,7 @@ def challenge_batch(
         if key in {"PATH", "LANG"} or key.startswith("LC_")
     }
     results_by_id: dict[str, dict[str, Any]] = {}
+    execution_started = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=min(plan["max_parallel"], len(plan["challenges"]))
     ) as executor:
@@ -1471,6 +1743,17 @@ def challenge_batch(
         "max_parallel": plan["max_parallel"],
         "results": public_results,
         "details_path": str(details_path),
+        "runner_timings_ms": {
+            **runner_timings,
+            "external_commands_window": max(
+                0, round((time.monotonic() - execution_started) * 1000)
+            ),
+        },
+        "next": _next_step(
+            "scaffold-analysis", "--manifest", str(manifest_path),
+            "--mode", "<assessment|harden|catch>",
+            note="pick the mode of this run's branch, interpret raw outcomes, then follow next.argv",
+        ),
     }
 
 
@@ -2193,100 +2476,117 @@ def complete(
     except validator.ArtifactError as error:
         _record_validation_error(manifest, "complete-input", str(error))
         raise RunGateError(str(error)) from error
-    report, review = _analysis_drafts(manifest, analysis, plan)
-    try:
-        validator.validate_document(
-            report, "mutation-report-draft.schema.json", schema_root
-        )
-        validator.validate_document(
-            review, "canonical-review.schema.json", schema_root
-        )
-    except validator.ArtifactError as error:
-        _record_validation_error(manifest, "complete-generated", str(error))
-        raise RunGateError(str(error)) from error
-    for kind, document in (("report", report), ("review", review)):
-        path = artifact_root / ARTIFACT_FILES[kind]
-        _write_exclusive(path, document)
-        stage_artifact(manifest_path, kind, schema_root)
-    rendered = finish(manifest_path, schema_root)
+    runner_timings: dict[str, int] = {}
+    with _timed(runner_timings, "draft_generation"):
+        report, review = _analysis_drafts(manifest, analysis, plan)
+        try:
+            validator.validate_document(
+                report, "mutation-report-draft.schema.json", schema_root
+            )
+            validator.validate_document(
+                review, "canonical-review.schema.json", schema_root
+            )
+        except validator.ArtifactError as error:
+            _record_validation_error(manifest, "complete-generated", str(error))
+            raise RunGateError(str(error)) from error
+        for kind, document in (("report", report), ("review", review)):
+            path = artifact_root / ARTIFACT_FILES[kind]
+            _write_exclusive(path, document)
+            stage_artifact(manifest_path, kind, schema_root)
+    with _timed(runner_timings, "finish_total"):
+        rendered = finish(manifest_path, schema_root)
     if retention == "discard":
-        cleanup(manifest_path)
+        with _timed(runner_timings, "artifact_cleanup"):
+            cleanup(manifest_path)
+    _emit_runner_timings("complete", runner_timings)
     return rendered
 
 
 def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
     manifest = _ready_manifest(manifest_path)
     sandbox = Path(manifest["sandbox_root"])
+    runner_timings: dict[str, int] = {}
     try:
-        documents = _staged_artifacts(manifest)
-        if documents["contract"].get("unresolved"):
-            raise RunGateError(
-                "finish is blocked until every unresolved Intent decision is answered"
-            )
-        ledger = _ledger_events(manifest)
-        current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
+        with _timed(runner_timings, "load_and_validate"):
+            documents = _staged_artifacts(manifest)
+            if documents["contract"].get("unresolved"):
+                raise RunGateError(
+                    "finish is blocked until every unresolved Intent decision is answered"
+                )
+            ledger = _ledger_events(manifest)
+        with _timed(runner_timings, "primary_postflight_hash"):
+            current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
         if current_primary_hash != manifest["primary_sha256"]:
             raise RunGateError("Primary content hash changed during the Review-only run")
         prepared_events = [
             item for item in ledger if item.get("kind") == "prepared-snapshot"
         ]
-        if len(prepared_events) != 1 or _prepared_hash(
-            Path(manifest["prepared_root"])
-        ) != prepared_events[0].get("sha256"):
+        with _timed(runner_timings, "prepared_snapshot_verify"):
+            prepared_unchanged = len(prepared_events) == 1 and _prepared_hash(
+                Path(manifest["prepared_root"])
+            ) == prepared_events[0].get("sha256")
+        if not prepared_unchanged:
             raise RunGateError("prepared snapshot changed after it was sealed")
-        if sandbox.exists():
-            shutil.rmtree(sandbox)
+        with _timed(runner_timings, "sandbox_cleanup"):
+            if sandbox.exists():
+                shutil.rmtree(sandbox)
         if sandbox.exists():
             raise RunGateError("disposable sandbox still exists after cleanup")
-        report = _attested_report(
-            manifest,
-            documents["contract"],
-            documents["report"],
-            ledger,
-            manifest_sha256=_sha256_path(manifest_path),
-            ledger_head=_ledger_head(manifest),
-        )
-        finish_document(
-            manifest, report, documents["review"], ledger,
-            manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
-        )
+        with _timed(runner_timings, "report_generation"):
+            report = _attested_report(
+                manifest,
+                documents["contract"],
+                documents["report"],
+                ledger,
+                manifest_sha256=_sha256_path(manifest_path),
+                ledger_head=_ledger_head(manifest),
+            )
+            finish_document(
+                manifest, report, documents["review"], ledger,
+                manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
+            )
         validator = _validator_module()
         try:
-            validator.validate_document(
-                documents["contract"], "intent-contract.schema.json", schema_root
-            )
-            validator.validate_document(
-                report, "mutation-report.schema.json", schema_root
-            )
-            validator.validate_document(
-                documents["review"], "canonical-review.schema.json", schema_root
-            )
-            validator.validate_cross_artifact(
-                documents["contract"], report, documents["review"]
-            )
-            rendered = validator.render_review(documents["review"])
+            with _timed(runner_timings, "schema_validation"):
+                validator.validate_document(
+                    documents["contract"], "intent-contract.schema.json", schema_root
+                )
+                validator.validate_document(
+                    report, "mutation-report.schema.json", schema_root
+                )
+                validator.validate_document(
+                    documents["review"], "canonical-review.schema.json", schema_root
+                )
+                validator.validate_cross_artifact(
+                    documents["contract"], report, documents["review"]
+                )
+            with _timed(runner_timings, "render"):
+                rendered = validator.render_review(documents["review"])
             report["canonical_output"]["sha256"] = _sha256_bytes(
                 rendered.encode("utf-8")
             )
-            validator.validate_with_schemas(
-                documents["contract"], report, documents["review"], schema_root
-            )
+            with _timed(runner_timings, "schema_validation"):
+                validator.validate_with_schemas(
+                    documents["contract"], report, documents["review"], schema_root
+                )
         except validator.ArtifactError as error:
             raise RunGateError(str(error)) from error
-        _record_host_output(
-            manifest,
-            "attested-report",
-            "mutation-report.attested.json",
-            _canonical_bytes(report),
-            "mutation-report.schema.json",
-        )
-        _record_host_output(
-            manifest,
-            "renderer-output",
-            "renderer-output.txt",
-            rendered.encode("utf-8"),
-            "canonical renderer stdout",
-        )
+        with _timed(runner_timings, "host_output"):
+            _record_host_output(
+                manifest,
+                "attested-report",
+                "mutation-report.attested.json",
+                _canonical_bytes(report),
+                "mutation-report.schema.json",
+            )
+            _record_host_output(
+                manifest,
+                "renderer-output",
+                "renderer-output.txt",
+                rendered.encode("utf-8"),
+                "canonical renderer stdout",
+            )
+        _emit_runner_timings("finish", runner_timings)
         return rendered
     except BaseException as failure:
         try:
@@ -2328,9 +2628,23 @@ def assess_experiment(source_root: Path, plan: Path, evidence: Path) -> dict[str
         raise RunGateError(str(error)) from error
 
 
+class _GuidedParser(argparse.ArgumentParser):
+    """Raise instead of exiting so argument mistakes return guided JSON."""
+
+    def error(self, message):  # noqa: A003 - argparse API
+        raise RunGateError(
+            f"invalid-command: {message}; the usage is: {self.format_usage().strip()}; "
+            "follow next.argv from the previous Runner result, or run runbook for the pipeline"
+        )
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
+    parser = _GuidedParser(description=__doc__)
+    commands = parser.add_subparsers(
+        dest="command", required=True, parser_class=_GuidedParser
+    )
+    runbook_parser = commands.add_parser("runbook")
+    runbook_parser.add_argument("--manifest", required=True, type=Path)
     pre = commands.add_parser("preflight")
     pre.add_argument("--primary", required=True, type=Path)
     pre.add_argument("--host-socket", type=Path)
@@ -2419,7 +2733,13 @@ def main() -> int:
     assess_parser.add_argument("--source-root", required=True, type=Path)
     assess_parser.add_argument("--plan", required=True, type=Path)
     assess_parser.add_argument("--evidence", required=True, type=Path)
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except RunGateError as error:
+        print(json.dumps(
+            {"status": "invalid-command", "error": str(error)}, sort_keys=True
+        ))
+        return 2
     if args.command == "preflight":
         try:
             adapter = (
@@ -2439,22 +2759,28 @@ def main() -> int:
             "sandbox_root": manifest["sandbox_root"],
             "prepared_root": manifest["prepared_root"],
             "artifact_root": manifest["artifact_root"],
-            "next": (
-                "inspect and confirm the diff; scaffold-contract, fill every replace-me "
-                "value, then stage the Intent Contract; prepare once; probe the focused "
-                "command; scaffold-plan and fill it before one anchored challenge-batch; "
-                "scaffold review-analysis.json; edit only semantic judgments; call complete. "
-                "Never read schema files: every JSON you edit starts from a Runner scaffold"
+            "next": _next_step(
+                "runbook", "--manifest", str(manifest_path),
+                note=(
+                    "read the runbook once: it explains the IDs, the gates, the "
+                    "fields you may edit, and returns the exact next command. "
+                    "Every later Runner result carries next.argv — run it "
+                    "verbatim instead of guessing arguments"
+                ),
             ),
             "allowed_operations": [
-                "inspect", "execute", "probe-command", "scaffold-contract",
-                "stage-artifact", "scaffold-plan", "challenge-batch",
-                "scaffold-analysis", "complete", "cleanup",
+                "runbook", "inspect", "execute", "probe-command",
+                "scaffold-contract", "stage-artifact", "scaffold-plan",
+                "challenge-batch", "scaffold-analysis", "complete", "cleanup",
             ],
         }, sort_keys=True))
         return 0
     try:
-        if args.command == "inspect":
+        if args.command == "runbook":
+            print(json.dumps(
+                runbook(args.manifest), ensure_ascii=False, sort_keys=True
+            ))
+        elif args.command == "inspect":
             print(json.dumps(inspect_review(
                 args.manifest,
                 _resolve_inspect_kind(args.kind, args.kind_positional),
@@ -2476,10 +2802,16 @@ def main() -> int:
             if not args.argv:
                 raise RunGateError("execute requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
-            return execute(
+            returncode = execute(
                 args.manifest, args.phase, args.mutation_id, argv, args.timeout,
                 cwd_relative=args.cwd,
             )
+            if args.phase == "prepare" and returncode == 0:
+                print(json.dumps({
+                    "phase": "prepare", "returncode": returncode,
+                    "next": _probe_next(args.manifest),
+                }, ensure_ascii=False, sort_keys=True))
+            return returncode
         elif args.command == "probe-command":
             if not args.argv:
                 raise RunGateError("probe-command requires a command after --")
@@ -2495,26 +2827,56 @@ def main() -> int:
                 challenge_batch(args.manifest, args.schema_root), sort_keys=True
             ))
         elif args.command == "scaffold-contract":
-            print(json.dumps(
-                scaffold_contract(args.manifest, args.schema_root),
-                ensure_ascii=False, sort_keys=True,
-            ))
+            print(json.dumps({
+                "artifact": ARTIFACT_FILES["contract"],
+                "editable_fields": SCAFFOLD_EDITABLE_FIELDS["contract"],
+                "document": scaffold_contract(args.manifest, args.schema_root),
+                "next": _next_step(
+                    "stage-artifact", "--manifest", str(args.manifest),
+                    "--kind", "contract",
+                    note="fill every replace-me value first; the Runner owns the JSON structure",
+                ),
+            }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-plan":
-            print(json.dumps(
-                scaffold_plan(args.manifest, args.schema_root),
-                ensure_ascii=False, sort_keys=True,
-            ))
+            print(json.dumps({
+                "artifact": "challenge-plan.json",
+                "editable_fields": SCAFFOLD_EDITABLE_FIELDS["plan"],
+                "document": scaffold_plan(args.manifest, args.schema_root),
+                "next": _next_step(
+                    "challenge-batch", "--manifest", str(args.manifest),
+                    note="fill the placeholder challenge first; run synchronously in the foreground",
+                ),
+            }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-analysis":
-            print(json.dumps(
-                scaffold_analysis(args.manifest, args.mode, args.schema_root),
-                ensure_ascii=False,
-                sort_keys=True,
-            ))
+            print(json.dumps({
+                "artifact": "review-analysis.json",
+                "editable_fields": SCAFFOLD_EDITABLE_FIELDS["analysis"],
+                "document": scaffold_analysis(args.manifest, args.mode, args.schema_root),
+                "next": _next_step(
+                    "complete", "--manifest", str(args.manifest),
+                    "--retention", "discard",
+                    note=(
+                        "edit only semantic judgments, then complete renders and "
+                        "cleans up; use --retention keep only after an explicit "
+                        "user choice"
+                    ),
+                ),
+            }, ensure_ascii=False, sort_keys=True))
         elif args.command == "stage-artifact":
-            print(json.dumps(
-                stage_artifact(args.manifest, args.kind, args.schema_root),
-                sort_keys=True,
-            ))
+            staged = stage_artifact(args.manifest, args.kind, args.schema_root)
+            if args.kind == "contract":
+                staged = dict(staged)
+                staged["next"] = _next_step(
+                    "execute", "--phase", "prepare",
+                    "--manifest", str(args.manifest),
+                    "--", "<dependency-install-argv>",
+                    note=(
+                        "install dependencies once; if the repository needs no "
+                        "install, skip straight to probe-command"
+                    ),
+                )
+                staged["skip_if_dependencies_ready"] = _probe_next(args.manifest)
+            print(json.dumps(staged, ensure_ascii=False, sort_keys=True))
         elif args.command == "finish":
             sys.stdout.write(finish(args.manifest, args.schema_root))
         elif args.command == "cleanup":

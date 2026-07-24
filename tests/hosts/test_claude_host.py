@@ -200,6 +200,39 @@ class ClaudeHostTest(unittest.TestCase):
                     },
                 })
                 self.assertEqual(allowed_runner, {})
+                for background_input in (
+                    {
+                        "command": (
+                            "python3 /plugin/skills/socratic/scripts/"
+                            "run_review.py challenge-batch"
+                        ),
+                        "run_in_background": True,
+                    },
+                    {
+                        "command": (
+                            "python3 /plugin/skills/socratic/scripts/"
+                            "run_review.py challenge-batch &"
+                        ),
+                    },
+                ):
+                    denied_background = self.tool_gate.evaluate({
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": background_input,
+                    })
+                    self.assertEqual(
+                        denied_background["hookSpecificOutput"][
+                            "permissionDecision"
+                        ],
+                        "deny",
+                    )
+                    self.assertIn(
+                        "foreground",
+                        denied_background["hookSpecificOutput"][
+                            "permissionDecisionReason"
+                        ],
+                    )
                 for command in (
                     "git --no-pager status --short",
                     "git --no-pager diff --no-ext-diff --no-textconv HEAD~1 HEAD",
