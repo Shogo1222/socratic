@@ -479,7 +479,7 @@ class RunReviewTest(unittest.TestCase):
             prepared_dependency.parent.mkdir(parents=True)
             prepared_dependency.write_text("installed\n")
             with patch.object(
-                self.runner,
+                self.runner.snapshots,
                 "_dependency_hash",
                 wraps=self.runner._dependency_hash,
             ) as dependency_hash:
@@ -504,7 +504,7 @@ class RunReviewTest(unittest.TestCase):
                 "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
             }))
             with patch.object(
-                self.runner,
+                self.runner.snapshots,
                 "_dependency_hash",
                 wraps=self.runner._dependency_hash,
             ) as dependency_hash:
@@ -1238,7 +1238,7 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             timeout = subprocess.TimeoutExpired(["test-command"], 5)
-            with patch.object(self.runner, "_run_sandboxed", side_effect=timeout):
+            with patch.object(self.runner.execution, "_run_sandboxed", side_effect=timeout):
                 with self.assertRaisesRegex(self.runner.RunGateError, "timed out"):
                     self.runner.execute(manifest_path, "baseline", None, ["test-command"], 5)
             event = self.runner._ledger_events(manifest)[-1]
@@ -1770,7 +1770,7 @@ class RunReviewTest(unittest.TestCase):
                 validator, "render_review", side_effect=AssertionError("renderer called")
             ):
                 with patch.object(
-                    self.runner, "_validator_module", return_value=validator
+                    self.runner.reporting, "_validator_module", return_value=validator
                 ):
                     with self.assertRaisesRegex(
                         self.runner.RunGateError, "unknown Contract IDs"
