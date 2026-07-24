@@ -80,10 +80,11 @@ class PluginHostGateTest(unittest.TestCase):
         )
         self.assertEqual(decision, {"continue": True})
 
-    def test_slash_and_case_variants_are_intercepted(self) -> None:
+    def test_leading_command_variants_are_intercepted(self) -> None:
         for prompt in (
-            "/socratic 日本語で PR438", "Use $SoCrAtIc for this review",
+            "/socratic 日本語で PR438", "  $SoCrAtIc review this",
             "$maieutic confirm intent", "/elenchus assess tests",
+            "/socratic:socratic https://github.com/owner/repo/pull/438",
         ):
             with self.subTest(prompt=prompt):
                 self.assertEqual(
@@ -93,10 +94,12 @@ class PluginHostGateTest(unittest.TestCase):
                     self.fixture["expected_hook_output"],
                 )
 
-    def test_quoted_code_mentions_are_not_intercepted(self) -> None:
+    def test_mentions_that_do_not_lead_the_prompt_are_not_intercepted(self) -> None:
         for prompt in (
+            "Use $socratic for this review",
             "The agent report quoted `$maieutic` while reviewing the hooks.",
             "```text\n/socratic https://github.com/owner/repo/pull/1\n```\nSummarize this.",
+            "An injected task notification mentioned /elenchus in passing.",
         ):
             with self.subTest(prompt=prompt):
                 self.assertEqual(

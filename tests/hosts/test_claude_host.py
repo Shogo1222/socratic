@@ -641,10 +641,15 @@ class ClaudeHostTest(unittest.TestCase):
             (repository / ".git").mkdir(parents=True)
             session_id = "broker-log-fixture"
             try:
-                self.host.prepare_session(session_id, repository)
+                state = self.host.prepare_session(session_id, repository)
                 log_path = self.host.session_root(session_id) / "broker.log"
                 self.assertTrue(log_path.is_file())
                 self.assertIn("broker started", log_path.read_text(encoding="utf-8"))
+                self.host.cleanup_session(session_id)
+                root = self.host.session_root(session_id)
+                self.assertFalse(root.exists())
+                self.assertFalse(Path(state["socket_path"]).exists())
+                self.assertFalse(log_path.exists())
             finally:
                 self.host.cleanup_session(session_id)
 

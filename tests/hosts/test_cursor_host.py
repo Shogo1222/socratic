@@ -68,7 +68,7 @@ class CursorHostTest(unittest.TestCase):
                     "tool_input": {"file_path": str(review_analysis)},
                 })
                 self.assertEqual(denied_rewrite["permission"], "deny")
-                self.assertIn("read it", denied_rewrite["user_message"])
+                self.assertIn("Read it", denied_rewrite["user_message"])
                 allowed_edit = self.gate.evaluate({
                     "hook_event_name": "preToolUse",
                     "conversation_id": session_id,

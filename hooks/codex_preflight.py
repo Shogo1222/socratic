@@ -14,19 +14,18 @@ from typing import Any
 
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
 SOCRATIC_INVOCATION = re.compile(
-    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+    r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
 )
-QUOTED_CODE = re.compile(r"```.*?```|`[^`\n]+`", re.DOTALL)
 
 
 def _invoked(prompt: str) -> bool:
-    """Detect an invocation while ignoring skill names quoted as code.
+    """Accept only a command that leads the prompt as an invocation.
 
-    A fenced block or inline code span mentions a skill without requesting it;
-    pasted documentation or an injected task report must not start the Host
-    and arm the session tool gate.
+    A mention anywhere else — quoted documentation, an injected task report,
+    a summary that names the skills — must not start the Host and arm the
+    session tool gate.
     """
-    return SOCRATIC_INVOCATION.search(QUOTED_CODE.sub(" ", prompt)) is not None
+    return SOCRATIC_INVOCATION.search(prompt) is not None
 
 
 def _host_module():
