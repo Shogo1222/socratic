@@ -229,7 +229,8 @@
             "properties": {
               "mutation_id": { "type": "string", "pattern": "^MUT-[0-9]{3,}$" },
               "sandbox_root": { "type": "string", "minLength": 1 },
-              "strategy": { "enum": ["copy-on-write", "full-copy"] }
+              "strategy": { "enum": ["kernel-clone",
+            "copy-on-write", "full-copy"] }
             },
             "additionalProperties": false
           }
