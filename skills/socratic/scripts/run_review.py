@@ -92,6 +92,10 @@ MISSING_EXECUTABLE_SIGNATURES = (
     "command not found",
 )
 
+DOCTOR_TOOLS = (
+    "python3", "python", "node", "npm", "pnpm", "yarn", "uv", "pytest", "vitest",
+)
+
 
 class RunGateError(RuntimeError):
     """Raised when a run cannot satisfy the mandatory safety boundary."""
@@ -1065,6 +1069,135 @@ def _infrastructure_hint(output: str, argv: list[str] | None = None) -> str | No
     return "; ".join(hints) if hints else None
 
 
+def _bounded_tool_version(executable: str, environment: dict[str, str], cwd: Path) -> str:
+    try:
+        completed = _run_sandboxed(
+            [executable, "--version"], cwd=cwd, env=environment,
+            timeout_seconds=5, capture=True,
+        )
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError as error:
+        return f"error: {error}"
+    output = (completed.stdout or b"") + b" " + (completed.stderr or b"")
+    lines = output.decode("utf-8", errors="replace").strip().splitlines()
+    return lines[0][:200] if lines else ""
+
+
+def _project_requirements(prepared: Path) -> dict[str, Any]:
+    """Extract interpreter and build-backend requirements from the snapshot, bounded."""
+    requirements: dict[str, Any] = {
+        "requires_python": None,
+        "build_backend": None,
+        "vcs_version_backends": [],
+        "node_engines": None,
+    }
+    pyproject = prepared / "pyproject.toml"
+    if pyproject.is_file():
+        text = pyproject.read_text(encoding="utf-8", errors="replace")[:MAX_INSPECT_BYTES]
+        match = re.search(r'requires-python\s*=\s*["\']([^"\']+)["\']', text)
+        if match:
+            requirements["requires_python"] = match.group(1)
+        match = re.search(r'build-backend\s*=\s*["\']([^"\']+)["\']', text)
+        if match:
+            requirements["build_backend"] = match.group(1)
+        requirements["vcs_version_backends"] = sorted({
+            name
+            for name in ("hatch-vcs", "setuptools-scm", "setuptools_scm", "versioningit")
+            if name in text
+        })
+    package_json = prepared / "package.json"
+    if package_json.is_file():
+        try:
+            data = json.loads(
+                package_json.read_text(encoding="utf-8", errors="replace")[:MAX_INSPECT_BYTES]
+            )
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict) and isinstance(data.get("engines"), dict):
+            requirements["node_engines"] = data["engines"]
+    return requirements
+
+
+def _last_failed_command(manifest: dict[str, Any]) -> dict[str, Any] | None:
+    """Summarize the most recent non-mutation command that did not complete green."""
+    for event in reversed(_ledger_events(manifest)):
+        kind = event.get("kind")
+        if kind not in {"command", "command-probe"}:
+            continue
+        if kind == "command" and event.get("phase") == "mutation":
+            # A nonzero mutation execution is an expected killed mutant.
+            continue
+        if event.get("result") == "completed" and event.get("returncode") == 0:
+            continue
+        return {
+            "kind": kind,
+            "phase": event.get("phase"),
+            "command_id": event.get("command_id"),
+            "argv": event.get("argv"),
+            "result": event.get("result"),
+            "returncode": event.get("returncode"),
+            "timeout_seconds": event.get("timeout_seconds"),
+        }
+    return None
+
+
+def doctor(manifest_path: Path) -> dict[str, Any]:
+    """Report the sandbox toolchain and environment, read-only and secret-free.
+
+    The tool gate rightly denies ad-hoc diagnostics during a hosted run, so
+    this Runner-owned report is the sanctioned way to investigate an
+    infrastructure failure: it shows the PATH sandbox commands actually get,
+    which toolchain executables resolve there and their versions, what the
+    project requires, and why VCS-version build backends need the preset
+    workaround in the .git-less snapshot. It writes nothing and uses no
+    network beyond running local `--version` probes.
+    """
+    manifest = _ready_manifest(manifest_path)
+    prepared = Path(manifest["prepared_root"])
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "LANG"} or key.startswith("LC_")
+    }
+    environment.update(_runtime_environment(prepared))
+    path_value = environment.get("PATH", "")
+    tools: dict[str, Any] = {}
+    for name in DOCTOR_TOOLS:
+        located = shutil.which(name, path=path_value or None)
+        tools[name] = (
+            {
+                "path": located,
+                "version": _bounded_tool_version(located, environment, prepared),
+            }
+            if located
+            else None
+        )
+    project = _project_requirements(prepared)
+    return {
+        "status": "ok",
+        "sandbox_path": path_value,
+        "home_redirected_to": environment.get("HOME"),
+        "runner_python_version": sys.version.split()[0],
+        "tools": tools,
+        "project": project,
+        "vcs_metadata": {
+            "prepared_snapshot_has_git": (prepared / ".git").exists(),
+            "vcs_version_backends_detected": project["vcs_version_backends"],
+            "pretend_version_preset": SANDBOX_ENV_DEFAULTS.get(
+                "SETUPTOOLS_SCM_PRETEND_VERSION"
+            ),
+        },
+        "last_failed_command": _last_failed_command(manifest),
+        "note": (
+            "read-only report; runner_python_version runs run_review.py only and "
+            "must not run project commands — fix the named cause, then rerun the "
+            "failed command through its next.argv using the project's own "
+            "toolchain by absolute path"
+        ),
+    }
+
+
 def _runtime_environment(root: Path) -> dict[str, str]:
     environment_root = root / ".socratic-runtime"
     paths = {
@@ -1485,6 +1618,7 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
             "one challenge-batch per run",
             "present the renderer output verbatim; never translate, summarize, or append",
             "sandbox commands use the project's own toolchain by absolute path; the injected runtime Python exists only for run_review.py",
+            "after an infrastructure failure, run the doctor command from the result's diagnose.argv before changing tools or arguments",
         ],
         "execution_plan": [
             {"id": "inspect", "label": "Review what changed"},
@@ -2050,6 +2184,13 @@ def probe_command(
             )
             if hint:
                 public["hint"] = hint
+            public["diagnose"] = _next_step(
+                "doctor", "--manifest", str(manifest_path),
+                note=(
+                    "read-only sandbox toolchain and environment report; run it "
+                    "before changing tools or arguments"
+                ),
+            )
             public["next"] = _next_step(
                 "probe-command", "--manifest", str(manifest_path),
                 "--command-id", command_id, "--", "<corrected-focused-argv>",
@@ -3317,6 +3458,8 @@ def main() -> int:
     )
     runbook_parser = commands.add_parser("runbook")
     runbook_parser.add_argument("--manifest", required=True, type=Path)
+    doctor_parser = commands.add_parser("doctor")
+    doctor_parser.add_argument("--manifest", required=True, type=Path)
     pre = commands.add_parser("preflight")
     pre.add_argument("--primary", required=True, type=Path)
     pre.add_argument("--host-socket", type=Path)
@@ -3453,7 +3596,7 @@ def main() -> int:
                 ),
             ),
             "allowed_operations": [
-                "runbook", "inspect", "execute", "probe-command",
+                "runbook", "inspect", "doctor", "execute", "probe-command",
                 "scaffold-contract", "stage-artifact", "scaffold-plan",
                 "challenge-batch", "scaffold-analysis", "complete", "cleanup",
             ],
@@ -3463,6 +3606,10 @@ def main() -> int:
         if args.command == "runbook":
             print(json.dumps(
                 runbook(args.manifest), ensure_ascii=False, sort_keys=True
+            ))
+        elif args.command == "doctor":
+            print(json.dumps(
+                doctor(args.manifest), ensure_ascii=False, sort_keys=True
             ))
         elif args.command == "inspect":
             print(json.dumps(inspect_review(
@@ -3512,6 +3659,13 @@ def main() -> int:
                             "runtime Python; if the tool itself was not found, "
                             "HOME redirection hides HOME-based shims (uv, nvm, "
                             "pyenv) — invoke it by absolute path"
+                        ),
+                        "diagnose": _next_step(
+                            "doctor", "--manifest", str(args.manifest),
+                            note=(
+                                "read-only sandbox toolchain and environment "
+                                "report; run it before changing tools or arguments"
+                            ),
                         ),
                         "next": _next_step(
                             "execute", "--phase", "prepare",
