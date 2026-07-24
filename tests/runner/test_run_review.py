@@ -1123,7 +1123,7 @@ class RunReviewTest(unittest.TestCase):
             )
             self.assertTrue(
                 all(
-                    item["strategy"] in {"copy-on-write", "full-copy"}
+                    item["strategy"] in {"kernel-clone", "copy-on-write", "full-copy"}
                     for item in attested["prepared_snapshot"]["clones"]
                 )
             )
