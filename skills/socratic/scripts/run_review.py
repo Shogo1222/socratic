@@ -27,7 +27,7 @@ from typing import Any, Protocol
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.5.0-alpha.6"
+SOCRATIC_VERSION = "0.5.0-alpha.7"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -52,6 +52,7 @@ IGNORED_NAMES = {
 }
 DEPENDENCY_DIRECTORY_NAMES = {"node_modules"}
 VIRTUAL_ENV_DIRECTORY_NAMES = {".venv", "venv"}
+NODE_RUNTIME_DIRECTORY_NAMES = {".cache", ".vite", ".vitest"}
 RUNTIME_DIRECTORY_NAME = ".socratic-runtime"
 SANDBOX_ENV_DEFAULTS = {
     # Sandbox executions are non-interactive, and dependency state is sealed by
@@ -527,9 +528,12 @@ def _materialize_dependency_layer(
 ) -> dict[str, Any]:
     """Move installed dependencies out of the cloned source tree once.
 
-    Each source branch receives only stable symlinks into this Runner-owned
-    layer plus a fresh `.socratic-runtime`.  The layer is content-hashed when
-    created and verified again before formal completion.
+    Each source branch receives stable links to installed packages plus a
+    fresh `.socratic-runtime`.  A node_modules attachment is a shallow local
+    directory whose installed entries link into the shared layer; this keeps
+    runtime caches such as node_modules/.vite private to each branch.  The
+    shared layer is content-hashed when created and verified again before
+    formal completion.
     """
     materialized = [
         item
@@ -553,7 +557,16 @@ def _materialize_dependency_layer(
             destination = trees_root / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             source.replace(destination)
-            source.symlink_to(destination, target_is_directory=True)
+            if source.name == "node_modules":
+                source.mkdir()
+                for entry in sorted(destination.iterdir(), key=lambda item: item.name):
+                    if entry.name in NODE_RUNTIME_DIRECTORY_NAMES:
+                        continue
+                    (source / entry.name).symlink_to(
+                        entry, target_is_directory=entry.is_dir()
+                    )
+            else:
+                source.symlink_to(destination, target_is_directory=True)
             attached.append(relative.as_posix())
 
         runtime_source = prepared / RUNTIME_DIRECTORY_NAME
@@ -2690,17 +2703,35 @@ def _scaffold_document(
         raise RunGateError(
             f"{filename} already exists; edit it in place instead of scaffolding"
         )
-    artifact.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return document
+
+
+def _scaffold_write_protocol(
+    manifest: dict[str, Any], filename: str
+) -> dict[str, Any]:
+    path = Path(manifest["artifact_root"]) / filename
+    return {
+        "artifact_path": str(path),
+        "write_protocol": {
+            "first_write": (
+                "Use Write exactly once to create artifact_path from the returned "
+                "document after replacing semantic placeholders."
+            ),
+            "correction": (
+                "If the file already exists, Read it and use Edit; never call "
+                "Write on an existing scaffold."
+            ),
+        },
+    }
 
 
 def scaffold_contract(
     manifest_path: Path, schema_root: Path | None = None
 ) -> dict[str, Any]:
-    """Write a structurally valid Intent Contract template into the artifact root.
+    """Generate a structurally valid Intent Contract for one first Write.
 
     Agents fill every replace-me value from repository evidence and never need
-    to read the schema files; stage-artifact still validates the final content.
+    to read the schema files; stage-artifact validates the written content.
     """
     manifest = _ready_manifest(manifest_path)
     document = {
@@ -2790,7 +2821,7 @@ def scaffold_analysis(
     mode: str,
     schema_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Create a valid semantic-only analysis scaffold from Plan and raw outcomes."""
+    """Generate a valid semantic-only analysis scaffold from Plan and raw outcomes."""
     if mode not in {"assessment", "harden", "catch"}:
         raise RunGateError("analysis mode must be assessment, harden, or catch")
     manifest = _ready_manifest(manifest_path)
@@ -2897,14 +2928,19 @@ def scaffold_analysis(
     except validator.ArtifactError as error:
         raise RunGateError(str(error)) from error
     path = artifact_root / "review-analysis.json"
-    _write_exclusive(path, document)
+    if path.exists():
+        raise RunGateError(
+            "review-analysis.json already exists; edit it in place instead of scaffolding"
+        )
     return {
-        "status": "created",
+        "status": "generated",
         "path": str(path),
+        "document": document,
         "classifications": len(classifications),
         "next": (
-            "edit semantic intent, classification, detecting tests, and review claims; "
-            "do not add run identity, hashes, commands, or evidence mechanics"
+            "write the returned document once after editing semantic intent, "
+            "classification, detecting tests, and review claims; do not add run "
+            "identity, hashes, commands, or evidence mechanics"
         ),
     }
 
@@ -3064,7 +3100,10 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
         cleanup_errors = _cleanup_loaded(manifest, manifest_path)
         if cleanup_errors:
             raise RunGateError("; ".join(cleanup_errors)) from failure
-        raise
+        raise RunGateError(
+            f"{failure}; the run terminated and disposable state was cleaned; "
+            "do not retry complete with this manifest"
+        ) from failure
 
 
 def abort(manifest_path: Path) -> None:
@@ -3296,43 +3335,57 @@ def main() -> int:
                 challenge_batch(args.manifest, args.schema_root), sort_keys=True
             ))
         elif args.command == "scaffold-contract":
+            manifest = _ready_manifest(args.manifest)
             print(json.dumps({
                 "artifact": ARTIFACT_FILES["contract"],
+                **_scaffold_write_protocol(
+                    manifest, ARTIFACT_FILES["contract"]
+                ),
                 "editable_fields": SCAFFOLD_EDITABLE_FIELDS["contract"],
                 "field_guide": SCAFFOLD_FIELD_GUIDES["contract"],
                 "document": scaffold_contract(args.manifest, args.schema_root),
                 "next": _next_step(
                     "stage-artifact", "--manifest", str(args.manifest),
                     "--kind", "contract",
-                    note="fill every replace-me value first; the Runner owns the JSON structure",
+                    note=(
+                        "fill every replace-me value, then Write document once to "
+                        "artifact_path; the Runner owns the JSON structure"
+                    ),
                 ),
             }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-plan":
+            manifest = _ready_manifest(args.manifest)
             print(json.dumps({
                 "artifact": "challenge-plan.json",
+                **_scaffold_write_protocol(manifest, "challenge-plan.json"),
                 "editable_fields": SCAFFOLD_EDITABLE_FIELDS["plan"],
                 "field_guide": SCAFFOLD_FIELD_GUIDES["plan"],
                 "document": scaffold_plan(args.manifest, args.schema_root),
                 "next": _next_step(
                     "challenge-batch", "--manifest", str(args.manifest),
-                    note="fill the placeholder challenge first; run synchronously in the foreground",
+                    note=(
+                        "fill the placeholder challenge, then Write document once "
+                        "to artifact_path; run synchronously in the foreground"
+                    ),
                 ),
             }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-analysis":
             scaffold = scaffold_analysis(args.manifest, args.mode, args.schema_root)
+            manifest = _ready_manifest(args.manifest)
             print(json.dumps({
                 "artifact": "review-analysis.json",
+                **_scaffold_write_protocol(manifest, "review-analysis.json"),
                 "editable_fields": SCAFFOLD_EDITABLE_FIELDS["analysis"],
                 "field_guide": SCAFFOLD_FIELD_GUIDES["analysis"],
-                "document": _load_json(Path(scaffold["path"])),
+                "document": scaffold["document"],
                 "scaffold": scaffold,
                 "next": _next_step(
                     "complete", "--manifest", str(args.manifest),
                     "--retention", "discard",
                     note=(
-                        "edit only semantic judgments, then complete renders and "
-                        "cleans up; use --retention keep only after an explicit "
-                        "user choice"
+                        "edit only semantic judgments, Write document once to "
+                        "artifact_path, then complete renders and cleans up; use "
+                        "--retention keep only after an explicit user choice"
                     ),
                 ),
             }, ensure_ascii=False, sort_keys=True))

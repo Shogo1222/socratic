@@ -298,8 +298,14 @@ class RunReviewTest(unittest.TestCase):
                 (prepared_root / "packages/app/source.ts").read_text(), "original\n"
             )
             self.assertEqual(
-                (first_root / "node_modules").resolve(),
-                (second_root / "node_modules").resolve(),
+                (first_root / "node_modules/example").resolve(),
+                (second_root / "node_modules/example").resolve(),
+            )
+            first_cache = first_root / "node_modules/.vite/results.json"
+            first_cache.parent.mkdir()
+            first_cache.write_text("MUT-001 cache\n")
+            self.assertFalse(
+                (second_root / "node_modules/.vite/results.json").exists()
             )
             (first_root / ".socratic-runtime/home/private.txt").write_text("first")
             self.assertFalse(
@@ -593,7 +599,7 @@ class RunReviewTest(unittest.TestCase):
                     manifest_path, "CMD1", [sys.executable, "-c", "pass"], 10
                 )
 
-    def test_scaffold_contract_writes_schema_valid_template_once(self) -> None:
+    def test_scaffold_contract_generates_document_for_first_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
@@ -602,8 +608,10 @@ class RunReviewTest(unittest.TestCase):
             artifact = (
                 Path(manifest["artifact_root"]) / "intent-contract.draft.json"
             )
-            self.assertEqual(json.loads(artifact.read_text()), document)
+            self.assertFalse(artifact.exists())
             self.assertEqual(document["status"], "provisional")
+            artifact.write_text(json.dumps(document), encoding="utf-8")
+            self.assertEqual(json.loads(artifact.read_text()), document)
             with self.assertRaisesRegex(self.runner.RunGateError, "already exists"):
                 self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
 
@@ -611,7 +619,7 @@ class RunReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            _manifest, manifest_path = self.ready(root, repository)
+            manifest, manifest_path = self.ready(root, repository)
             stdout = io.StringIO()
             with patch.object(sys, "argv", [
                 "run_review.py",
@@ -629,6 +637,12 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(
                 result["document"]["coverage"], []
             )
+            artifact = (
+                Path(manifest["artifact_root"]) / "intent-contract.draft.json"
+            )
+            self.assertEqual(result["artifact_path"], str(artifact))
+            self.assertFalse(artifact.exists())
+            self.assertIn("Write exactly once", result["write_protocol"]["first_write"])
             self.assertIn("stage-artifact", result["next"]["argv"])
 
     def test_scaffold_guides_expose_required_shapes_and_enum_values(self) -> None:
@@ -765,6 +779,8 @@ class RunReviewTest(unittest.TestCase):
             document = self.runner.scaffold_plan(manifest_path, ROOT / "schemas")
             self.assertEqual(document["command_id"], "CMD-007")
             artifact = Path(manifest["artifact_root"]) / "challenge-plan.json"
+            self.assertFalse(artifact.exists())
+            artifact.write_text(json.dumps(document), encoding="utf-8")
             self.assertEqual(json.loads(artifact.read_text()), document)
             delete_template = self.runner.SCAFFOLD_FIELD_GUIDES["plan"][
                 "challenges[*].mutation"
@@ -953,8 +969,13 @@ class RunReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
-            _manifest, manifest_path = self.ready(root, repository)
-            self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
+            manifest, manifest_path = self.ready(root, repository)
+            document = self.runner.scaffold_contract(
+                manifest_path, ROOT / "schemas"
+            )
+            (
+                Path(manifest["artifact_root"]) / "intent-contract.draft.json"
+            ).write_text(json.dumps(document), encoding="utf-8")
             stdout = io.StringIO()
             with patch.object(sys, "argv", [
                 "run_review.py",
@@ -1015,7 +1036,8 @@ class RunReviewTest(unittest.TestCase):
             )
             self.assertEqual(scaffold["classifications"], 1)
             analysis_path = artifact_root / "review-analysis.json"
-            analysis = json.loads(analysis_path.read_text())
+            self.assertFalse(analysis_path.exists())
+            analysis = scaffold["document"]
             classification = analysis["classifications"][0]
             self.assertEqual(classification["result"], "inconclusive")
             classification.update({
@@ -1073,13 +1095,29 @@ class RunReviewTest(unittest.TestCase):
                 ],
             }))
             self.runner.challenge_batch(manifest_path, ROOT / "schemas")
-            result = self.runner.scaffold_analysis(
-                manifest_path, "assessment", ROOT / "schemas"
+            stdout = io.StringIO()
+            with patch.object(sys, "argv", [
+                "run_review.py",
+                "scaffold-analysis",
+                "--manifest", str(manifest_path),
+                "--mode", "assessment",
+                "--schema-root", str(ROOT / "schemas"),
+            ]), redirect_stdout(stdout):
+                code = self.runner.main()
+            self.assertEqual(code, 0)
+            response = json.loads(stdout.getvalue())
+            result = response["scaffold"]
+            self.assertEqual(result["status"], "generated")
+            self.assertEqual(
+                response["artifact_path"],
+                str(artifact_root / "review-analysis.json"),
             )
-            self.assertEqual(result["status"], "created")
-            analysis = json.loads(
-                (artifact_root / "review-analysis.json").read_text()
+            self.assertIn(
+                "Write exactly once",
+                response["write_protocol"]["first_write"],
             )
+            self.assertFalse((artifact_root / "review-analysis.json").exists())
+            analysis = response["document"]
             self.assertIsInstance(analysis["assessment"], dict)
             self.assertEqual(
                 analysis["assessment"]["selected_scope"], "current-change"
@@ -1331,8 +1369,11 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(
                 (clone / "node_modules/.bin/vitest").read_text(), "#!/bin/sh\n"
             )
-            self.assertTrue((clone / "node_modules").is_symlink())
-            self.assertTrue((prepared / "node_modules").is_symlink())
+            self.assertTrue((clone / "node_modules").is_dir())
+            self.assertFalse((clone / "node_modules").is_symlink())
+            self.assertTrue((clone / "node_modules/.bin").is_symlink())
+            self.assertTrue((prepared / "node_modules").is_dir())
+            self.assertFalse((prepared / "node_modules").is_symlink())
             self.assertEqual(
                 (
                     Path(manifest["dependency_root"])
@@ -1355,6 +1396,9 @@ class RunReviewTest(unittest.TestCase):
             dependency = prepared / "node_modules/example/index.js"
             dependency.parent.mkdir(parents=True)
             dependency.write_text("installed\n")
+            install_cache = prepared / "node_modules/.vite/install-cache.json"
+            install_cache.parent.mkdir()
+            install_cache.write_text("discarded attachment\n")
             source_sha256 = self.runner._prepared_hash(prepared)
 
             self.runner._materialize_dependency_layer(manifest)
@@ -1362,7 +1406,13 @@ class RunReviewTest(unittest.TestCase):
 
             self.assertEqual(self.runner._prepared_hash(prepared), source_sha256)
             self.assertEqual(evidence["attached_paths"], ["node_modules"])
-            self.assertTrue((prepared / "node_modules").is_symlink())
+            self.assertTrue((prepared / "node_modules").is_dir())
+            self.assertTrue((prepared / "node_modules/example").is_symlink())
+            self.assertFalse((prepared / "node_modules/.vite").exists())
+            self.runner._verify_dependency_layer(manifest, evidence)
+            runtime_cache = prepared / "node_modules/.vite/results.json"
+            runtime_cache.parent.mkdir()
+            runtime_cache.write_text("runtime cache\n")
             self.runner._verify_dependency_layer(manifest, evidence)
             dependency.write_text("tampered\n")
             self.assertEqual(self.runner._prepared_hash(prepared), source_sha256)
@@ -1635,7 +1685,8 @@ class RunReviewTest(unittest.TestCase):
             dependency.write_text("changed during mutation\n")
 
             with self.assertRaisesRegex(
-                self.runner.RunGateError, "shared dependency layer changed"
+                self.runner.RunGateError,
+                "shared dependency layer changed.*do not retry complete",
             ):
                 self.runner.finish(manifest_path, ROOT / "schemas")
             self.assertFalse(manifest_path.exists())

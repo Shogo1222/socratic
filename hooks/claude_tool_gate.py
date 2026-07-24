@@ -112,7 +112,18 @@ def evaluate(payload: Any) -> dict[str, Any]:
         if isinstance(tool_input, dict):
             path = tool_input.get("file_path") or tool_input.get("path") or tool_input.get("notebook_path")
         if _inside_artifact_root(state, path):
-            return {}
+            artifact = Path(path)
+            if tool == "Write":
+                if artifact.exists():
+                    return _deny(
+                        "The Runner scaffold already exists; Read it, then use Edit instead of Write"
+                    )
+                return {}
+            if artifact.is_file():
+                return {}
+            return _deny(
+                "Create the Runner-generated scaffold with its one allowed Write before editing it"
+            )
         return _deny("Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox")
     if tool == "apply_patch":
         paths = _patch_paths(tool_input.get("patch") if isinstance(tool_input, dict) else None)

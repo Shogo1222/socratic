@@ -50,17 +50,32 @@ class CursorHostTest(unittest.TestCase):
                 )
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["host"]["adapter_id"], "cursor-desktop-hook-host-v1")
+                review_analysis = (
+                    Path(state["artifact_root"]) / "review-analysis.json"
+                )
                 allowed_artifact = self.gate.evaluate({
                     "hook_event_name": "preToolUse",
                     "conversation_id": session_id,
                     "tool_name": "Write",
-                    "tool_input": {
-                        "file_path": str(
-                            Path(state["artifact_root"]) / "review-analysis.json"
-                        )
-                    },
+                    "tool_input": {"file_path": str(review_analysis)},
                 })
                 self.assertEqual(allowed_artifact["permission"], "allow")
+                review_analysis.write_text("{}", encoding="utf-8")
+                denied_rewrite = self.gate.evaluate({
+                    "hook_event_name": "preToolUse",
+                    "conversation_id": session_id,
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": str(review_analysis)},
+                })
+                self.assertEqual(denied_rewrite["permission"], "deny")
+                self.assertIn("read it", denied_rewrite["user_message"])
+                allowed_edit = self.gate.evaluate({
+                    "hook_event_name": "preToolUse",
+                    "conversation_id": session_id,
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": str(review_analysis)},
+                })
+                self.assertEqual(allowed_edit["permission"], "allow")
                 allowed_challenge_plan = self.gate.evaluate({
                     "hook_event_name": "preToolUse",
                     "conversation_id": session_id,

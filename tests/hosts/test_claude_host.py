@@ -86,11 +86,41 @@ class ClaudeHostTest(unittest.TestCase):
                 artifact_path = (
                     Path(state["artifact_root"]) / "intent-contract.draft.json"
                 )
+                review_analysis = (
+                    Path(state["artifact_root"]) / "review-analysis.json"
+                )
+                denied_edit_before_create = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Edit", "tool_input": {"file_path": str(review_analysis)},
+                })
+                self.assertEqual(
+                    denied_edit_before_create["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                    "deny",
+                )
                 allowed_artifact = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write", "tool_input": {"file_path": str(artifact_path)},
                 })
                 self.assertEqual(allowed_artifact, {})
+                artifact_path.write_text("{}", encoding="utf-8")
+                denied_rewrite = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Write", "tool_input": {"file_path": str(artifact_path)},
+                })
+                self.assertEqual(
+                    denied_rewrite["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                self.assertIn(
+                    "Read it, then use Edit",
+                    denied_rewrite["hookSpecificOutput"]["permissionDecisionReason"],
+                )
+                allowed_edit = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Edit", "tool_input": {"file_path": str(artifact_path)},
+                })
+                self.assertEqual(allowed_edit, {})
                 denied_arbitrary_temp = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write", "tool_input": {"file_path": "/tmp/not-host-issued.json"},
@@ -101,7 +131,7 @@ class ClaudeHostTest(unittest.TestCase):
                 allowed_artifact_patch = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "apply_patch", "tool_input": {
-                        "patch": f"*** Begin Patch\n*** Add File: {artifact_path}\n+{{}}\n*** End Patch"
+                        "patch": f"*** Begin Patch\n*** Update File: {artifact_path}\n@@\n-{{}}\n+{{\"ready\": true}}\n*** End Patch"
                     },
                 })
                 self.assertEqual(allowed_artifact_patch, {})
@@ -112,7 +142,6 @@ class ClaudeHostTest(unittest.TestCase):
                     "tool_input": {"file_path": str(challenge_plan)},
                 })
                 self.assertEqual(allowed_challenge_plan, {})
-                review_analysis = Path(state["artifact_root"]) / "review-analysis.json"
                 self.assertEqual(self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Write",

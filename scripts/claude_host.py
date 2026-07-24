@@ -336,11 +336,11 @@ def build_review_context(change: dict[str, Any], prompt: str = "") -> dict[str, 
             "run Runner inspect for bounded read-only evidence; do not delegate discovery",
             "present problem, changed behavior, preserved behavior, new observable, "
             "and uncertainty; obtain diff-understanding confirmation",
-            "stage intent-contract.draft.json before any mutation",
+            "write the Runner-generated intent-contract document once, then stage it before any mutation",
             "ask a structured question and stop if an observable oracle is unresolved",
             "prepare dependencies once, then probe the focused command in a fresh clone",
             "submit one parallel anchored challenge-batch with no full-file content",
-            "run scaffold-analysis, edit semantic judgments only, then let complete render and cleanup",
+            "run scaffold-analysis, write its semantic document once, then let complete render and cleanup",
         ],
         "delegation_policy": (
             "Do not delegate deterministic diff or environment discovery; "
