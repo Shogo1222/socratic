@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 
-SESSION_ROOT = Path("/tmp/socratic-sessions")
+SESSION_ROOT = Path(os.environ.get("SOCRATIC_SESSION_ROOT") or "/tmp/socratic-sessions")
 BROKER_IDLE_TTL_SECONDS = 2 * 60 * 60
 BROKER_PROCESSES: dict[str, subprocess.Popen] = {}
 GITHUB_PR_URL = re.compile(
@@ -77,7 +77,11 @@ def prepare_or_retarget_session(
     if state is not None and request(
         Path(state.get("socket_path", "")), str(state.get("token", ""))
     ) != {"status": "ready"}:
-        raise RuntimeError("existing trusted Host session is unavailable")
+        # The recorded broker is dead or unresponsive. Collect it and start a
+        # fresh session instead of hard-blocking every prompt until the idle
+        # TTL: the recorded run was already unrecoverable without its broker.
+        cleanup_session(session_id)
+        state = None
     requested = requested_pull_request(prompt)
     if state is not None and requested is not None and not session_target_matches(
         state, requested
@@ -407,11 +411,14 @@ def prepare_session(
     state_path = root / "state.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
     state_path.chmod(0o600)
-    process = subprocess.Popen(
-        [sys.executable, str(Path(__file__).resolve()), "broker", "--state", str(state_path)],
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    log_path = root / "broker.log"
+    with open(log_path, "ab") as broker_log:
+        os.fchmod(broker_log.fileno(), 0o600)
+        process = subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve()), "broker", "--state", str(state_path)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=broker_log,
+            start_new_session=True,
+        )
     BROKER_PROCESSES[session_id] = process
     state["pid"] = str(process.pid)
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -431,32 +438,23 @@ def load_session(session_id: str) -> dict[str, Any] | None:
 
 
 def load_live_session(session_id: str) -> dict[str, Any] | None:
-    """Return active or fail-closed state, collecting only expired dead brokers."""
+    """Return active or fail-closed state, collecting expired unresponsive brokers.
+
+    Liveness is the broker socket answering with its token, never the recorded
+    PID: a reused PID would otherwise pin a stale session directory past its
+    TTL, and a hung broker would survive collection forever.
+    """
     state = load_session(session_id)
     if state is None:
         return None
     if request(Path(state.get("socket_path", "")), state.get("token", "")) == {"status": "ready"}:
         return state
-    pid_text = str(state.get("pid", ""))
-    process_alive = False
-    if pid_text.isdigit():
-        pid = int(pid_text)
-        try:
-            waited, _status = os.waitpid(pid, os.WNOHANG)
-        except (ChildProcessError, OSError):
-            waited = 0
-        if waited == 0:
-            try:
-                os.kill(pid, 0)
-                process_alive = True
-            except (OSError, ProcessLookupError):
-                pass
     state_path = session_root(session_id) / "state.json"
     try:
         expired = time.time() - state_path.stat().st_mtime >= BROKER_IDLE_TTL_SECONDS
     except OSError:
         expired = False
-    if not process_alive and expired:
+    if expired:
         cleanup_session(session_id)
         return None
     return state
@@ -492,6 +490,12 @@ def cleanup_session(session_id: str) -> None:
     shutil.rmtree(root, ignore_errors=True)
 
 
+def _broker_log(message: str) -> None:
+    """Record a broker lifecycle event on stderr, which the Host redirects to broker.log."""
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    print(f"{timestamp} {message}", file=sys.stderr, flush=True)
+
+
 def run_broker(state_path: Path) -> int:
     state = json.loads(state_path.read_text(encoding="utf-8"))
     grant = {key: state[key] for key in (
@@ -502,10 +506,15 @@ def run_broker(state_path: Path) -> int:
     server.bind(state["socket_path"])
     server.listen(8)
     stop = threading.Event()
+    _broker_log(f"broker started for session {state.get('session_id', '?')} pid {os.getpid()}")
     try:
         _serve(server, state["token"], grant, stop)
+    except BaseException as error:
+        _broker_log(f"broker crashed: {error!r}")
+        raise
     finally:
         server.close()
+        _broker_log("broker exited")
     return 0
 
 

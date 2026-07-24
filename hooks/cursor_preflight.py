@@ -14,8 +14,18 @@ from typing import Any
 
 BLOCKED_REASON = "blocked: trusted Cursor Desktop Host Adapter capability is unavailable"
 SOCRATIC_INVOCATION = re.compile(
-    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+    r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
 )
+
+
+def _invoked(prompt: str) -> bool:
+    """Accept only a command that leads the prompt as an invocation.
+
+    A mention anywhere else — quoted documentation, an injected task report,
+    a summary that names the skills — must not start the Host and arm the
+    session tool gate.
+    """
+    return SOCRATIC_INVOCATION.search(prompt) is not None
 
 
 def _host_module():
@@ -70,13 +80,13 @@ def evaluate(payload: Any) -> dict[str, Any]:
     session_id = _session_id(payload)
     primary = _primary(payload)
     if session_id is None or primary is None:
-        return _blocked() if SOCRATIC_INVOCATION.search(prompt) else {"continue": True}
+        return _blocked() if _invoked(prompt) else {"continue": True}
     host = _host_module()
     state = host.load_live_session(session_id)
     active = bool(
         state and host.request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}
     )
-    if SOCRATIC_INVOCATION.search(prompt) is None and not active:
+    if not _invoked(prompt) and not active:
         return {"continue": True}
     try:
         state, retargeted = host.prepare_or_retarget_session(

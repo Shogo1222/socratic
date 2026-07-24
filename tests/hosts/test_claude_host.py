@@ -225,10 +225,58 @@ class ClaudeHostTest(unittest.TestCase):
                 allowed_runner = self.tool_gate.evaluate({
                     "hook_event_name": "PreToolUse", "session_id": session_id,
                     "tool_name": "Bash", "tool_input": {
-                        "command": "python3 /plugin/skills/socratic/scripts/run_review.py preflight"
+                        "command": (
+                            "python3 "
+                            f"{ROOT / 'skills/socratic/scripts/run_review.py'} preflight"
+                        )
                     },
                 })
                 self.assertEqual(allowed_runner, {})
+                planted_runner = repository / "run_review.py"
+                planted_runner.write_text("print('planted')\n", encoding="utf-8")
+                denied_foreign_runner = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Bash", "tool_input": {
+                        "command": f"python3 {planted_runner} preflight"
+                    },
+                })
+                self.assertEqual(
+                    denied_foreign_runner["hookSpecificOutput"]["permissionDecision"],
+                    "deny",
+                )
+                denied_archive = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Bash", "tool_input": {
+                        "command": "git --no-pager archive -o /tmp/leak.tar HEAD"
+                    },
+                })
+                self.assertEqual(
+                    denied_archive["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                denied_unknown_tool = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "mcp__filesystem__write_file",
+                    "tool_input": {"path": str(repository / "source.py")},
+                })
+                self.assertEqual(
+                    denied_unknown_tool["hookSpecificOutput"]["permissionDecision"],
+                    "deny",
+                )
+                denied_multi_edit = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "MultiEdit",
+                    "tool_input": {"file_path": str(repository / "source.py")},
+                })
+                self.assertEqual(
+                    denied_multi_edit["hookSpecificOutput"]["permissionDecision"],
+                    "deny",
+                )
+                allowed_read = self.tool_gate.evaluate({
+                    "hook_event_name": "PreToolUse", "session_id": session_id,
+                    "tool_name": "Read",
+                    "tool_input": {"file_path": str(repository / "source.py")},
+                })
+                self.assertEqual(allowed_read, {})
                 for background_input in (
                     {
                         "command": (
@@ -532,6 +580,78 @@ class ClaudeHostTest(unittest.TestCase):
                     self.assertIn("Trusted Socratic Host is ready", decision["hookSpecificOutput"]["additionalContext"])
                 finally:
                     self.host.cleanup_session(session_id)
+
+    def test_quoted_skill_mention_does_not_start_host(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            session_id = "quoted-mention-fixture"
+            try:
+                decision = self.hook.evaluate({
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": (
+                        "A task report quoted `$maieutic` and a fenced example:\n"
+                        "```text\n/socratic https://github.com/owner/repo/pull/1\n```\n"
+                        "Summarize the report."
+                    ),
+                    "session_id": session_id,
+                    "cwd": str(repository),
+                })
+                self.assertEqual(decision, {})
+                self.assertIsNone(self.host.load_session(session_id))
+            finally:
+                self.host.cleanup_session(session_id)
+
+    def test_dead_broker_is_recycled_on_the_next_explicit_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            session_id = "dead-broker-recycle"
+            try:
+                first = self.host.prepare_session(session_id, repository)
+                os.kill(int(first["pid"]), 15)
+                for _ in range(50):
+                    if self.host.request(
+                        Path(first["socket_path"]), first["token"]
+                    ) == {"status": "blocked"}:
+                        break
+                    time.sleep(0.02)
+                decision = self.hook.evaluate({
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "/socratic:socratic retry the review",
+                    "session_id": session_id,
+                    "cwd": str(repository),
+                })
+                self.assertIn(
+                    "Trusted Socratic Host is ready",
+                    decision["hookSpecificOutput"]["additionalContext"],
+                )
+                state = self.host.load_session(session_id)
+                self.assertNotEqual(state["run_id"], first["run_id"])
+                self.assertEqual(
+                    self.host.request(Path(state["socket_path"]), state["token"]),
+                    {"status": "ready"},
+                )
+            finally:
+                self.host.cleanup_session(session_id)
+
+    def test_broker_records_a_lifecycle_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "repository"
+            (repository / ".git").mkdir(parents=True)
+            session_id = "broker-log-fixture"
+            try:
+                state = self.host.prepare_session(session_id, repository)
+                log_path = self.host.session_root(session_id) / "broker.log"
+                self.assertTrue(log_path.is_file())
+                self.assertIn("broker started", log_path.read_text(encoding="utf-8"))
+                self.host.cleanup_session(session_id)
+                root = self.host.session_root(session_id)
+                self.assertFalse(root.exists())
+                self.assertFalse(Path(state["socket_path"]).exists())
+                self.assertFalse(log_path.exists())
+            finally:
+                self.host.cleanup_session(session_id)
 
     def test_dead_broker_stays_fail_closed_until_expired_then_is_collected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

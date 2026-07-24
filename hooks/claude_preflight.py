@@ -15,8 +15,18 @@ from pathlib import Path
 
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
 SOCRATIC_INVOCATION = re.compile(
-    r"(?<![0-9A-Za-z_-])(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
+    r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
 )
+
+
+def _invoked(prompt: str) -> bool:
+    """Accept only a command that leads the prompt as an invocation.
+
+    A mention anywhere else — quoted documentation, an injected task report,
+    a summary that names the skills — must not start the Host and arm the
+    session tool gate.
+    """
+    return SOCRATIC_INVOCATION.search(prompt) is not None
 
 
 def _blocked(detail: str | None = None) -> dict[str, str]:
@@ -55,13 +65,13 @@ def evaluate(payload: Any) -> dict[str, str]:
     session_id = payload.get("session_id")
     cwd = payload.get("cwd")
     if not isinstance(session_id, str) or not isinstance(cwd, str):
-        return _blocked() if SOCRATIC_INVOCATION.search(prompt) else {}
+        return _blocked() if _invoked(prompt) else {}
     host = _host_module()
     state = host.load_live_session(session_id)
     active = bool(
         state and host.request(Path(state["socket_path"]), state["token"]) == {"status": "ready"}
     )
-    if SOCRATIC_INVOCATION.search(prompt) or active:
+    if _invoked(prompt) or active:
         try:
             state, retargeted = host.prepare_or_retarget_session(
                 session_id, Path(cwd), prompt
