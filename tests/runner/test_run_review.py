@@ -378,6 +378,49 @@ class RunReviewTest(unittest.TestCase):
                 str((mutant_root / "packages/app").resolve()),
             )
 
+    def test_runbook_explains_ids_gates_and_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            document = self.runner.runbook(manifest_path)
+            self.assertEqual(
+                set(document["id_glossary"]), {"DEC", "INV", "FX", "UNR", "CMD", "MUT"}
+            )
+            for key in ("mission", "gates", "agent_edits", "runner_owns",
+                        "hard_rules", "execution_plan", "announcement_rules"):
+                self.assertIn(key, document)
+            self.assertEqual(document["run_id"], manifest["run_id"])
+            self.assertIn("scaffold-contract", document["next"]["argv"])
+            self.assertEqual(
+                [step["id"] for step in document["execution_plan"]],
+                ["inspect", "intent", "prepare", "baseline",
+                 "challenge", "report", "cleanup"],
+            )
+
+    def test_probe_success_returns_exact_next_argv(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            probe = self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
+            )
+            argv = probe["next"]["argv"]
+            self.assertIn("scaffold-plan", argv)
+            self.assertIn(str(manifest_path), argv)
+
+    def test_argument_mistakes_return_guided_invalid_command(self) -> None:
+        stdout = io.StringIO()
+        with patch.object(sys, "argv",
+                          ["run_review.py", "scaffold-plan", "--command-id", "CMD-001"]):
+            with redirect_stdout(stdout):
+                code = self.runner.main()
+        self.assertEqual(code, 2)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "invalid-command")
+        self.assertIn("runbook", payload["error"])
+
     def test_probe_and_batch_expose_runner_timings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

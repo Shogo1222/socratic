@@ -777,6 +777,122 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
     return _append_event(manifest, event)
 
 
+def _next_step(*arguments: str, note: str | None = None) -> dict[str, Any]:
+    """Exact argv for the next pipeline step. Agents run it verbatim.
+
+    Placeholders in angle brackets mark the only parts an agent supplies;
+    everything else must not be guessed or reordered.
+    """
+    step: dict[str, Any] = {
+        "argv": [sys.executable, str(Path(__file__).resolve()), *arguments],
+    }
+    if note:
+        step["note"] = note
+    return step
+
+
+SCAFFOLD_EDITABLE_FIELDS = {
+    "contract": [
+        "status",
+        "change.base", "change.head", "change.summary",
+        "intent.statement", "intent.confidence", "intent.evidence[*]",
+        "decisions[*]", "invariants[*]",
+        "side_effects.required[*]", "side_effects.prohibited[*]",
+        "unresolved[*]", "coverage[*]",
+    ],
+    "plan": [
+        "max_parallel",
+        "challenges[*].id", "challenges[*].contract_ids",
+        "challenges[*].accident", "challenges[*].expected_detection",
+        "challenges[*].severity", "challenges[*].likelihood",
+        "challenges[*].code_location", "challenges[*].mutation",
+    ],
+    "analysis": [
+        "classifications[*].source_intent",
+        "classifications[*].changed_intent",
+        "classifications[*].result",
+        "classifications[*].detecting_tests",
+        "classifications[*].observed_failure_reason",
+        "classifications[*].contract_violation_observed",
+        "classifications[*].follow_up",
+        "classifications[*].outcome_interpretation",
+        "review",
+    ],
+}
+
+
+def runbook(manifest_path: Path) -> dict[str, Any]:
+    """One document that explains the whole run: read once after preflight.
+
+    Generated from the loaded Runner so it cannot drift from the version that
+    actually executes. It explains meaning and order, never raw JSON Schema.
+    """
+    manifest = _ready_manifest(manifest_path)
+    m = str(manifest_path)
+    return {
+        "socratic_version": SOCRATIC_VERSION,
+        "run_id": manifest["run_id"],
+        "mission": (
+            "Infer intended observable behavior from repository evidence, expose "
+            "only consequential uncertainty, and design realistic accidents that "
+            "test whether the suite protects that intent. The Runner owns "
+            "commands, mutation mechanics, JSON structure, hashes, ledgers, "
+            "reports, and cleanup."
+        ),
+        "id_glossary": {
+            "DEC": "a settled decision about expected observable behavior",
+            "INV": "existing behavior that must not break after the change",
+            "FX": "a side effect that is required or prohibited",
+            "UNR": "an open question repository evidence cannot settle; blocks its mutations",
+            "CMD": "a focused test command the Runner probed successfully and will reuse",
+            "MUT": "one realistic accident model injected into a disposable clone",
+        },
+        "gates": [
+            "unresolved UNR present -> Contract status needs-decision; mutations for its Contract IDs stay blocked",
+            "Contract staged and resolved -> probe the focused command",
+            "probe success -> CMD issued; scaffold the challenge plan",
+            "challenge-batch complete -> scaffold the analysis and interpret raw outcomes",
+            "classification complete -> complete generates, renders, and cleans up",
+        ],
+        "agent_edits": [
+            "intent", "decisions", "invariants", "side effects",
+            "accident models", "classification reasons", "detecting tests",
+            "reviewer-facing claims",
+        ],
+        "runner_owns": [
+            "JSON structure", "command IDs", "run identity", "hashes",
+            "ledger", "attestation", "report mechanics", "cleanup",
+        ],
+        "hard_rules": [
+            "run every Runner command synchronously in the foreground; never background one",
+            "never read schema files; every JSON you edit starts from a Runner scaffold",
+            "follow next.argv verbatim; never guess or reorder arguments",
+            "do not delegate deterministic discovery to subagents",
+            "one challenge-batch per run",
+            "present the renderer output verbatim; never translate, summarize, or append",
+        ],
+        "execution_plan": [
+            {"id": "inspect", "label": "Review what changed"},
+            {"id": "intent", "label": "Establish the intent and the behavior to protect"},
+            {"id": "prepare", "label": "Prepare the isolated test environment"},
+            {"id": "baseline", "label": "Run the current tests"},
+            {"id": "challenge", "label": "Verify realistic accident patterns"},
+            {"id": "report", "label": "Assemble the verified review"},
+            {"id": "cleanup", "label": "Remove the disposable environment"},
+        ],
+        "announcement_rules": [
+            "before the first step, show the execution plan to the user in their language",
+            "announce each phase transition as a human goal, not an internal command name",
+            "if one phase exceeds 30 seconds, say why and report elapsed time",
+            "never show an unfounded percentage",
+        ],
+        "next": _next_step(
+            "scaffold-contract", "--manifest", m,
+            note="fill every replace-me value from repository evidence, then follow next.argv",
+        ),
+    }
+
+
 @contextlib.contextmanager
 def _timed(timings: dict, label: str):
     """Accumulate wall-clock milliseconds for a Runner-internal segment.
@@ -1219,6 +1335,11 @@ def probe_command(
         "output_truncated": len(stdout) > limit or len(stderr) > limit,
     }
     if public["status"] == "ready":
+        public["next"] = _next_step(
+            "scaffold-plan", "--manifest", str(manifest_path),
+            note="the plan binds this validated command; fill the challenges, then follow next.argv",
+        )
+    if public["status"] == "ready":
         _append_event(manifest, {
             "run_id": manifest["run_id"],
             "kind": "validated-command",
@@ -1493,6 +1614,11 @@ def challenge_batch(
                 0, round((time.monotonic() - execution_started) * 1000)
             ),
         },
+        "next": _next_step(
+            "scaffold-analysis", "--manifest", str(manifest_path),
+            "--mode", "<assessment|harden|catch>",
+            note="pick the mode of this run's branch, interpret raw outcomes, then follow next.argv",
+        ),
     }
 
 
@@ -2367,9 +2493,23 @@ def assess_experiment(source_root: Path, plan: Path, evidence: Path) -> dict[str
         raise RunGateError(str(error)) from error
 
 
+class _GuidedParser(argparse.ArgumentParser):
+    """Raise instead of exiting so argument mistakes return guided JSON."""
+
+    def error(self, message):  # noqa: A003 - argparse API
+        raise RunGateError(
+            f"invalid-command: {message}; the usage is: {self.format_usage().strip()}; "
+            "follow next.argv from the previous Runner result, or run runbook for the pipeline"
+        )
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
+    parser = _GuidedParser(description=__doc__)
+    commands = parser.add_subparsers(
+        dest="command", required=True, parser_class=_GuidedParser
+    )
+    runbook_parser = commands.add_parser("runbook")
+    runbook_parser.add_argument("--manifest", required=True, type=Path)
     pre = commands.add_parser("preflight")
     pre.add_argument("--primary", required=True, type=Path)
     pre.add_argument("--host-socket", type=Path)
@@ -2458,7 +2598,13 @@ def main() -> int:
     assess_parser.add_argument("--source-root", required=True, type=Path)
     assess_parser.add_argument("--plan", required=True, type=Path)
     assess_parser.add_argument("--evidence", required=True, type=Path)
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except RunGateError as error:
+        print(json.dumps(
+            {"status": "invalid-command", "error": str(error)}, sort_keys=True
+        ))
+        return 2
     if args.command == "preflight":
         try:
             adapter = (
@@ -2478,22 +2624,28 @@ def main() -> int:
             "sandbox_root": manifest["sandbox_root"],
             "prepared_root": manifest["prepared_root"],
             "artifact_root": manifest["artifact_root"],
-            "next": (
-                "inspect and confirm the diff; scaffold-contract, fill every replace-me "
-                "value, then stage the Intent Contract; prepare once; probe the focused "
-                "command; scaffold-plan and fill it before one anchored challenge-batch; "
-                "scaffold review-analysis.json; edit only semantic judgments; call complete. "
-                "Never read schema files: every JSON you edit starts from a Runner scaffold"
+            "next": _next_step(
+                "runbook", "--manifest", str(manifest_path),
+                note=(
+                    "read the runbook once: it explains the IDs, the gates, the "
+                    "fields you may edit, and returns the exact next command. "
+                    "Every later Runner result carries next.argv — run it "
+                    "verbatim instead of guessing arguments"
+                ),
             ),
             "allowed_operations": [
-                "inspect", "execute", "probe-command", "scaffold-contract",
-                "stage-artifact", "scaffold-plan", "challenge-batch",
-                "scaffold-analysis", "complete", "cleanup",
+                "runbook", "inspect", "execute", "probe-command",
+                "scaffold-contract", "stage-artifact", "scaffold-plan",
+                "challenge-batch", "scaffold-analysis", "complete", "cleanup",
             ],
         }, sort_keys=True))
         return 0
     try:
-        if args.command == "inspect":
+        if args.command == "runbook":
+            print(json.dumps(
+                runbook(args.manifest), ensure_ascii=False, sort_keys=True
+            ))
+        elif args.command == "inspect":
             print(json.dumps(inspect_review(
                 args.manifest,
                 _resolve_inspect_kind(args.kind, args.kind_positional),
@@ -2515,10 +2667,26 @@ def main() -> int:
             if not args.argv:
                 raise RunGateError("execute requires a command after --")
             argv = args.argv[1:] if args.argv[0] == "--" else args.argv
-            return execute(
+            returncode = execute(
                 args.manifest, args.phase, args.mutation_id, argv, args.timeout,
                 cwd_relative=args.cwd,
             )
+            if args.phase == "prepare" and returncode == 0:
+                print(json.dumps({
+                    "phase": "prepare", "returncode": returncode,
+                    "next": _next_step(
+                        "probe-command", "--manifest", str(args.manifest),
+                        "--command-id", "CMD-001",
+                        "--cwd", "<package-directory-or-omit>",
+                        "--", "<focused-test-argv>",
+                        note=(
+                            "replace the placeholders with the direct test "
+                            "executable located via inspect search; never a "
+                            "package-manager wrapper"
+                        ),
+                    ),
+                }, ensure_ascii=False, sort_keys=True))
+            return returncode
         elif args.command == "probe-command":
             if not args.argv:
                 raise RunGateError("probe-command requires a command after --")
@@ -2534,26 +2702,55 @@ def main() -> int:
                 challenge_batch(args.manifest, args.schema_root), sort_keys=True
             ))
         elif args.command == "scaffold-contract":
-            print(json.dumps(
-                scaffold_contract(args.manifest, args.schema_root),
-                ensure_ascii=False, sort_keys=True,
-            ))
+            print(json.dumps({
+                "artifact": ARTIFACT_FILES["contract"],
+                "editable_fields": SCAFFOLD_EDITABLE_FIELDS["contract"],
+                "document": scaffold_contract(args.manifest, args.schema_root),
+                "next": _next_step(
+                    "stage-artifact", "--manifest", str(args.manifest),
+                    "--kind", "contract",
+                    note="fill every replace-me value first; the Runner owns the JSON structure",
+                ),
+            }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-plan":
-            print(json.dumps(
-                scaffold_plan(args.manifest, args.schema_root),
-                ensure_ascii=False, sort_keys=True,
-            ))
+            print(json.dumps({
+                "artifact": "challenge-plan.json",
+                "editable_fields": SCAFFOLD_EDITABLE_FIELDS["plan"],
+                "document": scaffold_plan(args.manifest, args.schema_root),
+                "next": _next_step(
+                    "challenge-batch", "--manifest", str(args.manifest),
+                    note="fill the placeholder challenge first; run synchronously in the foreground",
+                ),
+            }, ensure_ascii=False, sort_keys=True))
         elif args.command == "scaffold-analysis":
-            print(json.dumps(
-                scaffold_analysis(args.manifest, args.mode, args.schema_root),
-                ensure_ascii=False,
-                sort_keys=True,
-            ))
+            print(json.dumps({
+                "artifact": "review-analysis.json",
+                "editable_fields": SCAFFOLD_EDITABLE_FIELDS["analysis"],
+                "document": scaffold_analysis(args.manifest, args.mode, args.schema_root),
+                "next": _next_step(
+                    "complete", "--manifest", str(args.manifest),
+                    "--retention", "discard",
+                    note=(
+                        "edit only semantic judgments, then complete renders and "
+                        "cleans up; use --retention keep only after an explicit "
+                        "user choice"
+                    ),
+                ),
+            }, ensure_ascii=False, sort_keys=True))
         elif args.command == "stage-artifact":
-            print(json.dumps(
-                stage_artifact(args.manifest, args.kind, args.schema_root),
-                sort_keys=True,
-            ))
+            staged = stage_artifact(args.manifest, args.kind, args.schema_root)
+            if args.kind == "contract":
+                staged = dict(staged)
+                staged["next"] = _next_step(
+                    "execute", "--phase", "prepare",
+                    "--manifest", str(args.manifest),
+                    "--", "<dependency-install-argv>",
+                    note=(
+                        "install dependencies once; if the repository needs no "
+                        "install, skip straight to probe-command"
+                    ),
+                )
+            print(json.dumps(staged, ensure_ascii=False, sort_keys=True))
         elif args.command == "finish":
             sys.stdout.write(finish(args.manifest, args.schema_root))
         elif args.command == "cleanup":
