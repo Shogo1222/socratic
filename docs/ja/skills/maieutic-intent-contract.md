@@ -23,7 +23,7 @@ decisions:
   - id: DEC-001
     question: <Oracleを変える判断>
     expected: <確認済みの期待値>
-    provenance: user-confirmed | repository-established
+    provenance: user-confirmed | repository-established | reviewer-selected-benchmark-assumption
 invariants:
   - id: INV-001
     statement: <維持すべき性質>
@@ -54,6 +54,10 @@ coverage:
 6. 現在の実装
 
 変更済み、弱い、Flaky、矛盾、実装依存のテストはOracleを確定できず、補助根拠にのみ使う。根拠の矛盾は未解決判断とし、現在の実装を選ぶ理由にしない。
+
+## Statusのライフサイクル
+
+`provisional`と`needs-decision`は確定前の状態で、`confirmed`は関連する全Oracleの解決を要する。`tested`はRun後も残る安定したテストの保護を要する。以降はElenchusが進める: Risk指向のMutationが安定テストに対して実行されたら`challenged`、選択した高RiskのMutantがKillされ、未挑戦のRiskがすべてReportで明示されたら`hardened`とする。使い捨ての提案テストだけに依存するReview-onlyの証明は`confirmed`より先に進めない。
 
 ## 品質確認
 

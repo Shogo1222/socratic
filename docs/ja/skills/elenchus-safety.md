@@ -9,11 +9,11 @@
 ## 必須規則
 
 - 主要Working Treeへ直接Mutationを適用しない。
-- Socraticでは、必須`run_review.py`のManifest、Guarded Mutation Ledger、Finish Commandを通った場合だけReview-only Mutationを正規Runとする。Gateが欠ける場合は手作業で代替せず`blocked`とする。
+- Socraticでは、必須`run_review.py`のManifest、Guarded Mutation Ledger、終端の`complete` Command(RenderとCleanupを行う。下位の`finish`を直接呼ぶことはない)を通った場合だけReview-only Mutationを正規Runとする。Gateが欠ける場合は手作業で代替せず`blocked`とする。
 - 実行前に対象範囲のFilesystem ManifestとContent Hashを記録し、実行後に比較する。
 - Mutantごとに新しい使い捨てWorkspaceを使用する。
 - 許可された未Commit変更を含め、正確なテスト対象状態を維持する。
-- Mutantは1件ずつ実行する。
+- Mutantごとに専用Sandboxを与える。Runnerの検証済み`challenge-batch`はそれらのSandboxを並行実行してよいが、共有WorkspaceでMutantを交互適用したり、変異済みTreeを再利用したりは決してしない。
 - BuildとTestへTimeoutを設定する。
 - Production Deploy、Migration、破壊的Integration、Live Service Commandを実行しない。
 - Testにも外部副作用があり得るため、先にリポジトリの指示とテスト設定を確認する。
@@ -24,12 +24,12 @@
 - Targetを各書き込み直前にResolve・検証する。Sandbox外、主要Root内、Sandbox内Symlink経由のTargetはHard Abortし、BackupとRestoreを隔離として認めない。
 - Primary Rootを包含するGit Repository Rootへ解決する。DependencyやBuild ToolのLinkを含め、Sandbox内のどのSymlinkでもRepository内へ解決するものは拒否する。
 - Cache、一時Directory、Package Manager State、Framework Build OutputをDisposable Sandbox内へRedirectする。
-- Repository Root全体を覆う、受理済みHost AttestationによるRead-only保護またはOS/Host Write-event Monitorがある場合だけ、`primary_written_during_run: false`を記録する。Schema v7の`verified: true`はHost Assertionの受理を意味し、Runnerによる独立したOS検証ではない。
+- Repository Root全体を覆う、受理済みHost AttestationによるRead-only保護またはOS/Host Write-event Monitorがある場合だけ、`primary_written_during_run: false`を記録する。Schema v10の`verified: true`はHost Assertionの受理を意味し、Runnerによる独立したOS検証ではない。
 - 復元、最終Clean、最終Hash一致によって、Run中に発生したPrimary Writeを取り消したことにはならない。
 
 ## Git境界
 
-ローカルGitの利用は、`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`、`git archive`による読み取り専用の根拠収集とSnapshot出力に限定する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。
+ローカルGitの利用は、`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`による読み取り専用の根拠収集に限定する。`git archive`は読み取り専用ではなく(`-o`がファイルを書く)、Host Gateが拒否する——SnapshotはFilesystem Copyで用意する。Hook-host実行中は各Commandを`git --no-pager`で始め、`diff`、`show`、`log`には`--no-ext-diff --no-textconv`を付ける。
 
 `git add`、`commit`、`amend`、`push`、`pull`、`fetch`、`checkout`、`switch`、`reset`、`stash`、`merge`、`rebase`、`cherry-pick`、`branch`、`tag`、`worktree`を実行しない。`gh`を呼び出さず、Pull Requestを作成せず、レビューコメントを投稿せず、Code HostのWrite APIを呼び出さない。BaseまたはHeadのObjectがローカルにない場合、Fetchせず利用不能として報告する。
 

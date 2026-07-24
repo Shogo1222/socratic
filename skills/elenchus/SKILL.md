@@ -9,11 +9,11 @@ Challenge a test suite with plausible misunderstandings of programming intent. O
 
 ## Required references
 
-Read [references/mutation-design.md](references/mutation-design.md) before generating mutants and [references/safety.md](references/safety.md) before changing or executing code. When a proposed test is proved or applied, read [references/test-handoff.md](references/test-handoff.md). Validate inputs and outputs with the bundled [intent-contract.schema.json](references/intent-contract.schema.json), [mutation-result.schema.json](references/mutation-result.schema.json), [mutation-report.schema.json](references/mutation-report.schema.json), and [test-handoff.schema.json](references/test-handoff.schema.json).
+Read [references/mutation-design.md](references/mutation-design.md) before generating mutants and [references/safety.md](references/safety.md) before changing or executing code. When a proposed test is proved or applied, read [references/test-handoff.md](references/test-handoff.md). In standalone use only, validate inputs and outputs with the bundled [intent-contract.schema.json](references/intent-contract.schema.json), [mutation-result.schema.json](references/mutation-result.schema.json), [mutation-report.schema.json](references/mutation-report.schema.json), and [test-handoff.schema.json](references/test-handoff.schema.json). Under a Socratic-hosted run, never open schema files: every document starts from a Runner scaffold whose `editable_fields` and `field_guide` carry the authoritative structure, and the Runner performs all validation.
 
 ## Git safety boundary
 
-Use local Git only for strictly read-only evidence gathering and immutable snapshot export. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, `git ls-files`, and `git archive`. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`. Never change local or remote Git state. Never run any staging, commit, amend, push, pull, fetch, checkout, switch, reset, stash, merge, rebase, cherry-pick, branch, tag, or worktree operation. Never invoke `gh` or a code-host write API. Do not request permission to perform a prohibited operation.
+Use local Git only for strictly read-only evidence gathering. Allowed commands are limited to `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, and `git ls-files`; `git archive` is not read-only (`-o` writes a file) and the Host gate denies it. During an active hook-host run, prefix each with `git --no-pager`; add `--no-ext-diff --no-textconv` to `diff`, `show`, and `log`. Never change local or remote Git state. Never run any staging, commit, amend, push, pull, fetch, checkout, switch, reset, stash, merge, rebase, cherry-pick, branch, tag, or worktree operation. Never invoke `gh` or a code-host write API. Do not request permission to perform a prohibited operation.
 
 Materialize Base and Head as disposable filesystem snapshots without branch switching or Git worktrees. If the required object is unavailable locally and obtaining it would require `fetch`, stop and report the snapshot as unavailable.
 
@@ -28,7 +28,7 @@ Before executing a repository-defined command, inspect the command and the scrip
 Load the contract in this order:
 
 1. an explicit path supplied by the user, Maieutic, or the Socratic orchestrator, including a temporary run artifact;
-2. `.socratic/intent-contract.json` in the repository, present when a previous run saved locally;
+2. `.socratic/intent-contract.json` — or `.socratic/contracts/<change-id>.json` when the flat file describes a different change — in the repository, present when a previous run saved locally;
 3. a complete contract in the current conversation.
 
 If none exists, Test Assessment Mode may create a temporary **provisional assessment contract** from the explicit user request, public behavior and repository documentation, and observable change evidence. Never treat implementation or tests as confirmed specification. Mark every such item provisional, route any result whose acceptability depends on missing intent to Maieutic, and never claim that a test protects confirmed intent from provisional evidence alone. Harden and Catch Mode still require the contract states described below; otherwise stop and ask the user to run `$maieutic`, run the full `$socratic` workflow, or supply a contract.
@@ -192,9 +192,9 @@ Prefer semantic and omission faults. Use traditional operator mutations only whe
 
 ### 3. Establish isolation and baseline
 
-Follow every rule in `references/safety.md`. Capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, mark it with `.socratic-disposable`, and apply the Baseline Policy there. Route every mutation write through the bundled `scripts/isolation_gate.py` `IsolationGate.write_bytes` or `write_text` API; a preflight authorization followed by an unguarded write is prohibited. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism.
+Follow every rule in `references/safety.md`. In standalone use (never under Socratic): capture a scoped filesystem manifest and content hashes for the primary workspace, create a disposable filesystem snapshot with the exact target state, mark it with `.socratic-disposable`, and apply the Baseline Policy there. Route every mutation write through the bundled `scripts/isolation_gate.py` `IsolationGate.write_bytes` or `write_text` API; a preflight authorization followed by an unguarded write is prohibited. Do not use Git status, a branch switch, or a Git worktree as the isolation or restoration mechanism. Results from this manual standalone path are advisory: they carry no Host attestation and must never be presented as a Socratic run or as the canonical attested report.
 
-When Socratic invokes Elenchus, accept only a ready manifest issued through Socratic's trusted Host Adapter API. Route every mutation through `mutate` or `register_prebuilt`, then run its tests through `execute` with `phase=mutation` and the same Mutation ID. A separate successful baseline execution is mandatory. If Host integration, protected storage, an accepted Host protection attestation, or phase-bound execution is unavailable, return `blocked` without mutation. Never approximate these phases manually or mutate Primary and restore it later.
+When Socratic invokes Elenchus, accept only a ready manifest issued through Socratic's trusted Host Adapter API, and use the Runner's fixed pipeline as the only mutation mechanism: one successful `probe-command` records the baseline, then a single validated `challenge-batch` applies every anchored edit in its own fresh copy-on-write sandbox. The per-mutant `mutate`/`register-prebuilt` plus `execute --phase mutation` commands exist only for a challenge that cannot be expressed as an anchored edit; prefer the batch, and never mix both mechanisms for the same Mutation ID. If Host integration, protected storage, an accepted Host protection attestation, or phase-bound execution is unavailable, return `blocked` without mutation. Never approximate these phases manually or mutate Primary and restore it later.
 
 Keep raw command outcomes separate from interpretation. A nonzero exit is not by itself a behavioral kill. Record `outcome_interpretation.kind` as `behavioral-failure` only when assertion evidence demonstrates the represented Contract violation. Use `infrastructure-failure`, `process-crash`, `timeout`, or `unparseable` and classify the mutation as `inconclusive` otherwise.
 
@@ -208,7 +208,7 @@ Prefer Socratic's validated `challenge-batch` for independent mutants. Submit de
 2. apply only that mutant and inspect the changed files;
 3. compile or run the narrowest stable tests with a timeout;
 4. classify the result;
-5. discard mutated state before the next mutant.
+5. discard each sandbox once its raw outcome is recorded — concurrent sandboxes are fine; a shared workspace with interleaved edits is not.
 
 Use:
 
@@ -260,7 +260,7 @@ For direct Test Assessment Mode, use the standalone assessment surface from its 
 
 ## Report artifact
 
-Produce the report against the bundled report schema as a temporary run artifact; it is written to `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy. Include:
+Under a Socratic-hosted run, the Runner builds, validates, and attests the report; never hand-write its run identity, nonce, manifest hash, or ledger fields. In standalone use there is no Runner-issued run nonce, manifest hash, or ledger head, so the canonical attested report cannot exist: produce a standalone assessment record with the fields below as a temporary run artifact, label it advisory rather than attested, and never fabricate Runner-issued values to satisfy the canonical schema. It is written to `.socratic/elenchus-report.json` only when the user chooses local saving under the artifact policy. Include:
 
 - mode, contract path, and stable baseline evidence;
 - Test Assessment scope selection, existing and changed cohorts, comparison classifications, and excluded scope — also recorded when Socratic requests a cohort comparison in Catch or Harden Mode — or `null` when no cohort comparison was performed;

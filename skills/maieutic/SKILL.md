@@ -9,7 +9,7 @@ Turn a code diff into a small set of human decisions and a validated, executable
 
 ## Required references
 
-Read [references/intent-contract.md](references/intent-contract.md) before recording decisions. Validate contract artifacts with [references/intent-contract.schema.json](references/intent-contract.schema.json). Read [references/qa-techniques.md](references/qa-techniques.md) when selecting test cases.
+Read [references/intent-contract.md](references/intent-contract.md) before recording decisions. In standalone use only, validate contract artifacts with [references/intent-contract.schema.json](references/intent-contract.schema.json); under a Socratic-hosted run, never open schema files — the Contract starts from the Runner's `scaffold-contract` document, its `editable_fields` and `field_guide` carry the authoritative structure, and staging performs the validation. Read [references/qa-techniques.md](references/qa-techniques.md) when selecting test cases.
 
 When receiving or preparing a proven-test handoff, also read [Proven Test Handoff](../elenchus/references/test-handoff.md). Elenchus owns its mutation evidence and patch artifact; Maieutic owns whether its mapped expectations are confirmed and still current.
 
@@ -165,7 +165,7 @@ Inspect commit titles, pull-request text, changesets, and code comments before c
 - place unconfirmed inferences in `intent.evidence`, never in `decisions`;
 - place unresolved oracle choices in `unresolved`, never in `decisions`.
 
-Maintain the active contract as a temporary run artifact outside the repository working tree and validate it with the bundled schema. Update it after every confirmed decision and hand its path to the orchestrator or Elenchus. Write into `.socratic/` only when the user chooses local saving under the artifact policy: use `.socratic/intent-contract.json`, and if that file already describes a different change, do not overwrite it — write `.socratic/contracts/<change-id>.json` instead.
+Maintain the active contract as a temporary run artifact outside the repository working tree — validated with the bundled schema in standalone use, and by the Runner's staging gate under Socratic. Update it after every confirmed decision and hand its path to the orchestrator or Elenchus. Write into `.socratic/` only when the user chooses local saving under the artifact policy: use `.socratic/intent-contract.json`, and if that file already describes a different change, do not overwrite it — write `.socratic/contracts/<change-id>.json` instead.
 
 Set `status` to `needs-decision` while relevant unresolved items remain and `confirmed` when required decisions are resolved. Advance to `tested` only when the mapped passing tests persist beyond the run — pre-existing tests, or tests applied to the working tree in Apply tests mode. In a Review-only run whose protection rests on proposed tests, stop at `confirmed`: a discarded test protects nothing.
 
@@ -196,7 +196,7 @@ If the changed artifact cannot be meaningfully observed with a unit test, use th
 
 When required expectations are confirmed, design the smallest maintainable unit tests that close material gaps. Follow existing conventions. Prefer one behavioral reason for failure per test and names tied to the contract rather than implementation details.
 
-In Review-only mode, the default, implement and prove these tests only in a disposable environment and report them as proposed tests. Apply them to the repository working tree only in Apply tests mode, when the user has explicitly requested test additions.
+In Review-only mode, the default, implement and prove these tests only in a disposable environment and report them as proposed tests; under Socratic, Maieutic designs the tests and Elenchus performs that disposable-workspace proof and creates the handoff. Apply tests to the repository working tree only in Apply tests mode, when the user has explicitly requested test additions.
 
 Classify provenance at the Socratic or standalone Maieutic run boundary. A test already present at preflight is **existing at run start**, even if it was added earlier in the same conversation. A disposable-only test is **proposed and proven in disposable workspace**. A test written to the primary workspace during an explicitly authorized Apply tests run is **applied by this run after explicit request**. Use these phrases in reviewer-facing output; never say only that a test was added.
 

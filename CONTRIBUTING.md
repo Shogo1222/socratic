@@ -41,38 +41,39 @@ gh skill publish --dry-run
 
 Fixture validation needs `jsonschema` and `referencing` (`python3 -m pip install jsonschema referencing`); everything else uses the standard library.
 
-The distribution audit intentionally fixes the shipped standalone Skill file set at 30 UTF-8 text files and the Plugin bundle at 50 UTF-8 text files. Any added Skill, Plugin manifest, Host hook, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
+The distribution audit intentionally fixes the shipped standalone Skill file set at 31 UTF-8 text files and the Plugin bundle at 51 UTF-8 text files. Any added Skill, Plugin manifest, Host hook, external URL host, executable bit, binary, or symbolic link requires an explicit audit-policy change in the same pull request.
 
-## v0.2 scope
+## Current scope
 
-v0.2 narrows its target to changes where:
+The v0.5 integration preview targets changes where:
 
-- an existing test environment is available;
-- base and head can be run locally;
+- a trusted Host (Claude Code, Codex, or local Cursor Desktop) can start the session broker and tool gate;
+- an existing test environment is available and the focused test command can be probed locally;
 - return values, exceptions, state, and side effects are deterministically observable;
-- Feature Review, Refactor Guard, or Test Assessment can be identified as the purpose;
-- important behavior probes are limited to three to five;
-- the same tests run on both base and head;
-- only important mutations are selected;
+- Bug Fix Review, Feature Review, Refactor Guard, or Test Assessment can be identified as the purpose;
+- the Runner owns commands, disposable clones, mutations, schemas, hashes, reports, and cleanup — one prepared dependency layer, one probed focused command, one parallel challenge-batch;
+- only important, intent-linked mutations are selected;
 - nothing is auto-posted to GitHub;
 - comment candidates carry file names and line numbers;
 - unverified scope and test-strategy trade-offs are always reported.
 
 ## CI and releases
 
-GitHub Actions runs the same repository consistency check documented above for every pull request and push to `main`. It also validates Agent Skills metadata and the pre-agent Plugin gate, runs the distribution-audit tests, rejects unexpected, executable, binary, or symbolic-link files in either distribution, restricts external URL hosts, verifies required safety rules, and performs an actual 21-file standalone Skill installation into a temporary directory. Separate 21-file Skill and 24-file Plugin manifests and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
+GitHub Actions runs the same repository consistency check documented above for every pull request and push to `main`. It also validates Agent Skills metadata and the pre-agent Plugin gate, runs the distribution-audit tests, rejects unexpected, executable, binary, or symbolic-link files in either distribution, restricts external URL hosts, verifies required safety rules, and performs an actual standalone Skill installation of the full audited file set into a temporary directory. Separate Skill and Plugin distribution manifests and per-file hashes are uploaded as CI evidence. All third-party Actions are pinned to commit SHAs.
+
+Release conditions CI cannot prove — live per-Host fresh-install E2E runs — are tracked in the [release checklist](docs/release-checklist.md); notable changes per version line are summarized in the [changelog](CHANGELOG.md).
 
 The root [`VERSION`](VERSION) file declares the next release version. Change it to the next semantic version in a pull request. After that pull request is merged to `main` and CI succeeds, the Release workflow checks out the exact validated commit and publishes the new version automatically. If the corresponding tag already exists, the workflow exits successfully without publishing a duplicate. Manual workflow dispatch remains available on `main` for recovery and reads the same `VERSION` file.
 
-For a new version such as `0.2.1`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.2.1` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes.
+For a new version such as `0.5.0`, the workflow validates the repository, distribution, installation result, and version; creates an annotated `v0.5.0` tag; and publishes per-skill and suite ZIP files with `SHA256SUMS`, `SKILL_SHA256SUMS`, a JSON file manifest, and generated release notes. Prerelease identifiers such as `0.5.0-alpha.7` are marked as prereleases automatically.
 
 The release workflow does not modify source files. The Git tag is the immutable identity of a published release. Published releases require repository release immutability and are verified together with every attached asset before the workflow succeeds. The immutable release attestation, rather than an Actions-held private signing key, is the first release trust anchor.
 
 Verify a published release and a downloaded asset with GitHub CLI:
 
 ```bash
-gh release verify v0.2.3 --repo Shogo1222/socratic
-gh release verify-asset v0.2.3 ./socratic-v0.2.3.zip \
+gh release verify v0.5.0-alpha.7 --repo Shogo1222/socratic
+gh release verify-asset v0.5.0-alpha.7 ./socratic-v0.5.0-alpha.7.zip \
   --repo Shogo1222/socratic
 ```
 

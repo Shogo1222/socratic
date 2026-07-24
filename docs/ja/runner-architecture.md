@@ -1,10 +1,12 @@
 # Narrow Runner Architecture Decision
 
-Status: v0.4 Prototype向けに確定。
+Status: v0.4 Prototype向けに確定。以下の判定基準と境界は、v0.5の正準Runner Pipelineにも適用される。
 
 判定基準は次です。
 
 > これは推論か手続きか。推論はAgentが扱えるように残し、手続きはRunnerへ移す。
+
+v0.5の正準Integrationはこの基準を端から端まで適用する: Host-gated Runner(`run_review.py`)がPreflight、Runbook、範囲制限付きInspection、1回だけの依存準備、Focused CommandのProbe、Copy-on-write Mutation Sandbox、並列`challenge-batch`、ReportのAttestation、Render、Cleanupを所有し、AgentはRunnerがScaffoldした意味的文書だけを供給して各Resultの`next.argv`に従う。以下の各節は、確定済みDecisionを元のv0.4 Prototypeの用語で記録する。
 
 最初のVertical Sliceは、1回の`python-unittest` Round、既存Dependency、`replace-exact`／`delete-exact` Mutation、`attested: false`だけを発行できる`local-copy` Backendに限定する。Differential DevelopmentとDogfooding用であり、正準Socratic Reviewには使用しない。
 

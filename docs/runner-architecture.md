@@ -1,10 +1,12 @@
 # Narrow Runner Architecture Decisions
 
-Status: accepted for the v0.4 prototype.
+Status: accepted for the v0.4 prototype; the decision rule and boundaries below now also govern the v0.5 canonical Runner pipeline.
 
 The decision rule is:
 
 > Is this reasoning or procedure? Keep reasoning available to the agent; move procedure into the Runner.
+
+The v0.5 canonical integration applies this rule end to end: the Host-gated Runner (`run_review.py`) owns preflight, the runbook, bounded inspection, one-time dependency preparation, the focused-command probe, copy-on-write mutation sandboxes, the parallel `challenge-batch`, report attestation, rendering, and cleanup, while the agent supplies only semantic documents scaffolded by the Runner and follows each result's `next.argv`. The sections below record the accepted decisions in their original v0.4-prototype terms.
 
 The first vertical slice intentionally supports one `python-unittest` round, existing dependencies, `replace-exact` and `delete-exact` mutations, and a `local-copy` backend that can emit only `attested: false` evidence. It is for differential development and dogfooding, not canonical Socratic reviews.
 

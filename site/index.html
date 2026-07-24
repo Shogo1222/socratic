@@ -18,10 +18,10 @@
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Socratic — Feature Review, Refactor Guard, Test Assessment. All in one.">
+    <meta property="og:image:alt" content="Socratic — Bug Fix Review, Feature Review, Refactor Guard, Test Assessment. All in one.">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://shogo1222.github.io/socratic/og-social-20260722.png">
-    <meta name="twitter:image:alt" content="Socratic — Feature Review, Refactor Guard, Test Assessment. All in one.">
+    <meta name="twitter:image:alt" content="Socratic — Bug Fix Review, Feature Review, Refactor Guard, Test Assessment. All in one.">
     <title>Socratic — AI生成PRのレビューを、重要な判断に集中させる</title>
     <link rel="canonical" href="https://shogo1222.github.io/socratic/">
     <link rel="alternate" hreflang="ja" href="https://shogo1222.github.io/socratic/">
@@ -56,14 +56,15 @@
           <div class="hero-copy">
             <p class="eyebrow"><span></span> Open source Agent Skills for AI code review</p>
             <h1 class="product-headline">
+              <span>Bug Fix Review</span>
               <span>Feature Review</span>
               <span>Refactor Guard</span>
               <span>Test Assessment</span>
               <strong>ALL IN ONE.</strong>
             </h1>
             <p class="hero-lead">
-              機能の意図を問い、リファクタリングを守り、テストの検出力を評価する。<br>
-              <strong>3つのレビューを、ひとつのワークフローで。</strong>
+              バグ修正を過剰修正なしに確かめ、機能の意図を問い、リファクタリングを守り、テストの検出力を評価する。<br>
+              <strong>4つのReview Typeを、ひとつのワークフローで。</strong>
             </p>
             <div class="hero-actions">
               <a class="button button-primary" href="#how">See How It Works <span aria-hidden="true">↓</span></a>
@@ -240,6 +241,19 @@
           </div>
           <div class="case-grid">
             <article>
+              <span class="case-label">00 / BUG FIX</span>
+              <h3>Bug Fix Review</h3>
+              <p class="case-ja">報告された不具合の<br>「解消」を確かめる</p>
+              <p>報告された失敗と維持すべき周辺の振る舞いを確立し、回帰の再導入と過剰修正の両方を事故Mutationで検査します。</p>
+              <div class="case-visual terminal-question" role="img" aria-label="ターミナル上で、報告された失敗が解消され、周辺の振る舞いが維持されていることを確認する例">
+                <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · bug fix review</span></div>
+                <div class="terminal-question-body">
+                  <code><span>›</span> <strong>報告された失敗</strong>の解消を検証<span class="terminal-cursor" aria-hidden="true"></span></code>
+                  <p><b>✓</b> バグを再導入すると対象テストが失敗し、維持すべき振る舞いはGreenのまま。</p>
+                </div>
+              </div>
+            </article>
+            <article>
               <span class="case-label">01 / SPECIFICATION</span>
               <h3>Feature Review</h3>
               <p class="case-ja">新しい振る舞いの<br>「正しさ」を決める</p>
@@ -262,7 +276,7 @@
               <span class="case-label">02 / REGRESSION</span>
               <h3>Refactor Guard</h3>
               <p class="case-ja">リファクタリングの<br>振る舞い差を見つける</p>
-              <p>BaseとHeadへ同じBehavior Testを実行。差があれば、意図した変更か回帰かを人間へ確認します。</p>
+              <p>HostがMaterializeしたBase/Head Diffから観測可能なInvariantを確立し、対象のHead Baselineを証明した上で、現実的なMutantの失敗を要求します。安定した比較が差を示せば、意図した変更か回帰かを人間へ確認します。</p>
               <div class="case-visual animated-terminal compare-terminal" role="img" aria-label="同じBehavior TestをBaseとHeadへ順番に実行し、テスト結果の差を検出するターミナル">
                 <div class="case-terminal-bar"><i aria-hidden="true">● ● ●</i><span>socratic · refactor guard</span></div>
                 <div class="animated-terminal-body" aria-hidden="true">
