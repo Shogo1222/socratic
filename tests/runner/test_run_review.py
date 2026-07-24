@@ -2017,6 +2017,35 @@ class RunReviewTest(unittest.TestCase):
                 self.runner._tree_hash(Path(manifest["primary_root"])), before
             )
 
+    def test_cli_probe_exit_code_reports_failure_to_the_host(self) -> None:
+        # Found by the Refactor Guard self-review of this split (MUT-002): the
+        # focused suite asserted the JSON status but never the process exit
+        # code, so collapsing the probe dispatch to `return 0` survived.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            blocked = subprocess.run(
+                [
+                    sys.executable, str(MODULE), "probe-command",
+                    "--manifest", str(manifest_path), "--command-id", "CMD-001",
+                    "--", sys.executable, "-c", "import sys; sys.exit(1)",
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(blocked.returncode, 2)
+            self.assertEqual(json.loads(blocked.stdout)["status"], "blocked")
+            ready = subprocess.run(
+                [
+                    sys.executable, str(MODULE), "probe-command",
+                    "--manifest", str(manifest_path), "--command-id", "CMD-001",
+                    "--", sys.executable, "-c", "pass",
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(ready.returncode, 0)
+            self.assertEqual(json.loads(ready.stdout)["status"], "ready")
+
     def test_cli_preflight_on_non_repository_prints_blocked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "not-a-repository"
