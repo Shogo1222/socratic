@@ -1859,6 +1859,70 @@ class RunReviewTest(unittest.TestCase):
                     [sys.executable, "-c", "pass"], 10,
                 )
 
+    def test_sandbox_env_presets_pretend_version_for_gitless_snapshot(self) -> None:
+        self.assertEqual(
+            self.runner.SANDBOX_ENV_DEFAULTS["SETUPTOOLS_SCM_PRETEND_VERSION"],
+            "0.0.0",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            output = Path(manifest["sandbox_root"]) / "pretend.json"
+            script = (
+                "import json,os,pathlib; "
+                f"pathlib.Path({str(output)!r}).write_text("
+                "json.dumps(os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')))"
+            )
+            self.assertEqual(
+                self.runner.execute(
+                    manifest_path, "baseline", None, [sys.executable, "-c", script], 10
+                ),
+                0,
+            )
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8")), "0.0.0")
+
+    def test_infrastructure_hint_names_environment_causes(self) -> None:
+        gitless = self.runner._infrastructure_hint(
+            "versioningit could not find a version for the project", ["pip"]
+        )
+        self.assertIn(".git", gitless)
+        self.assertIn("SETUPTOOLS_SCM_PRETEND_VERSION", gitless)
+        self.assertIn("default-version", gitless)
+        mismatch = self.runner._infrastructure_hint(
+            "ERROR: Package 'example' requires a different Python: 3.9.6 not in '>=3.10'",
+            ["python3"],
+        )
+        self.assertIn("project's own interpreter", mismatch)
+        missing = self.runner._infrastructure_hint(
+            "[Errno 2] No such file or directory: 'uv'", ["uv", "run", "pytest"]
+        )
+        self.assertIn("uv", missing)
+        self.assertIn("absolute path", missing)
+        self.assertIsNone(self.runner._infrastructure_hint("assert 1 == 2", ["pytest"]))
+
+    def test_blocked_probe_carries_environment_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            script = (
+                "import sys; "
+                "sys.stderr.write('fatal: not a git repository (versioningit)\\n'); "
+                "sys.exit(1)"
+            )
+            result = self.runner.probe_command(
+                manifest_path, "CMD-001", [sys.executable, "-c", script], 10
+            )
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn(".git", result["hint"])
+            missing = self.runner.probe_command(
+                manifest_path, "CMD-002",
+                [str(Path(directory) / "missing-tool"), "run"], 10,
+            )
+            self.assertEqual(missing["status"], "blocked")
+            self.assertIn("absolute path", missing["hint"])
+
     def test_cli_preflight_on_non_repository_prints_blocked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "not-a-repository"
