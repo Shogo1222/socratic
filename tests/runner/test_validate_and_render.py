@@ -152,6 +152,27 @@ class ValidateAndRenderTest(unittest.TestCase):
                 draft, "mutation-report-draft.schema.json", ROOT / "schemas"
             )
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("jsonschema") and importlib.util.find_spec("referencing"),
+        "schema validation dependencies unavailable",
+    )
+    def test_validation_error_names_path_type_and_allowed_values(self) -> None:
+        contract = json.loads(
+            (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+        )
+        contract["coverage"][0]["tests"] = "not-an-array"
+        contract["decisions"][0]["provenance"] = "guessed"
+        with self.assertRaises(validate_and_render.ArtifactError) as caught:
+            validate_and_render.validate_document(
+                contract, "intent-contract.schema.json", ROOT / "schemas"
+            )
+        message = str(caught.exception)
+        self.assertIn("$.coverage[0].tests", message)
+        self.assertIn('use type "array"', message)
+        self.assertIn("$.decisions[0].provenance", message)
+        self.assertIn("choose one of", message)
+        self.assertIn("repository-established", message)
+
     def test_renders_exactly_four_blocks(self) -> None:
         review = {
             "review_this": [],

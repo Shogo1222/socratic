@@ -555,6 +555,151 @@ class RunReviewTest(unittest.TestCase):
             with self.assertRaisesRegex(self.runner.RunGateError, "already exists"):
                 self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
 
+    def test_scaffold_contract_cli_returns_runner_owned_field_guide(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            _manifest, manifest_path = self.ready(root, repository)
+            stdout = io.StringIO()
+            with patch.object(sys, "argv", [
+                "run_review.py",
+                "scaffold-contract",
+                "--manifest", str(manifest_path),
+                "--schema-root", str(ROOT / "schemas"),
+            ]), redirect_stdout(stdout):
+                code = self.runner.main()
+            self.assertEqual(code, 0)
+            result = json.loads(stdout.getvalue())
+            self.assertEqual(
+                result["field_guide"]["coverage[*]"]["required_keys"],
+                ["contract_id", "tests"],
+            )
+            self.assertEqual(
+                result["document"]["coverage"], []
+            )
+            self.assertIn("stage-artifact", result["next"]["argv"])
+
+    def test_scaffold_guides_expose_required_shapes_and_enum_values(self) -> None:
+        contract = self.runner.SCAFFOLD_FIELD_GUIDES["contract"]
+        self.assertEqual(
+            contract["coverage[*]"]["required_keys"],
+            ["contract_id", "tests"],
+        )
+        self.assertIn(
+            "repository-established",
+            contract["decisions[*]"]["allowed_provenance"],
+        )
+        plan = self.runner.SCAFFOLD_FIELD_GUIDES["plan"]
+        self.assertEqual(
+            set(plan["challenges[*].mutation"]["variants"]),
+            {"replace-exact", "delete-exact"},
+        )
+        analysis = self.runner.SCAFFOLD_FIELD_GUIDES["analysis"]
+        self.assertIn(
+            "behavioral-failure",
+            analysis["classifications[*]"]["allowed_outcome_kind"],
+        )
+        self.assertEqual(
+            analysis["not_challenged[*]"]["required_keys"],
+            ["contract_id", "reason", "residual_risk"],
+        )
+        self.assertEqual(
+            analysis["review.copy_ready_comments[*]"]["required_keys"],
+            ["tag", "file", "line", "body", "evidence"],
+        )
+        for path in (
+            "assessment",
+            "not_challenged[*]",
+            "test_changes[*]",
+            "review.copy_ready_comments[*]",
+        ):
+            self.assertIn(path, self.runner.SCAFFOLD_EDITABLE_FIELDS["analysis"])
+
+    def test_scaffold_guides_do_not_drift_from_canonical_schemas(self) -> None:
+        contract_schema = json.loads(
+            (ROOT / "schemas/intent-contract.schema.json").read_text()
+        )
+        plan_schema = json.loads(
+            (ROOT / "schemas/challenge-plan.schema.json").read_text()
+        )
+        result_schema = json.loads(
+            (ROOT / "schemas/mutation-result.schema.json").read_text()
+        )
+        report_schema = json.loads(
+            (ROOT / "schemas/mutation-report.schema.json").read_text()
+        )
+        review_schema = json.loads(
+            (ROOT / "schemas/canonical-review.schema.json").read_text()
+        )
+        contract = self.runner.SCAFFOLD_FIELD_GUIDES["contract"]
+        self.assertEqual(
+            contract["status"]["allowed"],
+            contract_schema["properties"]["status"]["enum"],
+        )
+        self.assertEqual(
+            contract["decisions[*]"]["allowed_provenance"],
+            contract_schema["$defs"]["decision"]["properties"]["provenance"]["enum"],
+        )
+        plan = self.runner.SCAFFOLD_FIELD_GUIDES["plan"]
+        challenge_properties = plan_schema["properties"]["challenges"]["items"][
+            "properties"
+        ]
+        self.assertEqual(
+            plan["challenges[*]"]["allowed_severity"],
+            challenge_properties["severity"]["enum"],
+        )
+        self.assertEqual(
+            plan["challenges[*]"]["allowed_likelihood"],
+            challenge_properties["likelihood"]["enum"],
+        )
+        analysis = self.runner.SCAFFOLD_FIELD_GUIDES["analysis"]
+        self.assertCountEqual(
+            analysis["classifications[*]"]["allowed_result"],
+            result_schema["properties"]["result"]["enum"],
+        )
+        self.assertCountEqual(
+            analysis["classifications[*]"]["allowed_outcome_kind"],
+            result_schema["properties"]["outcome_interpretation"]["properties"][
+                "kind"
+            ]["enum"],
+        )
+        self.assertEqual(
+            analysis["not_challenged[*]"]["allowed_reason"],
+            report_schema["properties"]["not_challenged"]["items"]["properties"][
+                "reason"
+            ]["enum"],
+        )
+        self.assertEqual(
+            analysis["review.copy_ready_comments[*]"]["allowed_tag"],
+            review_schema["properties"]["copy_ready_comments"]["items"][
+                "properties"
+            ]["tag"]["enum"],
+        )
+
+    def test_contract_guide_templates_validate_without_reading_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            _manifest, manifest_path = self.ready(root, repository)
+            document = self.runner.scaffold_contract(
+                manifest_path, ROOT / "schemas"
+            )
+            guide = self.runner.SCAFFOLD_FIELD_GUIDES["contract"]
+            document["coverage"] = [dict(guide["coverage[*]"]["template"])]
+            document["side_effects"]["required"] = [
+                dict(guide["side_effects.required[*]"]["template"])
+            ]
+            self.runner._validator_module().validate_document(
+                document, "intent-contract.schema.json", ROOT / "schemas"
+            )
+            document["status"] = "needs-decision"
+            document["unresolved"] = [
+                dict(guide["unresolved[*]"]["template"])
+            ]
+            self.runner._validator_module().validate_document(
+                document, "intent-contract.schema.json", ROOT / "schemas"
+            )
+
     def test_scaffold_plan_requires_probe_and_binds_command_id(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -569,6 +714,13 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(document["command_id"], "CMD-007")
             artifact = Path(manifest["artifact_root"]) / "challenge-plan.json"
             self.assertEqual(json.loads(artifact.read_text()), document)
+            delete_template = self.runner.SCAFFOLD_FIELD_GUIDES["plan"][
+                "challenges[*].mutation"
+            ]["variants"]["delete-exact"]["template"]
+            document["challenges"][0]["mutation"] = dict(delete_template)
+            self.runner._validator_module().validate_document(
+                document, "challenge-plan.schema.json", ROOT / "schemas"
+            )
 
     def test_preflight_records_run_start_time(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -876,11 +1028,51 @@ class RunReviewTest(unittest.TestCase):
             analysis = json.loads(
                 (artifact_root / "review-analysis.json").read_text()
             )
+            self.assertIsInstance(analysis["assessment"], dict)
+            self.assertEqual(
+                analysis["assessment"]["selected_scope"], "current-change"
+            )
             classification = analysis["classifications"][0]
             self.assertEqual(classification["result"], "inconclusive")
             self.assertEqual(
                 classification["outcome_interpretation"]["kind"], "unparseable"
             )
+            classification.update({
+                "source_intent": "The source retains its established value",
+                "changed_intent": "The source silently changes value",
+                "result": "killed",
+                "detecting_tests": ["focused source behavior"],
+                "observed_failure_reason": "The focused behavior check failed",
+                "contract_violation_observed": True,
+                "outcome_interpretation": {
+                    "kind": "behavioral-failure",
+                    "reason": "The changed value violated DEC-001",
+                },
+            })
+            guide = self.runner.SCAFFOLD_FIELD_GUIDES["analysis"]
+            analysis["not_challenged"] = [
+                dict(guide["not_challenged[*]"]["template"])
+            ]
+            analysis["test_changes"] = [
+                dict(guide["test_changes[*]"]["template"])
+            ]
+            analysis["review"]["review_this"] = [
+                dict(guide["review.review_this[*]"]["template"])
+            ]
+            analysis["review"]["copy_ready_comments"] = [
+                dict(guide["review.copy_ready_comments[*]"]["template"])
+            ]
+            self.runner._validator_module().validate_document(
+                analysis, "review-analysis.schema.json", ROOT / "schemas"
+            )
+            (artifact_root / "review-analysis.json").write_text(
+                json.dumps(analysis), encoding="utf-8"
+            )
+            rendered = self.runner.complete(
+                manifest_path, retention="discard", schema_root=ROOT / "schemas"
+            )
+            self.assertIn("Review This:", rendered)
+            self.assertFalse(manifest_path.exists())
 
     def test_execute_forces_home_temp_and_caches_into_sandbox(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
