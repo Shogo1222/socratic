@@ -5,11 +5,14 @@ Commands:
   run            execute one headless review against the fixture and record the outcome
   list           list recorded runs
   clean-sessions remove /tmp/socratic-sessions entries whose broker is dead and whose
-                 primary points at a devloop fixture
+                 primary resolves inside the devloop home
 
 Runs and fixtures live outside the repository (default ~/.socratic-devloop,
-override with SOCRATIC_DEVLOOP_HOME) so the plugin working tree stays clean and
-the fixture is never nested inside the plugin root.
+override with SOCRATIC_DEVLOOP_HOME). Records are written 0600 inside 0700
+directories, and host tokens/nonces are redacted before anything is persisted.
+A run exits 0 only when the CLI succeeded, the canonical four-block surface was
+extracted, the target tree content is byte-identical, and no broker session for
+the target survived the run.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import datetime as _dt
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -31,10 +35,21 @@ RUNS_DIR = DEVLOOP_HOME / "runs"
 FIXTURES_DIR = DEVLOOP_HOME / "fixtures"
 SESSIONS_DIR = Path("/tmp/socratic-sessions")
 
+CANONICAL_MARKERS = ("Review This", "We Verified", "Still at Risk", "Copy-ready")
+
+REDACTIONS = [
+    (re.compile(r"(--host-token[ =])[A-Za-z0-9_\-.]+"), r"\1[REDACTED]"),
+    (re.compile(r"(SOCRATIC_HOST_TOKEN[= ])[A-Za-z0-9_\-.]+"), r"\1[REDACTED]"),
+    (re.compile(r'("(?:token|run_nonce)"\s*:\s*")[^"]+(")'), r"\1[REDACTED]\2"),
+    (re.compile(r'(\\"(?:token|run_nonce)\\"\s*:\s*\\")(?:[^"\\]|\\(?!"))+(\\")'), r"\1[REDACTED]\2"),
+]
+
 DEFAULT_PROMPT = (
     "/socratic:socratic review the change from main to HEAD in this repository. "
     "This is a non-interactive run: when you would ask a structured question, "
-    "choose the recommended option and continue. Discard run artifacts at the end."
+    "choose the recommended option, say so, and continue. Execute every Runner "
+    "command synchronously in the foreground; never background one or end the "
+    "turn to wait. Discard run artifacts at the end."
 )
 
 FIXTURE_BASE_SOURCE = '''\
@@ -98,6 +113,23 @@ FIXTURE_SETTINGS = {
 }
 
 
+def redact(text: str) -> str:
+    for pattern, replacement in REDACTIONS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def _secure_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
+    return path
+
+
+def _secure_write(path: Path, text: str) -> None:
+    path.write_text(redact(text), encoding="utf-8")
+    os.chmod(path, 0o600)
+
+
 def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
@@ -108,10 +140,43 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _write_settings(fixture: Path) -> None:
-    settings_dir = fixture / ".claude"
-    settings_dir.mkdir(exist_ok=True)
-    (settings_dir / "settings.json").write_text(json.dumps(FIXTURE_SETTINGS, indent=2) + "\n")
+def _git_bytes(repo: Path, *args: str) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], check=False, capture_output=True
+    ).stdout
+
+
+def content_digest(repo: Path) -> str:
+    """Digest HEAD, staged and unstaged diffs, and untracked file contents.
+
+    `git status` alone cannot prove an unchanged tree: a file that was already
+    modified before the run keeps the same status line when it is modified
+    again, and untracked contents never appear in it.
+    """
+    hasher = hashlib.sha256()
+
+    def feed(label: str, data: bytes) -> None:
+        hasher.update(label.encode())
+        hasher.update(b"\0")
+        hasher.update(data)
+        hasher.update(b"\0")
+
+    feed("head", _git_bytes(repo, "rev-parse", "HEAD"))
+    feed("status", _git_bytes(repo, "status", "--porcelain=v1", "-z"))
+    feed("unstaged", _git_bytes(repo, "diff", "--binary"))
+    feed("staged", _git_bytes(repo, "diff", "--cached", "--binary"))
+    untracked = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "--others", "--exclude-standard", "-z"],
+        check=False, capture_output=True, text=True,
+    ).stdout
+    for name in sorted(part for part in untracked.split("\0") if part):
+        target = repo / name
+        try:
+            data = target.read_bytes()
+        except OSError:
+            data = b"<unreadable>"
+        feed("untracked:" + name, data)
+    return hasher.hexdigest()
 
 
 def build_fixture(fresh: bool = False) -> Path:
@@ -135,14 +200,20 @@ def build_fixture(fresh: bool = False) -> Path:
     return fixture
 
 
+def _write_settings(fixture: Path) -> None:
+    settings_dir = fixture / ".claude"
+    settings_dir.mkdir(exist_ok=True)
+    (settings_dir / "settings.json").write_text(json.dumps(FIXTURE_SETTINGS, indent=2) + "\n")
+
+
 def socratic_state() -> dict:
     rev = _git(SOCRATIC_ROOT, "rev-parse", "--short", "HEAD")
     status = _git(SOCRATIC_ROOT, "status", "--porcelain")
-    diff = subprocess.run(
-        ["git", "-C", str(SOCRATIC_ROOT), "diff"], capture_output=True, text=True
-    ).stdout
-    digest = hashlib.sha256((status + "\n" + diff).encode()).hexdigest()[:12]
-    return {"rev": rev, "dirty": bool(status), "working_tree_digest": digest}
+    return {
+        "rev": rev,
+        "dirty": bool(status),
+        "working_tree_digest": content_digest(SOCRATIC_ROOT)[:12],
+    }
 
 
 def _session_dirs() -> set:
@@ -151,21 +222,59 @@ def _session_dirs() -> set:
     return {p.name for p in SESSIONS_DIR.iterdir() if p.is_dir()}
 
 
-def _tree_snapshot(repo: Path) -> str:
-    head = _git(repo, "rev-parse", "HEAD")
-    status = _git(repo, "status", "--porcelain")
-    return head + "\n" + status
+def _session_primary(name: str) -> str:
+    try:
+        state = json.loads((SESSIONS_DIR / name / "state.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return state.get("primary_root", "")
+
+
+def extract_canonical_surface(transcript_lines: list) -> str | None:
+    """Return the last transcript text carrying all four canonical block headers.
+
+    The renderer output arrives as a tool result, not necessarily as the final
+    assistant message, so the final message alone cannot be trusted as the
+    review surface.
+    """
+    candidates = []
+    for line in transcript_lines:
+        try:
+            event = json.loads(line)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        message = event.get("message") or {}
+        for block in message.get("content") or []:
+            if not isinstance(block, dict):
+                continue
+            texts = []
+            if block.get("type") == "text" and block.get("text"):
+                texts.append(block["text"])
+            if block.get("type") == "tool_result":
+                content = block.get("content")
+                if isinstance(content, str):
+                    texts.append(content)
+                elif isinstance(content, list):
+                    texts.extend(
+                        item.get("text", "") for item in content
+                        if isinstance(item, dict) and item.get("type") == "text"
+                    )
+            for text in texts:
+                if all(marker in text for marker in CANONICAL_MARKERS):
+                    candidates.append(text)
+    return candidates[-1] if candidates else None
 
 
 def run_once(args: argparse.Namespace) -> int:
+    _secure_dir(DEVLOOP_HOME)
+    _secure_dir(RUNS_DIR)
     target = Path(args.target).resolve() if args.target else build_fixture(fresh=args.fresh_fixture)
     prompt = args.prompt or DEFAULT_PROMPT
     label = args.label or "run"
     started = _dt.datetime.now(_dt.timezone.utc)
-    record = RUNS_DIR / (started.strftime("%Y%m%dT%H%M%SZ") + "-" + label)
-    record.mkdir(parents=True)
+    record = _secure_dir(RUNS_DIR / (started.strftime("%Y%m%dT%H%M%SZ") + "-" + label))
 
-    before_tree = _tree_snapshot(target)
+    before_digest = content_digest(target)
     before_sessions = _session_dirs()
     t0 = time.monotonic()
     cli = subprocess.run(
@@ -177,14 +286,14 @@ def run_once(args: argparse.Namespace) -> int:
     )
     duration = round(time.monotonic() - t0, 1)
 
-    # stream-json records every message, so checkpoint ordering (Mission first,
-    # Review Type, Diff understanding) is verifiable — the final result alone isn't.
-    (record / "transcript.jsonl").write_text(cli.stdout)
+    transcript_lines = cli.stdout.splitlines()
+    _secure_write(record / "transcript.jsonl", cli.stdout)
     if cli.stderr:
-        (record / "stderr.log").write_text(cli.stderr)
+        _secure_write(record / "stderr.log", cli.stderr)
+
     payload = {}
     assistant_texts = []
-    for line in cli.stdout.splitlines():
+    for line in transcript_lines:
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
@@ -195,48 +304,66 @@ def run_once(args: argparse.Namespace) -> int:
             for block in (event.get("message") or {}).get("content") or []:
                 if isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
                     assistant_texts.append(block["text"])
-    (record / "assistant-messages.md").write_text(
-        "\n\n---\n\n".join(assistant_texts) or "(no assistant text)\n")
-    (record / "cli.json").write_text(json.dumps(payload, indent=2))
-    (record / "review.md").write_text(payload.get("result") or "(no result text)\n")
+    canonical = extract_canonical_surface(transcript_lines)
+
+    _secure_write(record / "assistant-messages.md",
+                  "\n\n---\n\n".join(assistant_texts) or "(no assistant text)\n")
+    _secure_write(record / "cli.json", json.dumps(payload, indent=2))
+    _secure_write(record / "final-message.md", payload.get("result") or "(no result text)\n")
+    _secure_write(record / "review.md",
+                  canonical or "(canonical four-block surface not found in transcript)\n")
 
     # Attribute sessions by primary_root: concurrent interactive runs on other
     # repositories must not leak into this record.
     new_sessions = []
     for name in sorted(_session_dirs() - before_sessions):
-        state = SESSIONS_DIR / name / "state.json"
-        try:
-            primary = json.loads(state.read_text()).get("primary_root", "")
-        except (OSError, json.JSONDecodeError):
+        primary = _session_primary(name)
+        if not primary:
             continue
-        if Path(primary).resolve() != target:
+        try:
+            if Path(primary).resolve() != target:
+                continue
+        except OSError:
             continue
         new_sessions.append(name)
     for name in new_sessions:
-        state = SESSIONS_DIR / name / "state.json"
-        if state.is_file():
-            shutil.copy(state, record / ("session-" + name + ".json"))
+        state_file = SESSIONS_DIR / name / "state.json"
+        if state_file.is_file():
+            _secure_write(record / ("session-" + name + ".json"), state_file.read_text())
         storage = SESSIONS_DIR / name / "host-storage"
         if storage.is_dir() and any(storage.rglob("*")):
             # Copy evidence only: workspace-* holds materialized clones with
             # node_modules, and copytree flattens copy-on-write clones into
             # real bytes (a single run record once reached 33GB).
-            shutil.copytree(
-                storage, record / ("host-storage-" + name), dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("workspace-*"),
-            )
+            copy_root = record / ("host-storage-" + name)
+            shutil.copytree(storage, copy_root, dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns("workspace-*"))
+            for path in copy_root.rglob("*"):
+                if path.is_dir():
+                    os.chmod(path, 0o700)
+                elif path.suffix == ".json" or path.suffix == ".jsonl":
+                    _secure_write(path, path.read_text(errors="replace"))
+                else:
+                    os.chmod(path, 0o600)
 
-    # Post-run bookkeeping must never lose the record: a stale index.lock or a
-    # killed inner task can make these git calls fail after a 15-minute run.
     try:
         socratic = socratic_state()
     except Exception as error:  # noqa: BLE001
         socratic = {"error": str(error)}
     try:
-        tree_clean = _tree_snapshot(target) == before_tree
+        after_digest = content_digest(target)
     except Exception as error:  # noqa: BLE001
-        tree_clean = "unknown: " + str(error)
+        after_digest = "error: " + str(error)
 
+    checks = {
+        "cli_exit_zero": cli.returncode == 0,
+        "result_event_present": bool(payload),
+        "result_not_error": payload.get("is_error") is False,
+        "result_subtype_success": payload.get("subtype") == "success",
+        "canonical_surface_found": canonical is not None,
+        "target_tree_unchanged": after_digest == before_digest,
+        "sessions_cleaned": not new_sessions,
+    }
     meta = {
         "label": label,
         "started_utc": started.isoformat(),
@@ -251,16 +378,21 @@ def run_once(args: argparse.Namespace) -> int:
         "total_cost_usd": payload.get("total_cost_usd"),
         "session_id": payload.get("session_id"),
         "permission_denials": len(payload.get("permission_denials") or []),
-        "target_tree_clean": tree_clean,
+        "target_tree_clean": checks["target_tree_unchanged"],
         "new_socratic_sessions": new_sessions,
+        "checks": checks,
+        "success": all(checks.values()),
     }
-    (record / "meta.json").write_text(json.dumps(meta, indent=2))
+    _secure_write(record / "meta.json", json.dumps(meta, indent=2))
 
     print("recorded:", record)
     print(json.dumps({k: meta[k] for k in (
-        "duration_s", "subtype", "is_error", "num_turns",
+        "success", "duration_s", "subtype", "is_error", "num_turns",
         "permission_denials", "target_tree_clean", "socratic")}, indent=2))
-    return 0 if not meta["is_error"] else 1
+    if not meta["success"]:
+        failed = [name for name, passed in checks.items() if not passed]
+        print("failed checks:", ", ".join(failed))
+    return 0 if meta["success"] else 1
 
 
 def list_runs(_args: argparse.Namespace) -> int:
@@ -272,26 +404,33 @@ def list_runs(_args: argparse.Namespace) -> int:
         if not meta_file.is_file():
             continue
         meta = json.loads(meta_file.read_text())
-        print("{}  {:>6}s  turns={:<3} err={}  rev={}{} tree_clean={}".format(
-            path.name, meta.get("duration_s"), meta.get("num_turns"),
-            meta.get("is_error"), meta["socratic"]["rev"],
-            "+dirty:" + meta["socratic"]["working_tree_digest"] if meta["socratic"]["dirty"] else "",
+        print("{}  ok={} {:>6}s  turns={:<3} rev={}{} tree_clean={}".format(
+            path.name, meta.get("success"), meta.get("duration_s"),
+            meta.get("num_turns"), meta.get("socratic", {}).get("rev"),
+            "+dirty:" + meta["socratic"]["working_tree_digest"]
+            if meta.get("socratic", {}).get("dirty") else "",
             meta.get("target_tree_clean")))
     return 0
 
 
 def clean_sessions(_args: argparse.Namespace) -> int:
     removed = []
+    home = DEVLOOP_HOME.resolve()
     for name in sorted(_session_dirs()):
+        primary = _session_primary(name)
+        if not primary:
+            continue
+        try:
+            resolved = Path(primary).resolve()
+        except OSError:
+            continue
+        if not resolved.is_relative_to(home):
+            continue
         state_file = SESSIONS_DIR / name / "state.json"
         try:
-            state = json.loads(state_file.read_text())
+            pid = json.loads(state_file.read_text()).get("pid")
         except (OSError, json.JSONDecodeError):
-            continue
-        primary = state.get("primary_root", "")
-        if str(DEVLOOP_HOME) not in primary and "fixture-repo" not in primary:
-            continue
-        pid = state.get("pid")
+            pid = None
         if pid:
             try:
                 os.kill(int(pid), 0)
