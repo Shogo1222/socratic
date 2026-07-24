@@ -16,6 +16,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -1774,11 +1775,13 @@ def execute(
         else _runtime_environment(execution_root)
     )
     environment.update(runtime_environment)
+    if phase == "mutation":
+        _verify_registered_content(registrations, mutation_id)
     try:
         started = time.monotonic()
-        completed = subprocess.run(
+        completed = _run_sandboxed(
             command, cwd=_execution_cwd(execution_root, cwd_relative),
-            env=environment, timeout=timeout_seconds, check=False,
+            env=environment, timeout_seconds=timeout_seconds, capture=False,
         )
     except subprocess.TimeoutExpired as error:
         _append_event(manifest, {
@@ -1799,6 +1802,52 @@ def execute(
         "environment": runtime_environment, "sandbox_root": str(execution_root),
     })
     return completed.returncode
+
+
+def _run_sandboxed(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout_seconds: int,
+    capture: bool,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run a sandbox command in its own session and kill the whole group on timeout.
+
+    subprocess.run's timeout kills only the direct child: a test-runner worker
+    that survives keeps running as an orphan, and a grandchild holding the
+    stdout pipe hangs the Runner forever.
+    """
+    pipe = subprocess.PIPE if capture else None
+    process = subprocess.Popen(
+        command, cwd=cwd, env=env, stdout=pipe, stderr=pipe,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
+        stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(
+            command, timeout_seconds, output=stdout, stderr=stderr
+        )
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+def _verify_registered_content(
+    registrations: dict[Any, dict[str, Any]], mutation_id: str | None
+) -> None:
+    """Require the mutant file to still match its guarded ledger evidence."""
+    registration = registrations.get(mutation_id, {})
+    recorded = registration.get("content_sha256") or registration.get("sha256")
+    target = Path(str(registration.get("resolved_path", "")))
+    if not recorded or not target.is_file() or _sha256_path(target) != recorded:
+        raise RunGateError(
+            f"mutation sandbox content no longer matches its guarded evidence: {mutation_id}"
+        )
 
 
 def _execution_cwd(root: Path, cwd_relative: str | None) -> Path:
@@ -1863,14 +1912,12 @@ def probe_command(
     environment.update(runtime_environment)
     started = time.monotonic()
     try:
-        completed = subprocess.run(
+        completed = _run_sandboxed(
             command,
             cwd=_execution_cwd(probe_root, cwd_relative),
             env=environment,
-            timeout=timeout_seconds,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            timeout_seconds=timeout_seconds,
+            capture=True,
         )
         result = "completed"
         returncode: int | None = completed.returncode
@@ -1905,62 +1952,73 @@ def probe_command(
         "stdout_sha256": _sha256_bytes(stdout),
         "stderr_sha256": _sha256_bytes(stderr),
     }
-    _append_event(manifest, event)
-    if result == "completed" and returncode == 0:
-        # The probe may legitimately warm dependency-owned tool caches. Seal
-        # the shared layer only after that baseline behavior has completed.
-        _seal_dependency_layer(manifest, runner_timings)
-    limit = 16 * 1024
-    public = {
-        "status": "ready" if result == "completed" and returncode == 0 else "blocked",
-        "command_id": command_id,
-        "outcome": (
-            "passed"
-            if result == "completed" and returncode == 0
-            else "timeout"
-            if result == "timeout"
-            else "infrastructure-failure"
-        ),
-        "returncode": returncode,
-        "duration_ms": duration_ms,
-        "runner_timings_ms": {**runner_timings, "external_command": duration_ms},
-        "stdout": stdout[-limit:].decode("utf-8", errors="replace"),
-        "stderr": stderr[-limit:].decode("utf-8", errors="replace"),
-        "output_truncated": len(stdout) > limit or len(stderr) > limit,
-    }
-    if public["status"] == "ready":
-        public["next"] = _next_step(
-            "scaffold-plan", "--manifest", str(manifest_path),
-            note="the plan binds this validated command; fill the challenges, then follow next.argv",
-        )
-    if public["status"] == "ready":
-        _append_event(manifest, {
-            "run_id": manifest["run_id"],
-            "kind": "validated-command",
+    try:
+        _append_event(manifest, event)
+        if result == "completed" and returncode == 0:
+            # The probe may legitimately warm dependency-owned tool caches. Seal
+            # the shared layer only after that baseline behavior has completed.
+            _seal_dependency_layer(manifest, runner_timings)
+        limit = 16 * 1024
+        public = {
+            "status": "ready" if result == "completed" and returncode == 0 else "blocked",
             "command_id": command_id,
-            "argv": command,
-            "cwd": cwd_relative,
-            "timeout_seconds": timeout_seconds,
-            "probe_duration_ms": duration_ms,
-            "clone_strategy": strategy,
-            "prepared_sha256": prepared_sha256,
-        })
-        _append_event(manifest, {
-            "run_id": manifest["run_id"],
-            "kind": "command",
-            "phase": "baseline",
-            "mutation_id": None,
-            "argv": command,
-            "cwd": cwd_relative,
-            "timeout_seconds": timeout_seconds,
-            "result": "completed",
-            "returncode": 0,
+            "outcome": (
+                "passed"
+                if result == "completed" and returncode == 0
+                else "timeout"
+                if result == "timeout"
+                else "infrastructure-failure"
+            ),
+            "returncode": returncode,
             "duration_ms": duration_ms,
-            "environment": runtime_environment,
-            "sandbox_root": str(probe_root),
-            "command_id": command_id,
-        })
-    shutil.rmtree(probe_root, ignore_errors=True)
+            "runner_timings_ms": {**runner_timings, "external_command": duration_ms},
+            "stdout": stdout[-limit:].decode("utf-8", errors="replace"),
+            "stderr": stderr[-limit:].decode("utf-8", errors="replace"),
+            "output_truncated": len(stdout) > limit or len(stderr) > limit,
+        }
+        if public["status"] == "ready":
+            public["next"] = _next_step(
+                "scaffold-plan", "--manifest", str(manifest_path),
+                note="the plan binds this validated command; fill the challenges, then follow next.argv",
+            )
+        else:
+            public["next"] = _next_step(
+                "probe-command", "--manifest", str(manifest_path),
+                "--command-id", command_id, "--", "<corrected-focused-argv>",
+                note=(
+                    "the probe did not pass; inspect stdout and stderr above, fix "
+                    "the focused command or its cwd, then probe again"
+                ),
+            )
+        if public["status"] == "ready":
+            _append_event(manifest, {
+                "run_id": manifest["run_id"],
+                "kind": "validated-command",
+                "command_id": command_id,
+                "argv": command,
+                "cwd": cwd_relative,
+                "timeout_seconds": timeout_seconds,
+                "probe_duration_ms": duration_ms,
+                "clone_strategy": strategy,
+                "prepared_sha256": prepared_sha256,
+            })
+            _append_event(manifest, {
+                "run_id": manifest["run_id"],
+                "kind": "command",
+                "phase": "baseline",
+                "mutation_id": None,
+                "argv": command,
+                "cwd": cwd_relative,
+                "timeout_seconds": timeout_seconds,
+                "result": "completed",
+                "returncode": 0,
+                "duration_ms": duration_ms,
+                "environment": runtime_environment,
+                "sandbox_root": str(probe_root),
+                "command_id": command_id,
+            })
+    finally:
+        shutil.rmtree(probe_root, ignore_errors=True)
     return public
 
 
@@ -1997,16 +2055,15 @@ def _batch_command(
     environment.update(runtime_environment)
     command = challenge["command"]
     timeout_seconds = challenge["timeout_seconds"]
+    _verify_registered_content({challenge["id"]: registration}, challenge["id"])
     started = time.monotonic()
     try:
-        completed = subprocess.run(
+        completed = _run_sandboxed(
             command,
             cwd=_execution_cwd(sandbox, challenge.get("cwd")),
             env=environment,
-            timeout=timeout_seconds,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            timeout_seconds=timeout_seconds,
+            capture=True,
         )
         result = "completed"
         returncode: int | None = completed.returncode
@@ -3093,17 +3150,57 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
         _emit_runner_timings("finish", runner_timings)
         return rendered
     except BaseException as failure:
-        try:
-            _record_validation_error(manifest, "finish", str(failure))
-        except BaseException:
-            pass
         cleanup_errors = _cleanup_loaded(manifest, manifest_path)
+        _record_failure_receipt(manifest, manifest_path, "finish", failure, cleanup_errors)
         if cleanup_errors:
             raise RunGateError("; ".join(cleanup_errors)) from failure
         raise RunGateError(
             f"{failure}; the run terminated and disposable state was cleaned; "
+            "a failure receipt remains in Host storage; "
             "do not retry complete with this manifest"
         ) from failure
+
+
+def _record_failure_receipt(
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    phase: str,
+    failure: BaseException,
+    cleanup_errors: list[str],
+) -> Path | None:
+    """Keep a small secret-free receipt in Host storage after a terminal failure.
+
+    Cleanup removes the sandbox, artifacts, ledger, and manifest, so without
+    this receipt nothing explains why the run ended or whether the Primary
+    stayed untouched.
+    """
+    try:
+        primary_postflight_ok: bool | None
+        try:
+            primary_postflight_ok = _tree_hash(
+                Path(manifest["primary_root"])
+            ) == manifest["primary_sha256"]
+        except (KeyError, OSError, RunGateError):
+            primary_postflight_ok = None
+        receipt = {
+            "version": 1,
+            "run_id": manifest.get("run_id"),
+            "phase": phase,
+            "error_class": type(failure).__name__,
+            "error": str(failure),
+            "cleanup_ok": not cleanup_errors,
+            "cleanup_errors": cleanup_errors,
+            "primary_postflight_ok": primary_postflight_ok,
+            "recorded_at_epoch": round(time.time(), 3),
+        }
+        path = manifest_path.parent / "failure-receipt.json"
+        path.write_text(
+            json.dumps(receipt, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+        )
+        path.chmod(0o600)
+        return path
+    except BaseException:
+        return None
 
 
 def abort(manifest_path: Path) -> None:
@@ -3257,8 +3354,19 @@ def main() -> int:
             manifest, manifest_path = preflight_with_host(
                 args.primary, adapter
             )
-        except RunGateError:
-            print(json.dumps(blocked_preflight(args.primary), sort_keys=True))
+        except (OSError, RunGateError) as error:
+            try:
+                blocked = blocked_preflight(args.primary)
+            except (OSError, RunGateError):
+                blocked = {
+                    "status": "blocked",
+                    "terminal": True,
+                    "next_action": "stop",
+                    "primary_root": str(args.primary),
+                    "blocked_reason": str(error),
+                    "missing_host_capability": "trusted HostAdapter capability",
+                }
+            print(json.dumps(blocked, sort_keys=True))
             return 2
         print(json.dumps({
             "status": "ready", "run_id": manifest["run_id"],
@@ -3421,6 +3529,22 @@ def main() -> int:
             ))
         return 0
     except (OSError, RunGateError) as error:
+        guided: dict[str, Any] = {
+            "status": "error",
+            "command": args.command,
+            "error": str(error),
+        }
+        manifest_argument = getattr(args, "manifest", None)
+        if manifest_argument is not None:
+            guided["next"] = _next_step(
+                "runbook", "--manifest", str(manifest_argument),
+                note=(
+                    "review the runbook gate order, fix the reported cause, then "
+                    "rerun the failed command; after a terminal complete failure, "
+                    "start a fresh run instead of retrying this manifest"
+                ),
+            )
+        print(json.dumps(guided, ensure_ascii=False, sort_keys=True))
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
 
