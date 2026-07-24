@@ -179,6 +179,7 @@ class RunReviewTest(unittest.TestCase):
                 manifest_path,
                 Path(manifest["ledger_path"]),
                 Path(manifest["sandbox_root"]),
+                Path(manifest["dependency_root"]),
                 Path(manifest["host"]["storage_root"]),
                 Path(manifest["artifact_root"]),
                 Path(manifest["artifact_index_path"]),
@@ -198,6 +199,22 @@ class RunReviewTest(unittest.TestCase):
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.preflight_with_host(repository, self.host(storage))
             self.assertEqual(list(storage.iterdir()), [])
+
+    def test_manifest_rejects_dependency_layer_outside_disposable_sandbox(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            outside = root / "other-host-directory"
+            outside.mkdir()
+            manifest["dependency_root"] = str(outside)
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                self.runner.RunGateError,
+                "dependency layer must be inside the disposable sandbox",
+            ):
+                self.runner._ready_manifest(manifest_path)
 
     def test_manifest_write_failure_cleans_new_sandbox_and_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -279,6 +296,14 @@ class RunReviewTest(unittest.TestCase):
             )
             self.assertEqual(
                 (prepared_root / "packages/app/source.ts").read_text(), "original\n"
+            )
+            self.assertEqual(
+                (first_root / "node_modules").resolve(),
+                (second_root / "node_modules").resolve(),
+            )
+            (first_root / ".socratic-runtime/home/private.txt").write_text("first")
+            self.assertFalse(
+                (second_root / ".socratic-runtime/home/private.txt").exists()
             )
             prepared_events = [
                 item
@@ -438,10 +463,27 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            probe = self.runner.probe_command(
-                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
+            prepared_dependency = (
+                Path(manifest["prepared_root"]) / "node_modules/example/index.js"
             )
-            for key in ("prepared_hash", "clone", "external_command"):
+            prepared_dependency.parent.mkdir(parents=True)
+            prepared_dependency.write_text("installed\n")
+            with patch.object(
+                self.runner,
+                "_dependency_hash",
+                wraps=self.runner._dependency_hash,
+            ) as dependency_hash:
+                probe = self.runner.probe_command(
+                    manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
+                )
+                self.assertEqual(dependency_hash.call_count, 1)
+            for key in (
+                "dependency_layer_move",
+                "dependency_layer_hash",
+                "source_snapshot_hash",
+                "clone",
+                "external_command",
+            ):
                 self.assertIn(key, probe["runner_timings_ms"])
             self.stage_contract(manifest)
             plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
@@ -451,8 +493,18 @@ class RunReviewTest(unittest.TestCase):
                 "max_parallel": 1,
                 "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
             }))
-            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
-            for key in ("staleness_prepared_hash", "clones", "external_commands_window"):
+            with patch.object(
+                self.runner,
+                "_dependency_hash",
+                wraps=self.runner._dependency_hash,
+            ) as dependency_hash:
+                result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
+                self.assertEqual(dependency_hash.call_count, 0)
+            for key in (
+                "staleness_source_hash",
+                "clones",
+                "external_commands_window",
+            ):
                 self.assertIn(key, result["runner_timings_ms"])
 
     def test_probe_command_rejects_invalid_cwd(self) -> None:
@@ -1253,7 +1305,7 @@ class RunReviewTest(unittest.TestCase):
             with self.assertRaises(self.runner.RunGateError):
                 self.runner._ledger_events(manifest)
 
-    def test_mutant_clone_preserves_installed_dependencies(self) -> None:
+    def test_mutant_clone_shares_dependencies_and_gets_fresh_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repository = self.make_repository(root)
@@ -1279,10 +1331,63 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(
                 (clone / "node_modules/.bin/vitest").read_text(), "#!/bin/sh\n"
             )
+            self.assertTrue((clone / "node_modules").is_symlink())
+            self.assertTrue((prepared / "node_modules").is_symlink())
             self.assertEqual(
-                (clone / ".socratic-runtime/home/install-store-marker.txt").read_text(),
+                (
+                    Path(manifest["dependency_root"])
+                    / "install-runtime/home/install-store-marker.txt"
+                ).read_text(),
                 "install-time store\n",
             )
+            self.assertFalse(
+                (
+                    clone / ".socratic-runtime/home/install-store-marker.txt"
+                ).exists()
+            )
+
+    def test_dependency_layer_is_hashed_separately_from_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, _manifest_path = self.ready(root, repository)
+            prepared = Path(manifest["prepared_root"])
+            dependency = prepared / "node_modules/example/index.js"
+            dependency.parent.mkdir(parents=True)
+            dependency.write_text("installed\n")
+            source_sha256 = self.runner._prepared_hash(prepared)
+
+            self.runner._materialize_dependency_layer(manifest)
+            evidence = self.runner._seal_dependency_layer(manifest)
+
+            self.assertEqual(self.runner._prepared_hash(prepared), source_sha256)
+            self.assertEqual(evidence["attached_paths"], ["node_modules"])
+            self.assertTrue((prepared / "node_modules").is_symlink())
+            self.runner._verify_dependency_layer(manifest, evidence)
+            dependency.write_text("tampered\n")
+            self.assertEqual(self.runner._prepared_hash(prepared), source_sha256)
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "shared dependency layer changed"
+            ):
+                self.runner._verify_dependency_layer(manifest, evidence)
+
+    def test_python_virtual_environment_is_attached_as_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, _manifest_path = self.ready(root, repository)
+            prepared = Path(manifest["prepared_root"])
+            virtual_environment = prepared / ".venv"
+            virtual_environment.mkdir()
+            (virtual_environment / "pyvenv.cfg").write_text("home = /python\n")
+            (virtual_environment / "marker").write_text("installed\n")
+
+            self.runner._materialize_dependency_layer(manifest)
+            evidence = self.runner._seal_dependency_layer(manifest)
+
+            self.assertEqual(evidence["attached_paths"], [".venv"])
+            self.assertTrue(virtual_environment.is_symlink())
+            self.assertEqual((virtual_environment / "marker").read_text(), "installed\n")
 
     def test_sandbox_executions_receive_dependency_reuse_env(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1432,6 +1537,14 @@ class RunReviewTest(unittest.TestCase):
                 "host-managed-hash-verified",
             )
             self.assertEqual(
+                attested["prepared_snapshot"]["dependency_layer"]["root"],
+                manifest["dependency_root"],
+            )
+            self.assertEqual(
+                attested["prepared_snapshot"]["dependency_layer"]["protection"],
+                "runner-shared-hash-verified",
+            )
+            self.assertEqual(
                 [item["mutation_id"] for item in attested["prepared_snapshot"]["clones"]],
                 ["MUT-001", "MUT-002", "MUT-003"],
             )
@@ -1483,6 +1596,50 @@ class RunReviewTest(unittest.TestCase):
             self.assertFalse(manifest_path.exists())
             self.assertFalse(Path(manifest["ledger_path"]).exists())
             self.assertFalse(Path(manifest["artifact_root"]).exists())
+
+    def test_finish_rejects_changed_shared_dependency_layer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            dependency = (
+                Path(manifest["prepared_root"]) / "node_modules/example/index.js"
+            )
+            dependency.parent.mkdir(parents=True)
+            dependency.write_text("installed\n")
+            self.runner.execute(
+                manifest_path,
+                "baseline",
+                None,
+                [sys.executable, "-c", "pass"],
+                10,
+            )
+            self.stage_contract(manifest)
+            for index, mutation_id in enumerate(
+                ("MUT-001", "MUT-002", "MUT-003"), 1
+            ):
+                self.runner.register_prebuilt(
+                    manifest_path,
+                    mutation_id,
+                    ["DEC-001"],
+                    f"packages/app/mutant-{index}.ts",
+                )
+                self.runner.execute(
+                    manifest_path,
+                    "mutation",
+                    mutation_id,
+                    [sys.executable, "-c", "raise SystemExit(1)"],
+                    10,
+                )
+            self.stage_demo_artifacts(manifest)
+            dependency.write_text("changed during mutation\n")
+
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "shared dependency layer changed"
+            ):
+                self.runner.finish(manifest_path, ROOT / "schemas")
+            self.assertFalse(manifest_path.exists())
+            self.assertFalse(Path(manifest["sandbox_root"]).exists())
 
     def test_stage_rejects_invalid_draft_and_records_all_schema_errors(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

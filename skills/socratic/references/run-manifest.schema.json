@@ -13,6 +13,7 @@
     "primary_root",
     "sandbox_root",
     "prepared_root",
+    "dependency_root",
     "host",
     "protection",
     "environment",
@@ -65,6 +66,11 @@
     "prepared_root": {
       "type": "string",
       "minLength": 1
+    },
+    "dependency_root": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Runner-owned dependency layer shared by disposable source branches"
     },
     "host": {
       "type": "object",
