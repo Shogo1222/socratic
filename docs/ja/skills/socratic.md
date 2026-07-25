@@ -212,7 +212,7 @@ GitHubをはじめとするCode Hostへ投稿しない。マージ可否、信�
 
 レビュワー向けの各テスト記述に、**実行開始時点で既存**、**Disposable環境で提案・証明済み**、**明示依頼後に今回の実行が適用**のいずれかを必ず明記する。Elenchusが`primary_written_during_run: false`を記録し、最終HashもPreflightと一致する場合だけ、**今回のReview-only実行中、Working Treeは不変**と報告する。最終Hash一致だけでは実行中不変を証明できない。Socraticが実行前からある変更を作成したように表現しない。
 
-正準Surfaceは4ブロックのままとする。`scripts/run_review.py complete`を呼び、Report／Review Draftを手動Stageしたり、下位Validatorや`finish`を代用したりしない。`complete`がDraftを生成し、Host EvidenceからAttested Mutation Reportを構築し、Run Manifest、Guarded-write Ledger、Intent Contract、生成Report、Review Objectを検証し、Strict Rendererへ委譲して既定でRunをCleanupする。stdoutだけを完全なReview結果とし、翻訳、要約、追加Proseを付けない。Parse失敗、Schema失敗、Run Identity不一致、未知Contract参照、矛盾した分類、安全でないReview-only Postflight、Renderer外のProseは完了をBlockedとする。
+正準Surfaceは4ブロックのままとする。`scripts/run_review.py complete`を呼び、Report／Review Draftを手動Stageしたり、下位Validatorや`finish`を代用したりしない。`complete`がDraftを生成し、Host EvidenceからAttested Mutation Reportを構築し、Run Manifest、Guarded-write Ledger、Intent Contract、生成Report、Review Objectを検証し、Strict Rendererへ委譲して既定でRunをCleanupする。そのstdoutを自分の応答内でCode Fenceに入れて逐語で再掲し、それをレビュワー向けの結果とする: HostはTool出力を折り畳むため、Tool Resultを指し示すだけのRunはレビュワーが読めるものを何も届けない。正確にコピーし、ブロックの言い換え・並べ替え・短縮・追記は決してせず、自分の要約で置き換えることも決してしない。その逐語ブロックの後に、明確に区切ったうえで、ユーザーの言語による翻訳または短い要点を付けてもよい。ただし正典Surfaceの一部ではなく自分の言葉であると明示する。権威ある記録はCode Fence内のRenderer出力である。Parse失敗、Schema失敗、Run Identity不一致、未知Contract参照、矛盾した分類、安全でないReview-only Postflight、Renderer外のProseは完了をBlockedとする。
 
 発見は種類ではなく状態で振り分ける。
 
