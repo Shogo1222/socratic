@@ -100,14 +100,13 @@ nav a:not(.nav-cta):not(.nav-star):hover { color: var(--orange); }
   border-radius: 50%;
   top: 4%;
   right: -130px;
-  animation: hero-ring-drift 14s ease-in-out infinite;
+  animation: hero-ring-drift 18s ease-in-out infinite alternate;
   will-change: transform;
 }
 
 @keyframes hero-ring-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  42% { transform: translate3d(-32px, 16px, 0) scale(1.025); }
-  72% { transform: translate3d(-10px, -12px, 0) scale(.99); }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-18px, 12px, 0); }
 }
 
 .hero-grid {
@@ -273,7 +272,7 @@ h2 { margin-bottom: 0; font-size: clamp(36px, 4.8vw, 62px); }
 .output-review-card .review-card { border-color: rgba(255,255,255,.13); box-shadow: 0 30px 80px rgba(0,0,0,.28); transform: none; }
 
 .use-cases { background: var(--paper); }
-.case-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.case-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .case-grid article { min-height: 560px; display: flex; flex-direction: column; padding: 32px; border: 1px solid var(--line); background: var(--cream); }
 .case-label { margin-bottom: 22px; color: var(--blue); font: 900 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
 .case-grid h3 { margin-bottom: 12px; font: 850 clamp(31px, 3vw, 44px)/1.02 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: -.045em; }
@@ -459,7 +458,7 @@ footer { padding: 58px 0; }
   .step, .step-socratic { min-height: 0; }
   .step-socratic { grid-column: auto; }
   .step-featured-grid { grid-template-columns: 1fr; gap: 28px; }
-  .case-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .case-grid { grid-template-columns: 1fr; }
   .name-flow, .paper-grid { grid-template-columns: 1fr; }
   .name-flow article, .paper-grid article { min-height: 0; }
   .case-grid article { min-height: 0; }
@@ -497,7 +496,6 @@ footer { padding: 58px 0; }
   .step { padding: 25px; }
   .comparison-map { padding: 18px; }
   .case-grid article { padding: 26px; }
-  .case-grid { grid-template-columns: 1fr; }
   .safety-mechanism { margin-top: 16px; padding-top: 52px; }
   .mechanism-list { grid-template-columns: 1fr; }
   .mechanism-list li { padding: 22px; }
