@@ -1,0 +1,25 @@
+{
+  "id": "assessment-existing-test-does-not-protect-behavior",
+  "review_type": "Test Assessment",
+  "title": "assess renewal tests",
+  "prompt": "Run Test Assessment Mode",
+  "intent": {
+    "evidence_resolves": true,
+    "multiple_reasonable_expectations": false,
+    "answer_changes_oracle": false,
+    "answerer_has_authority": null,
+    "expected_route": "repository-established"
+  },
+  "workflow": {
+    "elenchus_mode": "assessment",
+    "baseline_result": "passed",
+    "realistic_mutation_result": "survived",
+    "existing_protection": false,
+    "apply_missing_tests": false
+  },
+  "expected": {
+    "terminal_status": "complete",
+    "primary_written_during_run": false,
+    "sandbox_destroyed": true
+  }
+}

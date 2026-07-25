@@ -1,0 +1,27 @@
+{
+  "id": "refactor-subtle-boundary-change",
+  "review_type": "Refactor Guard",
+  "title": "refactor subscription renewal policy",
+  "prompt": "Review this refactor",
+  "intent": {
+    "evidence_resolves": false,
+    "multiple_reasonable_expectations": true,
+    "answer_changes_oracle": true,
+    "answerer_has_authority": true,
+    "expected_route": "ask-structured-question",
+    "answer": "The behavior change was not intended.",
+    "answer_provenance": "user-confirmed"
+  },
+  "workflow": {
+    "elenchus_mode": "catch",
+    "base_observation": "renewal-allowed-on-end-date",
+    "head_observation": "renewal-rejected-on-end-date",
+    "difference_requires_human_decision": true,
+    "classification_after_answer": "strong-catch"
+  },
+  "expected": {
+    "terminal_status": "complete",
+    "primary_written_during_run": false,
+    "sandbox_destroyed": true
+  }
+}
