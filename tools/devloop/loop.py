@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 SOCRATIC_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -230,6 +231,54 @@ def _session_primary(name: str) -> str:
     return state.get("primary_root", "")
 
 
+def iter_transcript_events(transcript: Iterable) -> Iterator[dict]:
+    """Yield every stream-json event, accepting raw lines or decoded events.
+
+    One parser serves every consumer of a recorded transcript: unparseable
+    lines are skipped rather than aborting a scan, because a truncated record
+    still carries usable evidence.
+    """
+    for item in transcript:
+        if isinstance(item, dict):
+            yield item
+            continue
+        try:
+            event = json.loads(item)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(event, dict):
+            yield event
+
+
+def iter_content_blocks(transcript: Iterable) -> Iterator[tuple]:
+    """Yield (event, content block) pairs for every message in the transcript."""
+    for event in iter_transcript_events(transcript):
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict):
+                yield event, block
+
+
+def block_texts(block: dict) -> list:
+    """Return every text payload carried by one content block."""
+    texts = []
+    if block.get("type") == "text" and block.get("text"):
+        texts.append(block["text"])
+    if block.get("type") == "tool_result":
+        content = block.get("content")
+        if isinstance(content, str):
+            texts.append(content)
+        elif isinstance(content, list):
+            texts.extend(
+                item.get("text", "") for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            )
+    return texts
+
+
 def extract_canonical_surface(transcript_lines: list) -> str | None:
     """Return the last transcript text carrying all four canonical block headers.
 
@@ -237,31 +286,12 @@ def extract_canonical_surface(transcript_lines: list) -> str | None:
     assistant message, so the final message alone cannot be trusted as the
     review surface.
     """
-    candidates = []
-    for line in transcript_lines:
-        try:
-            event = json.loads(line)
-        except (TypeError, json.JSONDecodeError):
-            continue
-        message = event.get("message") or {}
-        for block in message.get("content") or []:
-            if not isinstance(block, dict):
-                continue
-            texts = []
-            if block.get("type") == "text" and block.get("text"):
-                texts.append(block["text"])
-            if block.get("type") == "tool_result":
-                content = block.get("content")
-                if isinstance(content, str):
-                    texts.append(content)
-                elif isinstance(content, list):
-                    texts.extend(
-                        item.get("text", "") for item in content
-                        if isinstance(item, dict) and item.get("type") == "text"
-                    )
-            for text in texts:
-                if all(marker in text for marker in CANONICAL_MARKERS):
-                    candidates.append(text)
+    candidates = [
+        text
+        for _event, block in iter_content_blocks(transcript_lines)
+        for text in block_texts(block)
+        if all(marker in text for marker in CANONICAL_MARKERS)
+    ]
     return candidates[-1] if candidates else None
 
 
@@ -293,17 +323,14 @@ def run_once(args: argparse.Namespace) -> int:
 
     payload = {}
     assistant_texts = []
-    for line in transcript_lines:
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    for event in iter_transcript_events(transcript_lines):
         if event.get("type") == "result":
             payload = event
-        elif event.get("type") == "assistant":
-            for block in (event.get("message") or {}).get("content") or []:
-                if isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
-                    assistant_texts.append(block["text"])
+    for event, block in iter_content_blocks(transcript_lines):
+        if event.get("type") != "assistant":
+            continue
+        if block.get("type") == "text" and block.get("text"):
+            assistant_texts.append(block["text"])
     canonical = extract_canonical_surface(transcript_lines)
 
     _secure_write(record / "assistant-messages.md",
