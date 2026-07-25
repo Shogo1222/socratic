@@ -501,7 +501,8 @@ Socraticから呼び出された場合は確定済みScopeを継承するため�
 
 ```text
 skills/
-  socratic/   End-to-end Orchestration
+  socratic/   End-to-end Orchestration。scripts/run_review.pyが固定のRunner
+              Entrypointで、その背後に12 Moduleのscripts/runner/ Packageがある
   maieutic/   意図の引き出しとテスト設計・補完
   elenchus/   既存・変更TestのAssessmentとIntent Mutationによる検証
 docs/
@@ -517,6 +518,9 @@ schemas/
   mutation-report.schema.json
   run-manifest.schema.json
   test-handoff.schema.json
+fixtures/        テストとCIが共有するSchema検証済みJSON Fixture
+tools/
+  devloop/       Headless Plugin Iteration Harness(記録はRepo外)
 tests/
   schema/        Schema Contract
   distribution/ ReleaseとBundleの整合性
@@ -524,6 +528,7 @@ tests/
   runner/        Guarded実行とRendering
   security/      Isolation境界
   workflow/      IntentとLifecycle Gate
+  devloop/       Harnessの単体Coverage
 .github/workflows/
   ci.yml         リポジトリ検証
   release.yml    TagとGitHub Releaseの作成

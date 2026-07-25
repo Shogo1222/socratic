@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tests.support import ROOT, load_module
 
-MODULE = ROOT / "devloop/loop.py"
+MODULE = ROOT / "tools/devloop/loop.py"
 
 
 class DevloopTest(unittest.TestCase):
