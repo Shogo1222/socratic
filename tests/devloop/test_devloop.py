@@ -98,5 +98,20 @@ class DevloopTest(unittest.TestCase):
             self.assertNotEqual(with_untracked, self.loop.content_digest(repo))
 
 
+class DevloopRootPathTest(unittest.TestCase):
+    def test_every_module_resolves_the_repository_root(self) -> None:
+        # The harness moved under tools/, which added one directory level; a
+        # module that still climbs two parents points at <repo>/tools and sends
+        # the proposal agent to the wrong cwd.
+        for module_name, filename in (
+            ("devloop_loop_root", "loop.py"),
+            ("devloop_propose_root", "propose.py"),
+        ):
+            with self.subTest(filename=filename):
+                module = load_module(module_name, ROOT / "tools/devloop" / filename)
+                self.assertEqual(module.SOCRATIC_ROOT, ROOT)
+                self.assertTrue((module.SOCRATIC_ROOT / "skills").is_dir())
+
+
 if __name__ == "__main__":
     unittest.main()
