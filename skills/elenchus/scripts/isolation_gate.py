@@ -112,9 +112,7 @@ class IsolationGate:
         _reject_symlink_components(self.sandbox_root)
         marker = self.sandbox_root / self.MARKER
         if marker.is_symlink() or not marker.is_file():
-            raise IsolationViolation(
-                f"sandbox is not explicitly disposable; missing {self.MARKER}"
-            )
+            raise IsolationViolation(f"sandbox is not explicitly disposable; missing {self.MARKER}")
         _reject_repository_directed_symlinks(self.sandbox_root, self.primary_root)
 
     def authorize(self, target: Path) -> TargetEvidence:

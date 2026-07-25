@@ -41,7 +41,10 @@ REDACTIONS = [
     (re.compile(r"(--host-token[ =])[A-Za-z0-9_\-.]+"), r"\1[REDACTED]"),
     (re.compile(r"(SOCRATIC_HOST_TOKEN[= ])[A-Za-z0-9_\-.]+"), r"\1[REDACTED]"),
     (re.compile(r'("(?:token|run_nonce)"\s*:\s*")[^"]+(")'), r"\1[REDACTED]\2"),
-    (re.compile(r'(\\"(?:token|run_nonce)\\"\s*:\s*\\")(?:[^"\\]|\\(?!"))+(\\")'), r"\1[REDACTED]\2"),
+    (
+        re.compile(r'(\\"(?:token|run_nonce)\\"\s*:\s*\\")(?:[^"\\]|\\(?!"))+(\\")'),
+        r"\1[REDACTED]\2",
+    ),
 ]
 
 DEFAULT_PROMPT = (
@@ -52,7 +55,7 @@ DEFAULT_PROMPT = (
     "turn to wait. Discard run artifacts at the end."
 )
 
-FIXTURE_BASE_SOURCE = '''\
+FIXTURE_BASE_SOURCE = """\
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -75,7 +78,7 @@ def renew(subscription: Subscription, today: date) -> Subscription:
         raise RenewalError("subscription expired")
     days = PLAN_DAYS[subscription.plan]
     return Subscription(subscription.plan, subscription.end_date + timedelta(days=days))
-'''
+"""
 
 # Head flips the expiry boundary: renewal on the end date itself is now rejected.
 FIXTURE_HEAD_SOURCE = FIXTURE_BASE_SOURCE.replace(
@@ -84,7 +87,7 @@ FIXTURE_HEAD_SOURCE = FIXTURE_BASE_SOURCE.replace(
 )
 
 # Deliberately misses the end_date == today boundary on both revisions.
-FIXTURE_TESTS = '''\
+FIXTURE_TESTS = """\
 from datetime import date
 
 import pytest
@@ -102,7 +105,7 @@ def test_renew_rejects_expired_subscription():
     subscription = Subscription("monthly", date(2026, 6, 1))
     with pytest.raises(RenewalError):
         renew(subscription, date(2026, 7, 1))
-'''
+"""
 
 # Write/Edit stay listed so the plugin's own PreToolUse gate — not headless
 # auto-deny — is the layer that decides write attempts during a run.
@@ -133,17 +136,22 @@ def _secure_write(path: Path, text: str) -> None:
 def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
-        check=True, capture_output=True, text=True,
-        env={**os.environ, "GIT_AUTHOR_NAME": "devloop", "GIT_AUTHOR_EMAIL": "devloop@local",
-             "GIT_COMMITTER_NAME": "devloop", "GIT_COMMITTER_EMAIL": "devloop@local"},
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "devloop",
+            "GIT_AUTHOR_EMAIL": "devloop@local",
+            "GIT_COMMITTER_NAME": "devloop",
+            "GIT_COMMITTER_EMAIL": "devloop@local",
+        },
     )
     return result.stdout.strip()
 
 
 def _git_bytes(repo: Path, *args: str) -> bytes:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args], check=False, capture_output=True
-    ).stdout
+    return subprocess.run(["git", "-C", str(repo), *args], check=False, capture_output=True).stdout
 
 
 def content_digest(repo: Path) -> str:
@@ -167,7 +175,9 @@ def content_digest(repo: Path) -> str:
     feed("staged", _git_bytes(repo, "diff", "--cached", "--binary"))
     untracked = subprocess.run(
         ["git", "-C", str(repo), "ls-files", "--others", "--exclude-standard", "-z"],
-        check=False, capture_output=True, text=True,
+        check=False,
+        capture_output=True,
+        text=True,
     ).stdout
     for name in sorted(part for part in untracked.split("\0") if part):
         target = repo / name
@@ -256,7 +266,8 @@ def extract_canonical_surface(transcript_lines: list) -> str | None:
                     texts.append(content)
                 elif isinstance(content, list):
                     texts.extend(
-                        item.get("text", "") for item in content
+                        item.get("text", "")
+                        for item in content
                         if isinstance(item, dict) and item.get("type") == "text"
                     )
             for text in texts:
@@ -278,11 +289,21 @@ def run_once(args: argparse.Namespace) -> int:
     before_sessions = _session_dirs()
     t0 = time.monotonic()
     cli = subprocess.run(
-        ["claude", "-p", prompt,
-         "--plugin-dir", str(SOCRATIC_ROOT),
-         "--output-format", "stream-json", "--verbose",
-         "--max-turns", str(args.max_turns)],
-        cwd=target, capture_output=True, text=True,
+        [
+            "claude",
+            "-p",
+            prompt,
+            "--plugin-dir",
+            str(SOCRATIC_ROOT),
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--max-turns",
+            str(args.max_turns),
+        ],
+        cwd=target,
+        capture_output=True,
+        text=True,
     )
     duration = round(time.monotonic() - t0, 1)
 
@@ -306,12 +327,16 @@ def run_once(args: argparse.Namespace) -> int:
                     assistant_texts.append(block["text"])
     canonical = extract_canonical_surface(transcript_lines)
 
-    _secure_write(record / "assistant-messages.md",
-                  "\n\n---\n\n".join(assistant_texts) or "(no assistant text)\n")
+    _secure_write(
+        record / "assistant-messages.md",
+        "\n\n---\n\n".join(assistant_texts) or "(no assistant text)\n",
+    )
     _secure_write(record / "cli.json", json.dumps(payload, indent=2))
     _secure_write(record / "final-message.md", payload.get("result") or "(no result text)\n")
-    _secure_write(record / "review.md",
-                  canonical or "(canonical four-block surface not found in transcript)\n")
+    _secure_write(
+        record / "review.md",
+        canonical or "(canonical four-block surface not found in transcript)\n",
+    )
 
     # Attribute sessions by primary_root: concurrent interactive runs on other
     # repositories must not leak into this record.
@@ -336,8 +361,9 @@ def run_once(args: argparse.Namespace) -> int:
             # node_modules, and copytree flattens copy-on-write clones into
             # real bytes (a single run record once reached 33GB).
             copy_root = record / ("host-storage-" + name)
-            shutil.copytree(storage, copy_root, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns("workspace-*"))
+            shutil.copytree(
+                storage, copy_root, dirs_exist_ok=True, ignore=shutil.ignore_patterns("workspace-*")
+            )
             for path in copy_root.rglob("*"):
                 if path.is_dir():
                     os.chmod(path, 0o700)
@@ -386,9 +412,24 @@ def run_once(args: argparse.Namespace) -> int:
     _secure_write(record / "meta.json", json.dumps(meta, indent=2))
 
     print("recorded:", record)
-    print(json.dumps({k: meta[k] for k in (
-        "success", "duration_s", "subtype", "is_error", "num_turns",
-        "permission_denials", "target_tree_clean", "socratic")}, indent=2))
+    print(
+        json.dumps(
+            {
+                k: meta[k]
+                for k in (
+                    "success",
+                    "duration_s",
+                    "subtype",
+                    "is_error",
+                    "num_turns",
+                    "permission_denials",
+                    "target_tree_clean",
+                    "socratic",
+                )
+            },
+            indent=2,
+        )
+    )
     if not meta["success"]:
         failed = [name for name, passed in checks.items() if not passed]
         print("failed checks:", ", ".join(failed))
@@ -404,12 +445,21 @@ def list_runs(_args: argparse.Namespace) -> int:
         if not meta_file.is_file():
             continue
         meta = json.loads(meta_file.read_text())
-        print("{}  ok={} {:>6}s  turns={:<3} rev={}{} tree_clean={}".format(
-            path.name, meta.get("success"), meta.get("duration_s"),
-            meta.get("num_turns"), meta.get("socratic", {}).get("rev"),
-            "+dirty:" + meta["socratic"]["working_tree_digest"]
-            if meta.get("socratic", {}).get("dirty") else "",
-            meta.get("target_tree_clean")))
+        print(
+            "{}  ok={} {:>6}s  turns={:<3} rev={}{} tree_clean={}".format(
+                path.name,
+                meta.get("success"),
+                meta.get("duration_s"),
+                meta.get("num_turns"),
+                meta.get("socratic", {}).get("rev"),
+                (
+                    "+dirty:" + meta["socratic"]["working_tree_digest"]
+                    if meta.get("socratic", {}).get("dirty")
+                    else ""
+                ),
+                meta.get("target_tree_clean"),
+            )
+        )
     return 0
 
 
@@ -449,10 +499,14 @@ def main() -> int:
 
     run_parser = sub.add_parser("run", help="execute one recorded review run")
     run_parser.add_argument("--label", help="short name embedded in the run directory")
-    run_parser.add_argument("--target", help="existing repo to review (default: built-in expiry fixture)")
+    run_parser.add_argument(
+        "--target", help="existing repo to review (default: built-in expiry fixture)"
+    )
     run_parser.add_argument("--prompt", help="override the review prompt")
     run_parser.add_argument("--max-turns", type=int, default=120)
-    run_parser.add_argument("--fresh-fixture", action="store_true", help="rebuild the fixture from scratch")
+    run_parser.add_argument(
+        "--fresh-fixture", action="store_true", help="rebuild the fixture from scratch"
+    )
     run_parser.set_defaults(func=run_once)
 
     list_parser = sub.add_parser("list", help="list recorded runs")

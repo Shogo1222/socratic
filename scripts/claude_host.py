@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -15,10 +16,8 @@ import sys
 import tempfile
 import threading
 import time
-import hashlib
 from pathlib import Path
 from typing import Any
-
 
 SESSION_ROOT = Path(os.environ.get("SOCRATIC_SESSION_ROOT") or "/tmp/socratic-sessions")
 BROKER_IDLE_TTL_SECONDS = 2 * 60 * 60
@@ -57,10 +56,7 @@ def session_target_matches(state: dict[str, Any], requested: str | int) -> bool:
         return False
     if isinstance(requested, str):
         current_url = change.get("url")
-        return (
-            isinstance(current_url, str)
-            and current_url.rstrip("/") == requested.rstrip("/")
-        )
+        return isinstance(current_url, str) and current_url.rstrip("/") == requested.rstrip("/")
     return True
 
 
@@ -83,9 +79,7 @@ def prepare_or_retarget_session(
         cleanup_session(session_id)
         state = None
     requested = requested_pull_request(prompt)
-    if state is not None and requested is not None and not session_target_matches(
-        state, requested
-    ):
+    if state is not None and requested is not None and not session_target_matches(state, requested):
         state = prepare_session(
             session_id,
             primary,
@@ -114,7 +108,10 @@ def materialize_pull_request(
     number = int(requested.rsplit("/", 1)[1]) if isinstance(requested, str) else requested
     metadata_process = subprocess.run(
         [
-            "gh", "pr", "view", str(requested),
+            "gh",
+            "pr",
+            "view",
+            str(requested),
             "--json",
             "number,url,title,baseRefName,baseRefOid,headRefName,headRefOid",
         ],
@@ -131,10 +128,7 @@ def materialize_pull_request(
         metadata = json.loads(metadata_process.stdout)
         if (
             metadata["number"] != number
-            or (
-                isinstance(requested, str)
-                and metadata["url"].rstrip("/") != requested.rstrip("/")
-            )
+            or (isinstance(requested, str) and metadata["url"].rstrip("/") != requested.rstrip("/"))
             or not re.fullmatch(r"[0-9a-f]{40}", metadata["baseRefOid"])
             or not re.fullmatch(r"[0-9a-f]{40}", metadata["headRefOid"])
         ):
@@ -157,22 +151,28 @@ def materialize_pull_request(
         requested_match = GITHUB_PR_URL.fullmatch(requested)
         remote_match = GITHUB_REMOTE.fullmatch(remote)
         requested_repository = (
-            f"{requested_match.group(1)}/{requested_match.group(2)}"
-            if requested_match else ""
+            f"{requested_match.group(1)}/{requested_match.group(2)}" if requested_match else ""
         )
         if (
             remote_match is None
             or remote_match.group(1).casefold() != requested_repository.casefold()
         ):
-            raise RuntimeError(
-                "Requested pull request does not belong to the repository origin"
-            )
+            raise RuntimeError("Requested pull request does not belong to the repository origin")
     mirror = storage / "materialized.git"
-    subprocess.run(["git", "init", "--bare", str(mirror)], check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(
+        ["git", "init", "--bare", str(mirror)],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     fetch_base = subprocess.run(
         [
-            "git", "--git-dir", str(mirror), "fetch", "--no-tags", remote,
+            "git",
+            "--git-dir",
+            str(mirror),
+            "fetch",
+            "--no-tags",
+            remote,
             f"+{metadata['baseRefOid']}:refs/socratic/base",
         ],
         check=False,
@@ -182,12 +182,15 @@ def materialize_pull_request(
         timeout=120,
     )
     if fetch_base.returncode != 0:
-        raise RuntimeError(
-            "Host could not materialize the exact pull-request base commit"
-        )
+        raise RuntimeError("Host could not materialize the exact pull-request base commit")
     fetch_head = subprocess.run(
         [
-            "git", "--git-dir", str(mirror), "fetch", "--no-tags", remote,
+            "git",
+            "--git-dir",
+            str(mirror),
+            "fetch",
+            "--no-tags",
+            remote,
             f"+refs/pull/{number}/head:refs/socratic/head",
         ],
         check=False,
@@ -197,9 +200,7 @@ def materialize_pull_request(
         timeout=120,
     )
     if fetch_head.returncode != 0:
-        raise RuntimeError(
-            "Host could not materialize the exact pull-request head commit"
-        )
+        raise RuntimeError("Host could not materialize the exact pull-request head commit")
     for reference, expected in (
         ("refs/socratic/base", metadata["baseRefOid"]),
         ("refs/socratic/head", metadata["headRefOid"]),
@@ -216,8 +217,13 @@ def materialize_pull_request(
             raise RuntimeError("Materialized Git state does not match GitHub provenance")
     diff = subprocess.run(
         [
-            "git", "--git-dir", str(mirror), "diff", "--name-only",
-            "refs/socratic/base", "refs/socratic/head",
+            "git",
+            "--git-dir",
+            str(mirror),
+            "diff",
+            "--name-only",
+            "refs/socratic/base",
+            "refs/socratic/head",
         ],
         check=False,
         stdout=subprocess.PIPE,
@@ -227,9 +233,7 @@ def materialize_pull_request(
     )
     if diff.returncode != 0:
         raise RuntimeError("Host could not summarize the materialized pull request")
-    changed_files = [
-        line for line in diff.stdout.splitlines() if line and "\0" not in line
-    ]
+    changed_files = [line for line in diff.stdout.splitlines() if line and "\0" not in line]
     snapshots = storage / "change"
     base = snapshots / "base"
     head = snapshots / "head"
@@ -238,8 +242,16 @@ def materialize_pull_request(
     for reference, target in (("refs/socratic/base", base), ("refs/socratic/head", head)):
         checkout = subprocess.run(
             [
-                "git", "--git-dir", str(mirror), "--work-tree", str(target),
-                "checkout", "--force", reference, "--", ".",
+                "git",
+                "--git-dir",
+                str(mirror),
+                "--work-tree",
+                str(target),
+                "checkout",
+                "--force",
+                reference,
+                "--",
+                ".",
             ],
             check=False,
             stdout=subprocess.DEVNULL,
@@ -250,7 +262,7 @@ def materialize_pull_request(
         if checkout.returncode != 0:
             raise RuntimeError("Host could not expand a pull-request snapshot")
         (target / ".git").mkdir()
-    provenance: dict[str, str | int] = {
+    provenance: dict[str, Any] = {
         "source": "github-pull-request",
         "number": number,
         "url": metadata["url"],
@@ -389,10 +401,8 @@ def prepare_session(
     except (OSError, RuntimeError, subprocess.SubprocessError):
         shutil.rmtree(root, ignore_errors=True)
         raise
-    manifest_change = {
-        key: value for key, value in change.items() if key != "title"
-    }
-    state = {
+    manifest_change = {key: value for key, value in change.items() if key != "title"}
+    state: dict[str, Any] = {
         "session_id": session_id,
         "primary_root": str(primary),
         "review_root": str(change["head_root"]),
@@ -416,7 +426,9 @@ def prepare_session(
         os.fchmod(broker_log.fileno(), 0o600)
         process = subprocess.Popen(
             [sys.executable, str(Path(__file__).resolve()), "broker", "--state", str(state_path)],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=broker_log,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=broker_log,
             start_new_session=True,
         )
     BROKER_PROCESSES[session_id] = process
@@ -497,11 +509,20 @@ def _broker_log(message: str) -> None:
 
 
 def run_broker(state_path: Path) -> int:
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    grant = {key: state[key] for key in (
-        "adapter_id", "run_id", "run_nonce", "storage_root",
-        "protection_mode", "protection_details", "change_context", "review_context",
-    )}
+    state: dict[str, Any] = json.loads(state_path.read_text(encoding="utf-8"))
+    grant: dict[str, Any] = {
+        key: state[key]
+        for key in (
+            "adapter_id",
+            "run_id",
+            "run_nonce",
+            "storage_root",
+            "protection_mode",
+            "protection_details",
+            "change_context",
+            "review_context",
+        )
+    }
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(state["socket_path"])
     server.listen(8)
@@ -518,7 +539,7 @@ def run_broker(state_path: Path) -> int:
     return 0
 
 
-def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threading.Event) -> None:
+def _serve(server: socket.socket, token: str, grant: dict[str, Any], stop: threading.Event) -> None:
     server.settimeout(0.25)
     last_request = time.monotonic()
     while not stop.is_set():
@@ -536,6 +557,7 @@ def _serve(server: socket.socket, token: str, grant: dict[str, str], stop: threa
             last_request = time.monotonic()
             try:
                 request = json.loads(connection.recv(65536).decode())
+                response: dict[str, Any]
                 if not secrets.compare_digest(str(request.get("token", "")), token):
                     response = {"status": "blocked"}
                 elif request.get("action") == "grant":
@@ -577,7 +599,7 @@ def launch(primary: Path, plugin: Path, claude: str, extra: list[str]) -> int:
     )
     token = secrets.token_urlsafe(48)
     socket_path = run_root / "host.sock"
-    grant = {
+    grant: dict[str, Any] = {
         "adapter_id": "claude-code-disposable-host-v1",
         "run_id": secrets.token_hex(16),
         "run_nonce": secrets.token_urlsafe(48),
@@ -589,9 +611,7 @@ def launch(primary: Path, plugin: Path, claude: str, extra: list[str]) -> int:
             "head_root": str(workspace),
         },
     }
-    grant["review_context"] = build_review_context(
-        grant["change_context"], "Socratic review"
-    )
+    grant["review_context"] = build_review_context(grant["change_context"], "Socratic review")
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
     server.listen(8)
@@ -599,15 +619,19 @@ def launch(primary: Path, plugin: Path, claude: str, extra: list[str]) -> int:
     thread = threading.Thread(target=_serve, args=(server, token, grant, stop), daemon=True)
     thread.start()
     environment = os.environ.copy()
-    environment.update({
-        "SOCRATIC_HOST_SOCKET": str(socket_path),
-        "SOCRATIC_HOST_TOKEN": token,
-        "SOCRATIC_USER_PRIMARY": str(primary),
-    })
+    environment.update(
+        {
+            "SOCRATIC_HOST_SOCKET": str(socket_path),
+            "SOCRATIC_HOST_TOKEN": token,
+            "SOCRATIC_USER_PRIMARY": str(primary),
+        }
+    )
     try:
         return subprocess.run(
-            [claude, "--plugin-dir", str(plugin), *extra], cwd=workspace,
-            env=environment, check=False,
+            [claude, "--plugin-dir", str(plugin), *extra],
+            cwd=workspace,
+            env=environment,
+            check=False,
         ).returncode
     finally:
         stop.set()

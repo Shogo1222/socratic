@@ -11,11 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(
-    r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
-)
+SOCRATIC_INVOCATION = re.compile(r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE)
 
 
 def _invoked(prompt: str) -> bool:
@@ -90,11 +87,10 @@ def evaluate(payload: Any) -> dict[str, Any]:
         "previous run and materialized a fresh review root. Discard all scope, "
         "findings, plans, and agent results from the previous run. Do not use "
         "git fetch, gh, or a subagent to obtain the pull request.\n"
-        if retargeted else ""
+        if retargeted
+        else ""
     )
-    review_context = json.dumps(
-        state["review_context"], ensure_ascii=False, sort_keys=True
-    )
+    review_context = json.dumps(state["review_context"], ensure_ascii=False, sort_keys=True)
     context = retarget_context + (
         f"Host review context: {review_context}\n"
         "Start by stating the injected Mission in the user's language. Before "

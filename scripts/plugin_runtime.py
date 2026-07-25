@@ -12,7 +12,6 @@ import time
 import venv
 from pathlib import Path
 
-
 REQUIREMENTS = ("jsonschema==4.25.1", "referencing==0.36.2")
 
 
@@ -21,17 +20,28 @@ def _ready(python: Path) -> bool:
         environment = {
             key: value
             for key, value in os.environ.items()
-            if key.upper() in {
-                "COMSPEC", "LANG", "LC_ALL", "LC_CTYPE", "PATH", "PATHEXT",
-                "SYSTEMDRIVE", "SYSTEMROOT", "TZ", "WINDIR",
+            if key.upper()
+            in {
+                "COMSPEC",
+                "LANG",
+                "LC_ALL",
+                "LC_CTYPE",
+                "PATH",
+                "PATHEXT",
+                "SYSTEMDRIVE",
+                "SYSTEMROOT",
+                "TZ",
+                "WINDIR",
             }
         }
-        environment.update({
-            "HOME": directory,
-            "TMPDIR": directory,
-            "XDG_CACHE_HOME": directory,
-            "PYTHONDONTWRITEBYTECODE": "1",
-        })
+        environment.update(
+            {
+                "HOME": directory,
+                "TMPDIR": directory,
+                "XDG_CACHE_HOME": directory,
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+        )
         try:
             completed = subprocess.run(
                 [str(python), "-I", "-c", "import jsonschema, referencing"],

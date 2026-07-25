@@ -28,11 +28,24 @@ Run repository consistency checks before submitting:
 
 ```bash
 python3 scripts/check_repository.py
+python3 -m pip install -r requirements-dev.txt
+npm ci
+black --check .
+isort --check-only .
+flake8 .
+mypy hooks scripts skills tools
+npm run lint:markdown
 python3 -B -m unittest discover -s tests -t . -p 'test_*.py'
 python3 scripts/validate_fixtures.py
 python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
+
+Install the Git hook once in each checkout with `pre-commit install`. The hook runs the same
+Black, isort, Flake8, mypy, Markdown, and Skill-contract checks before each commit. Use
+`pre-commit run --all-files` to check the complete repository locally. CI additionally runs
+the upstream `skills-ref` validator pinned by `requirements-skills.txt`; it requires Python
+3.11 or newer.
 
 `-B` prevents local `__pycache__` directories from contaminating distribution checks. Tests are grouped by concern under `tests/`; `-t .` keeps repository-root imports stable from every group.
 

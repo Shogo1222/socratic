@@ -22,7 +22,6 @@ from typing import Any
 
 from validate_and_render import ArtifactError, load_strict_json, validate_document
 
-
 RUNNER_VERSION = "0.5.0-beta.1"
 OUTPUT_TAIL_BYTES = 16_384
 DIFF_TAIL_BYTES = 16_384
@@ -36,9 +35,9 @@ class ExperimentError(RuntimeError):
 
 
 def canonical_bytes(value: Any) -> bytes:
-    return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -136,9 +135,7 @@ def _validate_mutations(mutations: list[dict[str, Any]]) -> None:
     for mutation in mutations:
         paths = [target["path"] for target in mutation["targets"]]
         if len(paths) != len(set(paths)):
-            raise ExperimentError(
-                f"mutation target paths must be unique: {mutation['id']}"
-            )
+            raise ExperimentError(f"mutation target paths must be unique: {mutation['id']}")
         changed_bytes = sum(
             len(operation["before"].encode("utf-8"))
             + len(operation.get("after", "").encode("utf-8"))
@@ -146,21 +143,23 @@ def _validate_mutations(mutations: list[dict[str, Any]]) -> None:
             for operation in target["operations"]
         )
         if changed_bytes > MAX_CHANGED_BYTES:
-            raise ExperimentError(
-                f"mutation exceeds aggregate change-size limit: {mutation['id']}"
-            )
+            raise ExperimentError(f"mutation exceeds aggregate change-size limit: {mutation['id']}")
 
 
 def _clean_environment(runtime_root: Path) -> dict[str, str]:
     allowed = {
-        "COMSPEC", "LANG", "LC_ALL", "LC_CTYPE", "PATH", "PATHEXT",
-        "SYSTEMDRIVE", "SYSTEMROOT", "TZ", "WINDIR",
+        "COMSPEC",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TZ",
+        "WINDIR",
     }
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() in allowed
-    }
+    environment = {key: value for key, value in os.environ.items() if key.upper() in allowed}
     home = runtime_root / "home"
     temporary = runtime_root / "tmp"
     cache = runtime_root / "cache"
@@ -246,9 +245,7 @@ def _probe_runtime(runtime_root: Path) -> tuple[dict[str, Any], dict[str, Any] |
         "implementation": sys.implementation.name,
         "version": platform.python_version(),
         "executable_sha256": sha256_file(Path(sys.executable).resolve()),
-        "environment": (
-            "virtual-environment" if sys.prefix != sys.base_prefix else "system"
-        ),
+        "environment": ("virtual-environment" if sys.prefix != sys.base_prefix else "system"),
         "probe": "failed" if missing else "passed",
         "missing_dependencies": missing,
     }
@@ -321,10 +318,7 @@ def _apply_target(workspace: Path, target_plan: dict[str, Any]) -> dict[str, Any
     target = _safe_target(workspace, relative)
     original_bytes = target.read_bytes()
     planned_preimage = target_plan["preimage_sha256"]
-    if (
-        planned_preimage != "runner-computed"
-        and sha256_bytes(original_bytes) != planned_preimage
-    ):
+    if planned_preimage != "runner-computed" and sha256_bytes(original_bytes) != planned_preimage:
         raise ExperimentError(f"preimage hash mismatch: {relative}")
     try:
         original = original_bytes.decode("utf-8")
@@ -335,9 +329,7 @@ def _apply_target(workspace: Path, target_plan: dict[str, Any]) -> dict[str, Any
     for operation in target_plan["operations"]:
         before = operation["before"]
         if changed.count(before) != 1:
-            raise ExperimentError(
-                f"{operation['type']} requires exactly one match in {relative}"
-            )
+            raise ExperimentError(f"{operation['type']} requires exactly one match in {relative}")
         after = operation.get("after", "")
         changed = changed.replace(before, after, 1)
     changed_bytes = changed.encode("utf-8")
@@ -383,10 +375,7 @@ def assess(source_root: Path, plan_path: Path, evidence_path: Path) -> dict[str,
 
     actual_source_digest = source_digest(source)
     planned_source_digest = plan["source"]["sha256"]
-    if (
-        planned_source_digest != "runner-computed"
-        and planned_source_digest != actual_source_digest
-    ):
+    if planned_source_digest != "runner-computed" and planned_source_digest != actual_source_digest:
         raise ExperimentError("source digest does not match the Experiment Plan")
 
     runner_path = Path(__file__).resolve()
@@ -420,8 +409,7 @@ def assess(source_root: Path, plan_path: Path, evidence_path: Path) -> dict[str,
                     workspace = run_root / mutation_plan["id"]
                     _copy_source(prepared, workspace)
                     changes = [
-                        _apply_target(workspace, target)
-                        for target in mutation_plan["targets"]
+                        _apply_target(workspace, target) for target in mutation_plan["targets"]
                     ]
                     execution = _execute_tests(
                         workspace,

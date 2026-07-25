@@ -23,9 +23,7 @@ from runner.scaffolds import _next_step
 def _review_files(root: Path):
     for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
         names[:] = sorted(
-            name
-            for name in names
-            if name not in IGNORED_NAMES and not name.startswith(".env")
+            name for name in names if name not in IGNORED_NAMES and not name.startswith(".env")
         )
         for filename in sorted(filenames):
             if filename in IGNORED_NAMES or filename.startswith(".env"):
@@ -35,9 +33,7 @@ def _review_files(root: Path):
                 yield path
 
 
-def _resolve_inspect_kind(
-    kind_flag: str | None, kind_positional: str | None
-) -> str:
+def _resolve_inspect_kind(kind_flag: str | None, kind_positional: str | None) -> str:
     """Accept both `inspect diff` and `inspect --kind diff` invocation forms."""
     if kind_flag and kind_positional and kind_flag != kind_positional:
         raise RunGateError(
@@ -89,7 +85,9 @@ def inspect_review(
             ),
         }
         result["next"] = _next_step(
-            "scaffold-contract", "--manifest", str(manifest_path),
+            "scaffold-contract",
+            "--manifest",
+            str(manifest_path),
             note=(
                 "run only after the Diff understanding checkpoint is answered; "
                 "incorporate corrections and fill every replace-me value from evidence"
@@ -99,12 +97,14 @@ def inspect_review(
 
     if kind == "diff":
         if change["source"] != "github-pull-request":
-            return guided({
-                "kind": "diff",
-                "available": False,
-                "reason": "local-workspace has no Host-materialized Base snapshot",
-                "changed_files": [],
-            })
+            return guided(
+                {
+                    "kind": "diff",
+                    "available": False,
+                    "reason": "local-workspace has no Host-materialized Base snapshot",
+                    "changed_files": [],
+                }
+            )
         base = Path(change["base_root"]).resolve(strict=True)
         selected = (
             [_safe_relative_path(relative_path).as_posix()]
@@ -119,25 +119,30 @@ def inspect_review(
             after_path = head / relative
             before = _bounded_text(before_path) if before_path.exists() else ""
             after = _bounded_text(after_path) if after_path.exists() else ""
-            diff = "".join(difflib.unified_diff(
-                before.splitlines(keepends=True),
-                after.splitlines(keepends=True),
-                fromfile=f"a/{relative.as_posix()}",
-                tofile=f"b/{relative.as_posix()}",
-            ))
-            if sum(len(item.encode("utf-8")) for item in chunks) + len(
-                diff.encode("utf-8")
-            ) > MAX_INSPECT_BYTES:
+            diff = "".join(
+                difflib.unified_diff(
+                    before.splitlines(keepends=True),
+                    after.splitlines(keepends=True),
+                    fromfile=f"a/{relative.as_posix()}",
+                    tofile=f"b/{relative.as_posix()}",
+                )
+            )
+            if (
+                sum(len(item.encode("utf-8")) for item in chunks) + len(diff.encode("utf-8"))
+                > MAX_INSPECT_BYTES
+            ):
                 truncated = True
                 break
             chunks.append(diff)
-        return guided({
-            "kind": "diff",
-            "available": True,
-            "changed_files": selected,
-            "text": "".join(chunks),
-            "truncated": truncated,
-        })
+        return guided(
+            {
+                "kind": "diff",
+                "available": True,
+                "changed_files": selected,
+                "text": "".join(chunks),
+                "truncated": truncated,
+            }
+        )
     if kind == "file":
         if not relative_path:
             raise RunGateError("file inspection requires --relative-path")
@@ -145,13 +150,15 @@ def inspect_review(
         if start_line < 1 or end_line < start_line or end_line - start_line > 400:
             raise RunGateError("file inspection line range is invalid or too large")
         lines = _bounded_text(head / relative).splitlines()
-        return guided({
-            "kind": "file",
-            "path": relative.as_posix(),
-            "start_line": start_line,
-            "end_line": min(end_line, len(lines)),
-            "text": "\n".join(lines[start_line - 1:end_line]),
-        })
+        return guided(
+            {
+                "kind": "file",
+                "path": relative.as_posix(),
+                "start_line": start_line,
+                "end_line": min(end_line, len(lines)),
+                "text": "\n".join(lines[start_line - 1 : end_line]),
+            }
+        )
     if kind == "tests":
         tests: list[str] = []
         for path in _review_files(head):
@@ -165,11 +172,13 @@ def inspect_review(
                 or re.search(r"(?:^|[._-])(?:test|spec)(?:[._-]|$)", name)
             ):
                 tests.append(relative.as_posix())
-        return guided({
-            "kind": "tests",
-            "paths": tests,
-            "truncated": len(tests) == MAX_INSPECT_MATCHES,
-        })
+        return guided(
+            {
+                "kind": "tests",
+                "paths": tests,
+                "truncated": len(tests) == MAX_INSPECT_MATCHES,
+            }
+        )
     if kind == "search":
         if not query or len(query) > 200:
             raise RunGateError("search requires a query of at most 200 characters")
@@ -184,17 +193,21 @@ def inspect_review(
                 continue
             for number, line in enumerate(text.splitlines(), 1):
                 if query in line:
-                    matches.append({
-                        "path": relative.as_posix(),
-                        "line": number,
-                        "text": line[:1000],
-                    })
+                    matches.append(
+                        {
+                            "path": relative.as_posix(),
+                            "line": number,
+                            "text": line[:1000],
+                        }
+                    )
                     if len(matches) >= MAX_INSPECT_MATCHES:
                         break
-        return guided({
-            "kind": "search",
-            "query": query,
-            "matches": matches,
-            "truncated": len(matches) == MAX_INSPECT_MATCHES,
-        })
+        return guided(
+            {
+                "kind": "search",
+                "query": query,
+                "matches": matches,
+                "truncated": len(matches) == MAX_INSPECT_MATCHES,
+            }
+        )
     raise RunGateError(f"unsupported inspection kind: {kind}")

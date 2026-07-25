@@ -1,0 +1,21 @@
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+extend-exclude = '''
+/(?:\.claude/worktrees|node_modules)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip_glob = [".claude/worktrees/*", "node_modules/*"]
+
+[tool.mypy]
+python_version = "3.9"
+check_untyped_defs = true
+exclude = '(^|/)(?:\.claude/worktrees|node_modules|tests)/'
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_ignores = true

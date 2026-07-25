@@ -21,8 +21,8 @@ from runner.constants import (
     MAX_INSPECT_BYTES,
     MISSING_EXECUTABLE_SIGNATURES,
     PYTHON_MISMATCH_SIGNATURES,
-    RunGateError,
     SANDBOX_ENV_DEFAULTS,
+    RunGateError,
     _bounded_text,
     _load_json,
     _load_module,
@@ -96,8 +96,11 @@ def _infrastructure_hint(output: str, argv: list[str] | None = None) -> str | No
 def _bounded_tool_version(executable: str, environment: dict[str, str], cwd: Path) -> str:
     try:
         completed = _run_sandboxed(
-            [executable, "--version"], cwd=cwd, env=environment,
-            timeout_seconds=5, capture=True,
+            [executable, "--version"],
+            cwd=cwd,
+            env=environment,
+            timeout_seconds=5,
+            capture=True,
         )
     except subprocess.TimeoutExpired:
         return "timeout"
@@ -125,11 +128,13 @@ def _project_requirements(prepared: Path) -> dict[str, Any]:
         match = re.search(r'build-backend\s*=\s*["\']([^"\']+)["\']', text)
         if match:
             requirements["build_backend"] = match.group(1)
-        requirements["vcs_version_backends"] = sorted({
-            name
-            for name in ("hatch-vcs", "setuptools-scm", "setuptools_scm", "versioningit")
-            if name in text
-        })
+        requirements["vcs_version_backends"] = sorted(
+            {
+                name
+                for name in ("hatch-vcs", "setuptools-scm", "setuptools_scm", "versioningit")
+                if name in text
+            }
+        )
     package_json = prepared / "package.json"
     if package_json.is_file():
         try:
@@ -204,9 +209,7 @@ def doctor(manifest_path: Path) -> dict[str, Any]:
         "vcs_metadata": {
             "prepared_snapshot_has_git": (prepared / ".git").exists(),
             "vcs_version_backends_detected": project["vcs_version_backends"],
-            "pretend_version_preset": SANDBOX_ENV_DEFAULTS.get(
-                "SETUPTOOLS_SCM_PRETEND_VERSION"
-            ),
+            "pretend_version_preset": SANDBOX_ENV_DEFAULTS.get("SETUPTOOLS_SCM_PRETEND_VERSION"),
         },
         "last_failed_command": _last_failed_command(manifest),
         "note": (
@@ -218,20 +221,12 @@ def doctor(manifest_path: Path) -> dict[str, Any]:
     }
 
 
-def _authorize_contract_challenge(
-    manifest: dict[str, Any], contract_ids: list[str]
-) -> None:
+def _authorize_contract_challenge(manifest: dict[str, Any], contract_ids: list[str]) -> None:
     index = _artifact_index(manifest)
     record = index["artifacts"].get("contract")
     path = Path(manifest["artifact_root"]) / ARTIFACT_FILES["contract"]
-    if (
-        not record
-        or record.get("path") != str(path)
-        or record.get("sha256") != _sha256_path(path)
-    ):
-        raise RunGateError(
-            "Intent Contract must be validated and staged before mutation"
-        )
+    if not record or record.get("path") != str(path) or record.get("sha256") != _sha256_path(path):
+        raise RunGateError("Intent Contract must be validated and staged before mutation")
     contract = _load_json(path)
     if not isinstance(contract, dict):
         raise RunGateError("staged Intent Contract is invalid")
@@ -275,19 +270,28 @@ def mutate(
         raise RunGateError("mutation target must be a safe sandbox-relative path")
     isolation = _isolation_gate_module()
     try:
-        evidence = isolation.IsolationGate(
-            Path(manifest["primary_root"]), sandbox
-        ).write_bytes(sandbox / relative_target, content)
+        evidence = isolation.IsolationGate(Path(manifest["primary_root"]), sandbox).write_bytes(
+            sandbox / relative_target, content
+        )
     except BaseException:
         shutil.rmtree(sandbox, ignore_errors=True)
         raise
-    return _append_event(manifest, {
-        "run_id": manifest["run_id"], "mutation_id": mutation_id, "kind": "guarded-write",
-        "requested_path": relative_target, "resolved_path": evidence.resolved_target,
-        "content_sha256": _sha256_bytes(content), "bytes": len(content), "within_sandbox": True,
-        "sandbox_root": str(sandbox), "clone_strategy": clone_strategy,
-        "prepared_sha256": prepared_sha256,
-    })
+    return _append_event(
+        manifest,
+        {
+            "run_id": manifest["run_id"],
+            "mutation_id": mutation_id,
+            "kind": "guarded-write",
+            "requested_path": relative_target,
+            "resolved_path": evidence.resolved_target,
+            "content_sha256": _sha256_bytes(content),
+            "bytes": len(content),
+            "within_sandbox": True,
+            "sandbox_root": str(sandbox),
+            "clone_strategy": clone_strategy,
+            "prepared_sha256": prepared_sha256,
+        },
+    )
 
 
 def _anchored_postimage(root: Path, mutation: dict[str, Any]) -> tuple[str, bytes]:
@@ -296,9 +300,7 @@ def _anchored_postimage(root: Path, mutation: dict[str, Any]) -> tuple[str, byte
     original = _bounded_text(target, limit=2 * 1024 * 1024)
     before = mutation["before"]
     if original.count(before) != 1:
-        raise RunGateError(
-            f"{mutation['kind']} requires exactly one anchor match: {relative}"
-        )
+        raise RunGateError(f"{mutation['kind']} requires exactly one anchor match: {relative}")
     after = mutation.get("after", "")
     changed = original.replace(before, after, 1)
     return relative.as_posix(), changed.encode("utf-8")
@@ -312,35 +314,34 @@ def mutate_anchored(
 ) -> dict[str, Any]:
     """Apply a bounded exact edit without accepting a caller-built full file."""
     manifest = _begin_guarded_mutation(manifest_path, mutation_id, contract_ids)
-    relative_target, content = _anchored_postimage(
-        Path(manifest["prepared_root"]), mutation
-    )
-    sandbox, clone_strategy, prepared_sha256 = _clone_prepared(
-        manifest, mutation_id
-    )
+    relative_target, content = _anchored_postimage(Path(manifest["prepared_root"]), mutation)
+    sandbox, clone_strategy, prepared_sha256 = _clone_prepared(manifest, mutation_id)
     isolation = _isolation_gate_module()
     try:
-        evidence = isolation.IsolationGate(
-            Path(manifest["primary_root"]), sandbox
-        ).write_bytes(sandbox / relative_target, content)
+        evidence = isolation.IsolationGate(Path(manifest["primary_root"]), sandbox).write_bytes(
+            sandbox / relative_target, content
+        )
     except BaseException:
         shutil.rmtree(sandbox, ignore_errors=True)
         raise
-    return _append_event(manifest, {
-        "run_id": manifest["run_id"],
-        "mutation_id": mutation_id,
-        "kind": "guarded-write",
-        "requested_path": relative_target,
-        "resolved_path": evidence.resolved_target,
-        "content_sha256": _sha256_bytes(content),
-        "bytes": len(content),
-        "within_sandbox": True,
-        "sandbox_root": str(sandbox),
-        "clone_strategy": clone_strategy,
-        "prepared_sha256": prepared_sha256,
-        "operation": mutation["kind"],
-        "anchor_sha256": _sha256_bytes(mutation["before"].encode("utf-8")),
-    })
+    return _append_event(
+        manifest,
+        {
+            "run_id": manifest["run_id"],
+            "mutation_id": mutation_id,
+            "kind": "guarded-write",
+            "requested_path": relative_target,
+            "resolved_path": evidence.resolved_target,
+            "content_sha256": _sha256_bytes(content),
+            "bytes": len(content),
+            "within_sandbox": True,
+            "sandbox_root": str(sandbox),
+            "clone_strategy": clone_strategy,
+            "prepared_sha256": prepared_sha256,
+            "operation": mutation["kind"],
+            "anchor_sha256": _sha256_bytes(mutation["before"].encode("utf-8")),
+        },
+    )
 
 
 def register_prebuilt(
@@ -355,9 +356,9 @@ def register_prebuilt(
     unresolved = sandbox / relative
     isolation = _isolation_gate_module()
     try:
-        evidence = isolation.IsolationGate(
-            Path(manifest["primary_root"]), sandbox
-        ).authorize(unresolved)
+        evidence = isolation.IsolationGate(Path(manifest["primary_root"]), sandbox).authorize(
+            unresolved
+        )
         candidate = Path(evidence.resolved_target)
         if (
             relative.is_absolute()
@@ -369,12 +370,19 @@ def register_prebuilt(
     except BaseException:
         shutil.rmtree(sandbox, ignore_errors=True)
         raise
-    return _append_event(manifest, {
-        "run_id": manifest["run_id"], "mutation_id": mutation_id, "kind": "prebuilt",
-        "resolved_path": str(candidate), "sha256": _sha256_path(candidate),
-        "sandbox_root": str(sandbox), "clone_strategy": clone_strategy,
-        "prepared_sha256": prepared_sha256,
-    })
+    return _append_event(
+        manifest,
+        {
+            "run_id": manifest["run_id"],
+            "mutation_id": mutation_id,
+            "kind": "prebuilt",
+            "resolved_path": str(candidate),
+            "sha256": _sha256_path(candidate),
+            "sandbox_root": str(sandbox),
+            "clone_strategy": clone_strategy,
+            "prepared_sha256": prepared_sha256,
+        },
+    )
 
 
 def execute(
@@ -399,12 +407,11 @@ def execute(
         item.get("kind") == "prepared-snapshot" for item in ledger
     ):
         raise RunGateError(f"{phase} cannot run after the prepared snapshot is sealed")
-    if phase == "prepare" and any(
-        item.get("kind") == "validated-command" for item in ledger
-    ):
+    if phase == "prepare" and any(item.get("kind") == "validated-command" for item in ledger):
         raise RunGateError("prepare cannot run after a command has been validated")
     registrations = {
-        item.get("mutation_id"): item for item in ledger
+        item.get("mutation_id"): item
+        for item in ledger
         if item.get("kind") in {"guarded-write", "prebuilt"}
     }
     registered = set(registrations)
@@ -427,27 +434,48 @@ def execute(
     try:
         started = time.monotonic()
         completed = _run_sandboxed(
-            command, cwd=_execution_cwd(execution_root, cwd_relative),
-            env=environment, timeout_seconds=timeout_seconds, capture=False,
+            command,
+            cwd=_execution_cwd(execution_root, cwd_relative),
+            env=environment,
+            timeout_seconds=timeout_seconds,
+            capture=False,
         )
     except subprocess.TimeoutExpired as error:
-        _append_event(manifest, {
-            "run_id": manifest["run_id"], "kind": "command", "phase": phase,
-            "mutation_id": mutation_id, "argv": command, "cwd": cwd_relative,
-            "timeout_seconds": timeout_seconds,
-            "result": "timeout", "returncode": None,
-            "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
-            "environment": runtime_environment, "sandbox_root": str(execution_root),
-        })
+        _append_event(
+            manifest,
+            {
+                "run_id": manifest["run_id"],
+                "kind": "command",
+                "phase": phase,
+                "mutation_id": mutation_id,
+                "argv": command,
+                "cwd": cwd_relative,
+                "timeout_seconds": timeout_seconds,
+                "result": "timeout",
+                "returncode": None,
+                "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
+                "environment": runtime_environment,
+                "sandbox_root": str(execution_root),
+            },
+        )
         raise RunGateError(f"sandbox command timed out after {timeout_seconds}s") from error
-    _append_event(manifest, {
-        "run_id": manifest["run_id"], "kind": "command", "phase": phase,
-        "mutation_id": mutation_id, "argv": command, "cwd": cwd_relative,
-        "timeout_seconds": timeout_seconds,
-        "result": "completed", "returncode": completed.returncode,
-        "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
-        "environment": runtime_environment, "sandbox_root": str(execution_root),
-    })
+    _append_event(
+        manifest,
+        {
+            "run_id": manifest["run_id"],
+            "kind": "command",
+            "phase": phase,
+            "mutation_id": mutation_id,
+            "argv": command,
+            "cwd": cwd_relative,
+            "timeout_seconds": timeout_seconds,
+            "result": "completed",
+            "returncode": completed.returncode,
+            "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
+            "environment": runtime_environment,
+            "sandbox_root": str(execution_root),
+        },
+    )
     return completed.returncode
 
 
@@ -467,7 +495,11 @@ def _run_sandboxed(
     """
     pipe = subprocess.PIPE if capture else None
     process = subprocess.Popen(
-        command, cwd=cwd, env=env, stdout=pipe, stderr=pipe,
+        command,
+        cwd=cwd,
+        env=env,
+        stdout=pipe,
+        stderr=pipe,
         start_new_session=True,
     )
     try:
@@ -478,9 +510,7 @@ def _run_sandboxed(
         except (OSError, ProcessLookupError):
             pass
         stdout, stderr = process.communicate()
-        raise subprocess.TimeoutExpired(
-            command, timeout_seconds, output=stdout, stderr=stderr
-        )
+        raise subprocess.TimeoutExpired(command, timeout_seconds, output=stdout, stderr=stderr)
     return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
 
@@ -533,8 +563,7 @@ def probe_command(
         raise RunGateError("probe command must not be empty")
     events = _ledger_events(manifest)
     if any(
-        item.get("kind") == "validated-command"
-        and item.get("command_id") == command_id
+        item.get("kind") == "validated-command" and item.get("command_id") == command_id
         for item in events
     ):
         raise RunGateError(f"command id is already validated: {command_id}")
@@ -602,15 +631,13 @@ def probe_command(
             # the shared layer only after that baseline behavior has completed.
             _seal_dependency_layer(manifest, runner_timings)
         limit = 16 * 1024
-        public = {
+        public: dict[str, Any] = {
             "status": "ready" if result == "completed" and returncode == 0 else "blocked",
             "command_id": command_id,
             "outcome": (
                 "passed"
                 if result == "completed" and returncode == 0
-                else "timeout"
-                if result == "timeout"
-                else "infrastructure-failure"
+                else "timeout" if result == "timeout" else "infrastructure-failure"
             ),
             "returncode": returncode,
             "duration_ms": duration_ms,
@@ -621,81 +648,86 @@ def probe_command(
         }
         if public["status"] == "ready":
             public["next"] = _next_step(
-                "scaffold-plan", "--manifest", str(manifest_path),
+                "scaffold-plan",
+                "--manifest",
+                str(manifest_path),
                 note="the plan binds this validated command; fill the challenges, then follow next.argv",
             )
         else:
-            hint = _infrastructure_hint(
-                public["stdout"] + "\n" + public["stderr"], command
-            )
+            hint = _infrastructure_hint(public["stdout"] + "\n" + public["stderr"], command)
             if hint:
                 public["hint"] = hint
             public["diagnose"] = _next_step(
-                "doctor", "--manifest", str(manifest_path),
+                "doctor",
+                "--manifest",
+                str(manifest_path),
                 note=(
                     "read-only sandbox toolchain and environment report; run it "
                     "before changing tools or arguments"
                 ),
             )
             public["next"] = _next_step(
-                "probe-command", "--manifest", str(manifest_path),
-                "--command-id", command_id, "--", "<corrected-focused-argv>",
+                "probe-command",
+                "--manifest",
+                str(manifest_path),
+                "--command-id",
+                command_id,
+                "--",
+                "<corrected-focused-argv>",
                 note=(
                     "the probe did not pass; inspect stdout, stderr, and any hint "
                     "above, fix the focused command or its cwd, then probe again"
                 ),
             )
         if public["status"] == "ready":
-            _append_event(manifest, {
-                "run_id": manifest["run_id"],
-                "kind": "validated-command",
-                "command_id": command_id,
-                "argv": command,
-                "cwd": cwd_relative,
-                "timeout_seconds": timeout_seconds,
-                "probe_duration_ms": duration_ms,
-                "clone_strategy": strategy,
-                "prepared_sha256": prepared_sha256,
-            })
-            _append_event(manifest, {
-                "run_id": manifest["run_id"],
-                "kind": "command",
-                "phase": "baseline",
-                "mutation_id": None,
-                "argv": command,
-                "cwd": cwd_relative,
-                "timeout_seconds": timeout_seconds,
-                "result": "completed",
-                "returncode": 0,
-                "duration_ms": duration_ms,
-                "environment": runtime_environment,
-                "sandbox_root": str(probe_root),
-                "command_id": command_id,
-            })
+            _append_event(
+                manifest,
+                {
+                    "run_id": manifest["run_id"],
+                    "kind": "validated-command",
+                    "command_id": command_id,
+                    "argv": command,
+                    "cwd": cwd_relative,
+                    "timeout_seconds": timeout_seconds,
+                    "probe_duration_ms": duration_ms,
+                    "clone_strategy": strategy,
+                    "prepared_sha256": prepared_sha256,
+                },
+            )
+            _append_event(
+                manifest,
+                {
+                    "run_id": manifest["run_id"],
+                    "kind": "command",
+                    "phase": "baseline",
+                    "mutation_id": None,
+                    "argv": command,
+                    "cwd": cwd_relative,
+                    "timeout_seconds": timeout_seconds,
+                    "result": "completed",
+                    "returncode": 0,
+                    "duration_ms": duration_ms,
+                    "environment": runtime_environment,
+                    "sandbox_root": str(probe_root),
+                    "command_id": command_id,
+                },
+            )
     finally:
         shutil.rmtree(probe_root, ignore_errors=True)
     return public
 
 
-def _validated_command(
-    manifest: dict[str, Any], command_id: str
-) -> dict[str, Any]:
+def _validated_command(manifest: dict[str, Any], command_id: str) -> dict[str, Any]:
     matches = [
-        item for item in _ledger_events(manifest)
-        if item.get("kind") == "validated-command"
-        and item.get("command_id") == command_id
+        item
+        for item in _ledger_events(manifest)
+        if item.get("kind") == "validated-command" and item.get("command_id") == command_id
     ]
     if len(matches) != 1:
-        raise RunGateError(
-            f"challenge plan requires one successful command probe: {command_id}"
-        )
+        raise RunGateError(f"challenge plan requires one successful command probe: {command_id}")
     record = matches[0]
-    if record.get("prepared_sha256") != _prepared_hash(
-        Path(manifest["prepared_root"])
-    ):
-        raise RunGateError(
-            f"validated command is stale for the prepared snapshot: {command_id}"
-        )
+    if record.get("prepared_sha256") != _prepared_hash(Path(manifest["prepared_root"])):
+        raise RunGateError(f"validated command is stale for the prepared snapshot: {command_id}")
     return record
 
 
@@ -748,9 +780,7 @@ def _batch_command(
     }
 
 
-def challenge_batch(
-    manifest_path: Path, schema_root: Path | None = None
-) -> dict[str, Any]:
+def challenge_batch(manifest_path: Path, schema_root: Path | None = None) -> dict[str, Any]:
     manifest = _ready_manifest(manifest_path)
     plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
     if (
@@ -856,33 +886,40 @@ def challenge_batch(
             for key, value in result.items()
             if key not in {"stdout", "stderr", "output_truncated"}
         }
-        ledger_event.update({
-            "run_id": manifest["run_id"],
-            "kind": "command",
-            "phase": "mutation",
-            "batch_plan_sha256": plan_sha256,
-        })
+        ledger_event.update(
+            {
+                "run_id": manifest["run_id"],
+                "kind": "command",
+                "phase": "mutation",
+                "batch_plan_sha256": plan_sha256,
+            }
+        )
         _append_event(manifest, ledger_event)
         outcome = (
             "runner-error"
             if result["result"] == "runner-error"
-            else
-            "timeout"
-            if result["result"] == "timeout"
-            else "passed"
-            if result["result"] == "completed" and result["returncode"] == 0
-            else "failed"
+            else (
+                "timeout"
+                if result["result"] == "timeout"
+                else (
+                    "passed"
+                    if result["result"] == "completed" and result["returncode"] == 0
+                    else "failed"
+                )
+            )
         )
-        detailed_results.append({
-            "mutation_id": result["mutation_id"],
-            "outcome": outcome,
-            "returncode": result["returncode"],
-            "duration_ms": result.get("duration_ms"),
-            "cwd": result.get("cwd"),
-            "stdout": result["stdout"],
-            "stderr": result["stderr"],
-            "output_truncated": result["output_truncated"],
-        })
+        detailed_results.append(
+            {
+                "mutation_id": result["mutation_id"],
+                "outcome": outcome,
+                "returncode": result["returncode"],
+                "duration_ms": result.get("duration_ms"),
+                "cwd": result.get("cwd"),
+                "stdout": result["stdout"],
+                "stderr": result["stderr"],
+                "output_truncated": result["output_truncated"],
+            }
+        )
         # The compact view keeps stdout readable in one screen: full output goes
         # to the details artifact, and only non-green outcomes carry a tail here
         # so detecting tests and failure causes stay diagnosable inline.
@@ -897,12 +934,15 @@ def challenge_batch(
             entry["stderr_tail"] = result["stderr"][-tail_limit:]
         public_results.append(entry)
     details_path = Path(manifest["artifact_root"]) / "challenge-results.json"
-    _write_exclusive(details_path, {
-        "run_id": manifest["run_id"],
-        "plan_sha256": plan_sha256,
-        "command_id": plan["command_id"],
-        "results": detailed_results,
-    })
+    _write_exclusive(
+        details_path,
+        {
+            "run_id": manifest["run_id"],
+            "plan_sha256": plan_sha256,
+            "command_id": plan["command_id"],
+            "results": detailed_results,
+        },
+    )
     return {
         "status": "completed",
         "plan_sha256": plan_sha256,
@@ -917,8 +957,11 @@ def challenge_batch(
             ),
         },
         "next": _next_step(
-            "scaffold-analysis", "--manifest", str(manifest_path),
-            "--mode", "<assessment|harden|catch>",
+            "scaffold-analysis",
+            "--manifest",
+            str(manifest_path),
+            "--mode",
+            "<assessment|harden|catch>",
             note="pick the mode of this run's branch, interpret raw outcomes, then follow next.argv",
         ),
     }

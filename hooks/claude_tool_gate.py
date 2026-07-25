@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 DRAFT_FILENAMES = {
     "challenge-plan.json",
     "experiment-plan.json",
@@ -59,11 +58,13 @@ def _host_module():
 
 
 def _deny(reason: str) -> dict[str, Any]:
-    return {"hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
-        "permissionDecisionReason": reason,
-    }}
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }
 
 
 def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
@@ -78,10 +79,7 @@ def _inside_artifact_root(state: dict[str, Any], raw_path: Any) -> bool:
     try:
         root = Path(raw_root).resolve(strict=True)
         candidate.resolve(strict=False).relative_to(root)
-        return (
-            candidate.resolve(strict=False).parent == root
-            and candidate.name in DRAFT_FILENAMES
-        )
+        return candidate.resolve(strict=False).parent == root and candidate.name in DRAFT_FILENAMES
     except (OSError, ValueError):
         return False
 
@@ -93,7 +91,7 @@ def _patch_paths(patch: Any) -> list[str] | None:
     for line in patch.splitlines():
         for marker in ("*** Add File: ", "*** Update File: ", "*** Delete File: ", "*** Move to: "):
             if line.startswith(marker):
-                paths.append(line[len(marker):].strip())
+                paths.append(line[len(marker) :].strip())
                 break
     return paths or None
 
@@ -108,8 +106,16 @@ def _read_only_git_command(command: str) -> bool:
         return False
     subcommand, arguments = argv[2], argv[3:]
     forbidden = {
-        "-c", "--config-env", "--exec-path", "--git-dir", "--work-tree",
-        "--paginate", "--no-index", "--ext-diff", "--textconv", "--exec",
+        "-c",
+        "--config-env",
+        "--exec-path",
+        "--git-dir",
+        "--work-tree",
+        "--paginate",
+        "--no-index",
+        "--ext-diff",
+        "--textconv",
+        "--exec",
     }
     if any(
         arg in forbidden
@@ -133,9 +139,7 @@ def _read_only_git_command(command: str) -> bool:
 
 
 def _plugin_runner_path() -> Path:
-    return (
-        Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"
-    )
+    return Path(__file__).resolve().parent.parent / "skills/socratic/scripts/run_review.py"
 
 
 def _is_plugin_runner_command(argv: list[str]) -> bool:
@@ -165,8 +169,13 @@ def evaluate(payload: Any) -> dict[str, Any]:
     if tool in WRITE_TOOLS:
         path = None
         if isinstance(tool_input, dict):
-            path = tool_input.get("file_path") or tool_input.get("path") or tool_input.get("notebook_path")
+            path = (
+                tool_input.get("file_path")
+                or tool_input.get("path")
+                or tool_input.get("notebook_path")
+            )
         if _inside_artifact_root(state, path):
+            assert isinstance(path, str)
             artifact = Path(path)
             if tool == "Write":
                 if artifact.exists():
@@ -179,31 +188,30 @@ def evaluate(payload: Any) -> dict[str, Any]:
             return _deny(
                 "Create the Runner-generated scaffold with its one allowed Write before editing it"
             )
-        return _deny("Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox")
+        return _deny(
+            "Socratic Review-only forbids direct Primary writes; use the guarded Runner sandbox"
+        )
     if tool == "apply_patch":
         paths = _patch_paths(tool_input.get("patch") if isinstance(tool_input, dict) else None)
         if paths and all(_inside_artifact_root(state, path) for path in paths):
             return {}
-        return _deny("Socratic apply_patch may write only absolute paths under the Host artifact root")
+        return _deny(
+            "Socratic apply_patch may write only absolute paths under the Host artifact root"
+        )
     if tool in SHELL_TOOLS:
         command = tool_input.get("command") if isinstance(tool_input, dict) else None
         if not isinstance(command, str):
             return _deny("Socratic requires a structured guarded Runner command")
         if isinstance(tool_input, dict) and any(
-            tool_input.get(key) is True
-            for key in ("run_in_background", "background")
+            tool_input.get(key) is True for key in ("run_in_background", "background")
         ):
-            return _deny(
-                "Socratic Runner commands must finish synchronously in the foreground"
-            )
+            return _deny("Socratic Runner commands must finish synchronously in the foreground")
         try:
             argv = shlex.split(command)
         except ValueError:
             return _deny("Socratic rejected an unparsable shell command")
         if "&" in argv:
-            return _deny(
-                "Socratic Runner commands must finish synchronously in the foreground"
-            )
+            return _deny("Socratic Runner commands must finish synchronously in the foreground")
         if any(marker in command for marker in (";", "&&", "||", "|", ">", "<", "`", "$(", "\n")):
             return _deny("Socratic forbids shell composition outside the guarded Runner")
         if _is_plugin_runner_command(argv):

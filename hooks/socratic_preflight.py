@@ -8,11 +8,8 @@ import re
 import sys
 from typing import Any
 
-
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(
-    r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
-)
+SOCRATIC_INVOCATION = re.compile(r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE)
 
 
 def _invoked(prompt: str) -> bool:

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from tests.support import ROOT, load_module
 
-
 MODULE_PATH = ROOT / "skills" / "elenchus" / "scripts" / "isolation_gate.py"
 isolation_gate = load_module("isolation_gate", MODULE_PATH)
 IsolationGate = isolation_gate.IsolationGate

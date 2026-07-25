@@ -64,7 +64,9 @@ def validate_cross_artifact(
     for mutation in report.get("mutations", []):
         missing = sorted(set(mutation.get("contract_ids", [])) - known)
         if missing:
-            errors.append(f"{mutation.get('id', '<unknown>')} references unknown Contract IDs: {missing}")
+            errors.append(
+                f"{mutation.get('id', '<unknown>')} references unknown Contract IDs: {missing}"
+            )
 
     report_unresolved = set(report.get("unresolved", []))
     if report_unresolved != unresolved:
@@ -172,9 +174,7 @@ def assert_elenchus_allowed(contract: dict[str, Any], contract_ids: list[str]) -
             blocked.update(mapped)
     challenged = sorted(set(contract_ids) & blocked)
     if challenged:
-        raise ArtifactError(
-            f"Elenchus is blocked for unresolved Contract IDs: {challenged}"
-        )
+        raise ArtifactError(f"Elenchus is blocked for unresolved Contract IDs: {challenged}")
 
 
 def route_intent_decision(
@@ -250,7 +250,9 @@ def validate_document(
         from jsonschema import Draft202012Validator
         from referencing import Registry, Resource
     except ImportError as error:
-        raise ArtifactError("jsonschema and referencing are required for artifact validation") from error
+        raise ArtifactError(
+            "jsonschema and referencing are required for artifact validation"
+        ) from error
     if schema_name not in ARTIFACT_SCHEMAS:
         raise ArtifactError(f"unknown artifact schema: {schema_name}")
     paths = _schema_paths(schema_root)
@@ -261,6 +263,7 @@ def validate_document(
     validator = Draft202012Validator(schemas[schema_name], registry=registry)
     errors = sorted(validator.iter_errors(document), key=lambda error: list(error.path))
     if errors:
+
         def describe(error) -> str:
             path = "$"
             for part in error.absolute_path:

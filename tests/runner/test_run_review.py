@@ -5,17 +5,16 @@ import hashlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
-import subprocess
 import time
 import unittest
-from pathlib import Path
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from tests.support import ROOT, load_module
-
 
 MODULE = ROOT / "skills/socratic/scripts/run_review.py"
 
@@ -88,9 +87,7 @@ class RunReviewTest(unittest.TestCase):
                 change["disposition"] = "existing"
         return draft
 
-    def stage_demo_artifacts(
-        self, manifest: dict, *, report=None
-    ) -> tuple[dict, dict]:
+    def stage_demo_artifacts(self, manifest: dict, *, report=None) -> tuple[dict, dict]:
         artifact_root = Path(manifest["artifact_root"])
         contract = json.loads(
             (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
@@ -228,9 +225,7 @@ class RunReviewTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 self.runner.preflight_with_host(repository, self.host(storage))
             self.assertFalse((storage / "mutation-ledger.jsonl").exists())
-            self.assertEqual(
-                [path.name for path in storage.iterdir()], ["run-manifest.json"]
-            )
+            self.assertEqual([path.name for path in storage.iterdir()], ["run-manifest.json"])
 
     def test_execute_requires_phase_and_registered_mutation_id(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -238,18 +233,26 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             with self.assertRaises(self.runner.RunGateError):
-                self.runner.execute(manifest_path, "mutation", None, [sys.executable, "-c", "pass"], 10)
+                self.runner.execute(
+                    manifest_path, "mutation", None, [sys.executable, "-c", "pass"], 10
+                )
             with self.assertRaises(self.runner.RunGateError):
-                self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "pass"], 10)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
-            )
+                self.runner.execute(
+                    manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "pass"], 10
+                )
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             self.runner.register_prebuilt(
                 manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
             )
             self.assertEqual(
-                self.runner.execute(manifest_path, "mutation", "MUT-001", [sys.executable, "-c", "raise SystemExit(1)"], 10),
+                self.runner.execute(
+                    manifest_path,
+                    "mutation",
+                    "MUT-001",
+                    [sys.executable, "-c", "raise SystemExit(1)"],
+                    10,
+                ),
                 1,
             )
 
@@ -273,9 +276,7 @@ class RunReviewTest(unittest.TestCase):
             second = self.runner.register_prebuilt(
                 manifest_path, "MUT-002", ["DEC-001"], "packages/app/mutant-2.ts"
             )
-            with self.assertRaisesRegex(
-                self.runner.RunGateError, "prepared snapshot is sealed"
-            ):
+            with self.assertRaisesRegex(self.runner.RunGateError, "prepared snapshot is sealed"):
                 self.runner.execute(
                     manifest_path,
                     "baseline",
@@ -293,12 +294,8 @@ class RunReviewTest(unittest.TestCase):
                     "installed once",
                 )
             (first_root / "packages/app/source.ts").write_text("changed only in MUT-001\n")
-            self.assertEqual(
-                (second_root / "packages/app/source.ts").read_text(), "original\n"
-            )
-            self.assertEqual(
-                (prepared_root / "packages/app/source.ts").read_text(), "original\n"
-            )
+            self.assertEqual((second_root / "packages/app/source.ts").read_text(), "original\n")
+            self.assertEqual((prepared_root / "packages/app/source.ts").read_text(), "original\n")
             self.assertEqual(
                 (first_root / "node_modules/example").resolve(),
                 (second_root / "node_modules/example").resolve(),
@@ -306,13 +303,9 @@ class RunReviewTest(unittest.TestCase):
             first_cache = first_root / "node_modules/.vite/results.json"
             first_cache.parent.mkdir()
             first_cache.write_text("MUT-001 cache\n")
-            self.assertFalse(
-                (second_root / "node_modules/.vite/results.json").exists()
-            )
+            self.assertFalse((second_root / "node_modules/.vite/results.json").exists())
             (first_root / ".socratic-runtime/home/private.txt").write_text("first")
-            self.assertFalse(
-                (second_root / ".socratic-runtime/home/private.txt").exists()
-            )
+            self.assertFalse((second_root / ".socratic-runtime/home/private.txt").exists())
             prepared_events = [
                 item
                 for item in self.runner._ledger_events(manifest)
@@ -334,21 +327,21 @@ class RunReviewTest(unittest.TestCase):
             self.stage_contract(manifest)
             challenges = [
                 self.anchored_challenge(mutation_id, f"changed {index}\n")
-                for index, mutation_id in enumerate(
-                    ("MUT-001", "MUT-002", "MUT-003"), 1
-                )
+                for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1)
             ]
             plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
-            plan_path.write_text(json.dumps({
-                "version": 2,
-                "command_id": "CMD-001",
-                "max_parallel": 3,
-                "challenges": challenges,
-            }))
-            started = time.monotonic()
-            result = self.runner.challenge_batch(
-                manifest_path, ROOT / "schemas"
+            plan_path.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "command_id": "CMD-001",
+                        "max_parallel": 3,
+                        "challenges": challenges,
+                    }
+                )
             )
+            started = time.monotonic()
+            result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
             elapsed = time.monotonic() - started
             # Serial execution of three 0.6s commands needs at least 1.8s, so
             # staying under 1.2s proves concurrency with slack for a busy CI.
@@ -370,12 +363,9 @@ class RunReviewTest(unittest.TestCase):
                 [item["mutation_id"] for item in command_events],
                 ["MUT-001", "MUT-002", "MUT-003"],
             )
-            self.assertEqual(
-                len({item["sandbox_root"] for item in command_events}), 3
-            )
+            self.assertEqual(len({item["sandbox_root"] for item in command_events}), 3)
             self.assertTrue(
-                all(item["batch_plan_sha256"] == result["plan_sha256"]
-                    for item in command_events)
+                all(item["batch_plan_sha256"] == result["plan_sha256"] for item in command_events)
             )
 
     def test_probe_cwd_is_recorded_and_reused_by_challenge_batch(self) -> None:
@@ -383,32 +373,38 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            code = (
-                "import os, pathlib; "
-                "pathlib.Path('command-cwd.txt').write_text(os.getcwd())"
-            )
+            code = "import os, pathlib; " "pathlib.Path('command-cwd.txt').write_text(os.getcwd())"
             probe = self.runner.probe_command(
-                manifest_path, "CMD-001", [sys.executable, "-c", code], 10,
+                manifest_path,
+                "CMD-001",
+                [sys.executable, "-c", code],
+                10,
                 cwd_relative="packages/app",
             )
             self.assertEqual(probe["status"], "ready")
             validated = [
-                item for item in self.runner._ledger_events(manifest)
+                item
+                for item in self.runner._ledger_events(manifest)
                 if item.get("kind") == "validated-command"
             ]
             self.assertEqual(validated[0]["cwd"], "packages/app")
             self.stage_contract(manifest)
             plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
-            plan_path.write_text(json.dumps({
-                "version": 2,
-                "command_id": "CMD-001",
-                "max_parallel": 1,
-                "challenges": [self.anchored_challenge("MUT-001", "changed 1\n")],
-            }))
+            plan_path.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "command_id": "CMD-001",
+                        "max_parallel": 1,
+                        "challenges": [self.anchored_challenge("MUT-001", "changed 1\n")],
+                    }
+                )
+            )
             result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
             self.assertEqual(result["results"][0]["outcome"], "passed")
             command_events = [
-                item for item in self.runner._ledger_events(manifest)
+                item
+                for item in self.runner._ledger_events(manifest)
                 if item.get("kind") == "command" and item.get("phase") == "mutation"
             ]
             self.assertEqual(command_events[0]["cwd"], "packages/app")
@@ -427,22 +423,26 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(
                 set(document["id_glossary"]), {"DEC", "INV", "FX", "UNR", "CMD", "MUT"}
             )
-            for key in ("mission", "gates", "agent_edits", "runner_owns",
-                        "hard_rules", "execution_plan", "announcement_rules"):
+            for key in (
+                "mission",
+                "gates",
+                "agent_edits",
+                "runner_owns",
+                "hard_rules",
+                "execution_plan",
+                "announcement_rules",
+            ):
                 self.assertIn(key, document)
             self.assertEqual(document["run_id"], manifest["run_id"])
             self.assertEqual(document["checkpoint"]["id"], "review-type")
             self.assertTrue(document["checkpoint"]["required_before_next"])
-            self.assertEqual(
-                document["checkpoint"]["recommended"], "Bug Fix Review"
-            )
+            self.assertEqual(document["checkpoint"]["recommended"], "Bug Fix Review")
             self.assertIn("inspect", document["next"]["argv"])
             self.assertIn("diff", document["next"]["argv"])
             self.assertEqual(document["next"]["announce"], "Reviewing what changed")
             self.assertEqual(
                 [step["id"] for step in document["execution_plan"]],
-                ["inspect", "intent", "prepare", "baseline",
-                 "challenge", "report", "cleanup"],
+                ["inspect", "intent", "prepare", "baseline", "challenge", "report", "cleanup"],
             )
 
     def test_probe_success_returns_exact_next_argv(self) -> None:
@@ -459,8 +459,9 @@ class RunReviewTest(unittest.TestCase):
 
     def test_argument_mistakes_return_guided_invalid_command(self) -> None:
         stdout = io.StringIO()
-        with patch.object(sys, "argv",
-                          ["run_review.py", "scaffold-plan", "--command-id", "CMD-001"]):
+        with patch.object(
+            sys, "argv", ["run_review.py", "scaffold-plan", "--command-id", "CMD-001"]
+        ):
             with redirect_stdout(stdout):
                 code = self.runner.main()
         self.assertEqual(code, 2)
@@ -473,9 +474,7 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            prepared_dependency = (
-                Path(manifest["prepared_root"]) / "node_modules/example/index.js"
-            )
+            prepared_dependency = Path(manifest["prepared_root"]) / "node_modules/example/index.js"
             prepared_dependency.parent.mkdir(parents=True)
             prepared_dependency.write_text("installed\n")
             with patch.object(
@@ -497,12 +496,16 @@ class RunReviewTest(unittest.TestCase):
                 self.assertIn(key, probe["runner_timings_ms"])
             self.stage_contract(manifest)
             plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
-            plan_path.write_text(json.dumps({
-                "version": 2,
-                "command_id": "CMD-001",
-                "max_parallel": 1,
-                "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
-            }))
+            plan_path.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "command_id": "CMD-001",
+                        "max_parallel": 1,
+                        "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
+                    }
+                )
+            )
             with patch.object(
                 self.runner.snapshots,
                 "_dependency_hash",
@@ -524,12 +527,18 @@ class RunReviewTest(unittest.TestCase):
             manifest, manifest_path = self.ready(root, repository)
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.probe_command(
-                    manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10,
+                    manifest_path,
+                    "CMD-001",
+                    [sys.executable, "-c", "pass"],
+                    10,
                     cwd_relative="../escape",
                 )
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.probe_command(
-                    manifest_path, "CMD-002", [sys.executable, "-c", "pass"], 10,
+                    manifest_path,
+                    "CMD-002",
+                    [sys.executable, "-c", "pass"],
+                    10,
                     cwd_relative="missing-directory",
                 )
 
@@ -544,9 +553,7 @@ class RunReviewTest(unittest.TestCase):
                 "sys.stdout.write('checked ' + text); "
                 "sys.exit(0 if text == 'original\\n' else 1)"
             )
-            self.runner.probe_command(
-                manifest_path, "CMD-001", [sys.executable, "-c", check], 10
-            )
+            self.runner.probe_command(manifest_path, "CMD-001", [sys.executable, "-c", check], 10)
             self.stage_contract(manifest)
             survived_challenge = self.anchored_challenge("MUT-002", "changed\n")
             survived_challenge["mutation"] = {
@@ -556,15 +563,19 @@ class RunReviewTest(unittest.TestCase):
                 "after": "unrelated change\n",
             }
             plan_path = Path(manifest["artifact_root"]) / "challenge-plan.json"
-            plan_path.write_text(json.dumps({
-                "version": 2,
-                "command_id": "CMD-001",
-                "max_parallel": 2,
-                "challenges": [
-                    self.anchored_challenge("MUT-001", "broken\n"),
-                    survived_challenge,
-                ],
-            }))
+            plan_path.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "command_id": "CMD-001",
+                        "max_parallel": 2,
+                        "challenges": [
+                            self.anchored_challenge("MUT-001", "broken\n"),
+                            survived_challenge,
+                        ],
+                    }
+                )
+            )
             result = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
             killed, survived = result["results"]
             self.assertEqual(killed["outcome"], "failed")
@@ -599,9 +610,7 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             with self.assertRaisesRegex(self.runner.RunGateError, "expected CMD-"):
-                self.runner.probe_command(
-                    manifest_path, "CMD1", [sys.executable, "-c", "pass"], 10
-                )
+                self.runner.probe_command(manifest_path, "CMD1", [sys.executable, "-c", "pass"], 10)
 
     def test_scaffold_contract_generates_document_for_first_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -609,9 +618,7 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             document = self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
-            artifact = (
-                Path(manifest["artifact_root"]) / "intent-contract.draft.json"
-            )
+            artifact = Path(manifest["artifact_root"]) / "intent-contract.draft.json"
             self.assertFalse(artifact.exists())
             self.assertEqual(document["status"], "provisional")
             artifact.write_text(json.dumps(document), encoding="utf-8")
@@ -625,12 +632,21 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             stdout = io.StringIO()
-            with patch.object(sys, "argv", [
-                "run_review.py",
-                "scaffold-contract",
-                "--manifest", str(manifest_path),
-                "--schema-root", str(ROOT / "schemas"),
-            ]), redirect_stdout(stdout):
+            with (
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "run_review.py",
+                        "scaffold-contract",
+                        "--manifest",
+                        str(manifest_path),
+                        "--schema-root",
+                        str(ROOT / "schemas"),
+                    ],
+                ),
+                redirect_stdout(stdout),
+            ):
                 code = self.runner.main()
             self.assertEqual(code, 0)
             result = json.loads(stdout.getvalue())
@@ -638,12 +654,8 @@ class RunReviewTest(unittest.TestCase):
                 result["field_guide"]["coverage[*]"]["required_keys"],
                 ["contract_id", "tests"],
             )
-            self.assertEqual(
-                result["document"]["coverage"], []
-            )
-            artifact = (
-                Path(manifest["artifact_root"]) / "intent-contract.draft.json"
-            )
+            self.assertEqual(result["document"]["coverage"], [])
+            artifact = Path(manifest["artifact_root"]) / "intent-contract.draft.json"
             self.assertEqual(result["artifact_path"], str(artifact))
             self.assertFalse(artifact.exists())
             self.assertIn("Write exactly once", result["write_protocol"]["first_write"])
@@ -686,21 +698,11 @@ class RunReviewTest(unittest.TestCase):
             self.assertIn(path, self.runner.SCAFFOLD_EDITABLE_FIELDS["analysis"])
 
     def test_scaffold_guides_do_not_drift_from_canonical_schemas(self) -> None:
-        contract_schema = json.loads(
-            (ROOT / "schemas/intent-contract.schema.json").read_text()
-        )
-        plan_schema = json.loads(
-            (ROOT / "schemas/challenge-plan.schema.json").read_text()
-        )
-        result_schema = json.loads(
-            (ROOT / "schemas/mutation-result.schema.json").read_text()
-        )
-        report_schema = json.loads(
-            (ROOT / "schemas/mutation-report.schema.json").read_text()
-        )
-        review_schema = json.loads(
-            (ROOT / "schemas/canonical-review.schema.json").read_text()
-        )
+        contract_schema = json.loads((ROOT / "schemas/intent-contract.schema.json").read_text())
+        plan_schema = json.loads((ROOT / "schemas/challenge-plan.schema.json").read_text())
+        result_schema = json.loads((ROOT / "schemas/mutation-result.schema.json").read_text())
+        report_schema = json.loads((ROOT / "schemas/mutation-report.schema.json").read_text())
+        review_schema = json.loads((ROOT / "schemas/canonical-review.schema.json").read_text())
         contract = self.runner.SCAFFOLD_FIELD_GUIDES["contract"]
         self.assertEqual(
             contract["status"]["allowed"],
@@ -711,9 +713,7 @@ class RunReviewTest(unittest.TestCase):
             contract_schema["$defs"]["decision"]["properties"]["provenance"]["enum"],
         )
         plan = self.runner.SCAFFOLD_FIELD_GUIDES["plan"]
-        challenge_properties = plan_schema["properties"]["challenges"]["items"][
-            "properties"
-        ]
+        challenge_properties = plan_schema["properties"]["challenges"]["items"]["properties"]
         self.assertEqual(
             plan["challenges[*]"]["allowed_severity"],
             challenge_properties["severity"]["enum"],
@@ -729,21 +729,17 @@ class RunReviewTest(unittest.TestCase):
         )
         self.assertCountEqual(
             analysis["classifications[*]"]["allowed_outcome_kind"],
-            result_schema["properties"]["outcome_interpretation"]["properties"][
-                "kind"
-            ]["enum"],
+            result_schema["properties"]["outcome_interpretation"]["properties"]["kind"]["enum"],
         )
         self.assertEqual(
             analysis["not_challenged[*]"]["allowed_reason"],
-            report_schema["properties"]["not_challenged"]["items"]["properties"][
-                "reason"
-            ]["enum"],
+            report_schema["properties"]["not_challenged"]["items"]["properties"]["reason"]["enum"],
         )
         self.assertEqual(
             analysis["review.copy_ready_comments[*]"]["allowed_tag"],
-            review_schema["properties"]["copy_ready_comments"]["items"][
-                "properties"
-            ]["tag"]["enum"],
+            review_schema["properties"]["copy_ready_comments"]["items"]["properties"]["tag"][
+                "enum"
+            ],
         )
 
     def test_contract_guide_templates_validate_without_reading_schema(self) -> None:
@@ -751,9 +747,7 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             _manifest, manifest_path = self.ready(root, repository)
-            document = self.runner.scaffold_contract(
-                manifest_path, ROOT / "schemas"
-            )
+            document = self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
             guide = self.runner.SCAFFOLD_FIELD_GUIDES["contract"]
             document["coverage"] = [dict(guide["coverage[*]"]["template"])]
             document["side_effects"]["required"] = [
@@ -763,9 +757,7 @@ class RunReviewTest(unittest.TestCase):
                 document, "intent-contract.schema.json", ROOT / "schemas"
             )
             document["status"] = "needs-decision"
-            document["unresolved"] = [
-                dict(guide["unresolved[*]"]["template"])
-            ]
+            document["unresolved"] = [dict(guide["unresolved[*]"]["template"])]
             self.runner._validator_module().validate_document(
                 document, "intent-contract.schema.json", ROOT / "schemas"
             )
@@ -777,18 +769,16 @@ class RunReviewTest(unittest.TestCase):
             manifest, manifest_path = self.ready(root, repository)
             with self.assertRaisesRegex(self.runner.RunGateError, "probe-command"):
                 self.runner.scaffold_plan(manifest_path, ROOT / "schemas")
-            self.runner.probe_command(
-                manifest_path, "CMD-007", [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.probe_command(manifest_path, "CMD-007", [sys.executable, "-c", "pass"], 10)
             document = self.runner.scaffold_plan(manifest_path, ROOT / "schemas")
             self.assertEqual(document["command_id"], "CMD-007")
             artifact = Path(manifest["artifact_root"]) / "challenge-plan.json"
             self.assertFalse(artifact.exists())
             artifact.write_text(json.dumps(document), encoding="utf-8")
             self.assertEqual(json.loads(artifact.read_text()), document)
-            delete_template = self.runner.SCAFFOLD_FIELD_GUIDES["plan"][
-                "challenges[*].mutation"
-            ]["variants"]["delete-exact"]["template"]
+            delete_template = self.runner.SCAFFOLD_FIELD_GUIDES["plan"]["challenges[*].mutation"][
+                "variants"
+            ]["delete-exact"]["template"]
             document["challenges"][0]["mutation"] = dict(delete_template)
             self.runner._validator_module().validate_document(
                 document, "challenge-plan.schema.json", ROOT / "schemas"
@@ -806,19 +796,19 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.probe_command(
-                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.probe_command(manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10)
             contract = json.loads(
                 (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
             )
             contract["status"] = "needs-decision"
-            contract["unresolved"] = [{
-                "id": "UNR-001",
-                "statement": "Whether the observable event should exist",
-                "test_impact": "Changes the DEC-001 oracle",
-                "blocked_contract_ids": ["DEC-001"],
-            }]
+            contract["unresolved"] = [
+                {
+                    "id": "UNR-001",
+                    "statement": "Whether the observable event should exist",
+                    "test_impact": "Changes the DEC-001 oracle",
+                    "blocked_contract_ids": ["DEC-001"],
+                }
+            ]
             self.stage_contract(manifest, contract)
             plan = {
                 "version": 2,
@@ -826,9 +816,7 @@ class RunReviewTest(unittest.TestCase):
                 "max_parallel": 1,
                 "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
             }
-            (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(
-                json.dumps(plan)
-            )
+            (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(json.dumps(plan))
             with self.assertRaisesRegex(
                 self.runner.RunGateError, "blocked for unresolved Contract IDs"
             ):
@@ -845,9 +833,7 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.probe_command(
-                manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.probe_command(manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             challenge = self.anchored_challenge("MUT-001", "changed\n")
             challenge["mutation"] = {
@@ -856,19 +842,23 @@ class RunReviewTest(unittest.TestCase):
                 "content_utf8": "changed\n",
             }
             (Path(manifest["artifact_root"]) / "challenge-plan.json").write_text(
-                json.dumps({
-                    "version": 2,
-                    "command_id": "CMD-001",
-                    "max_parallel": 1,
-                    "challenges": [challenge],
-                })
+                json.dumps(
+                    {
+                        "version": 2,
+                        "command_id": "CMD-001",
+                        "max_parallel": 1,
+                        "challenges": [challenge],
+                    }
+                )
             )
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.challenge_batch(manifest_path, ROOT / "schemas")
-            self.assertFalse(any(
-                item.get("kind") in {"guarded-write", "prebuilt"}
-                for item in self.runner._ledger_events(manifest)
-            ))
+            self.assertFalse(
+                any(
+                    item.get("kind") in {"guarded-write", "prebuilt"}
+                    for item in self.runner._ledger_events(manifest)
+                )
+            )
 
     def test_command_probe_failure_registers_no_mutations(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -890,10 +880,12 @@ class RunReviewTest(unittest.TestCase):
                 if item.get("kind") in {"guarded-write", "prebuilt"}
             ]
             self.assertEqual(events, [])
-            self.assertFalse(any(
-                item.get("kind") == "validated-command"
-                for item in self.runner._ledger_events(manifest)
-            ))
+            self.assertFalse(
+                any(
+                    item.get("kind") == "validated-command"
+                    for item in self.runner._ledger_events(manifest)
+                )
+            )
 
     def test_validated_command_is_bound_to_prepared_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -906,9 +898,7 @@ class RunReviewTest(unittest.TestCase):
                 )["status"],
                 "ready",
             )
-            with self.assertRaisesRegex(
-                self.runner.RunGateError, "prepare cannot run"
-            ):
+            with self.assertRaisesRegex(self.runner.RunGateError, "prepare cannot run"):
                 self.runner.execute(
                     manifest_path,
                     "prepare",
@@ -919,9 +909,7 @@ class RunReviewTest(unittest.TestCase):
             (Path(manifest["prepared_root"]) / "packages/app/source.ts").write_text(
                 "tampered\n", encoding="utf-8"
             )
-            with self.assertRaisesRegex(
-                self.runner.RunGateError, "validated command is stale"
-            ):
+            with self.assertRaisesRegex(self.runner.RunGateError, "validated command is stale"):
                 self.runner._validated_command(manifest, "CMD-001")
 
     def test_structured_inspection_is_bounded_and_blocks_secrets(self) -> None:
@@ -937,30 +925,20 @@ class RunReviewTest(unittest.TestCase):
                 end_line=10,
             )
             self.assertEqual(file_result["text"], "original")
-            self.assertEqual(
-                file_result["checkpoint"]["id"], "diff-understanding"
-            )
-            self.assertTrue(
-                file_result["checkpoint"]["required_before_next"]
-            )
+            self.assertEqual(file_result["checkpoint"]["id"], "diff-understanding")
+            self.assertTrue(file_result["checkpoint"]["required_before_next"])
             self.assertIn("scaffold-contract", file_result["next"]["argv"])
             self.assertEqual(
                 file_result["next"]["announce"],
                 "Establishing the intended behavior",
             )
-            search = self.runner.inspect_review(
-                manifest_path, "search", query="original"
-            )
+            search = self.runner.inspect_review(manifest_path, "search", query="original")
             self.assertEqual(
                 [(item["path"], item["line"]) for item in search["matches"]],
                 [("packages/app/source.ts", 1)],
             )
-            with self.assertRaisesRegex(
-                self.runner.RunGateError, "excluded"
-            ):
-                self.runner.inspect_review(
-                    manifest_path, "file", relative_path=".env"
-                )
+            with self.assertRaisesRegex(self.runner.RunGateError, "excluded"):
+                self.runner.inspect_review(manifest_path, "file", relative_path=".env")
 
     def test_probe_next_has_exact_root_cwd_option_and_announcement(self) -> None:
         manifest_path = Path("/host/run-manifest.json")
@@ -974,20 +952,28 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            document = self.runner.scaffold_contract(
-                manifest_path, ROOT / "schemas"
+            document = self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
+            (Path(manifest["artifact_root"]) / "intent-contract.draft.json").write_text(
+                json.dumps(document), encoding="utf-8"
             )
-            (
-                Path(manifest["artifact_root"]) / "intent-contract.draft.json"
-            ).write_text(json.dumps(document), encoding="utf-8")
             stdout = io.StringIO()
-            with patch.object(sys, "argv", [
-                "run_review.py",
-                "stage-artifact",
-                "--manifest", str(manifest_path),
-                "--kind", "contract",
-                "--schema-root", str(ROOT / "schemas"),
-            ]), redirect_stdout(stdout):
+            with (
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "run_review.py",
+                        "stage-artifact",
+                        "--manifest",
+                        str(manifest_path),
+                        "--kind",
+                        "contract",
+                        "--schema-root",
+                        str(ROOT / "schemas"),
+                    ],
+                ),
+                redirect_stdout(stdout),
+            ):
                 code = self.runner.main()
             self.assertEqual(code, 0)
             result = json.loads(stdout.getvalue())
@@ -1017,17 +1003,13 @@ class RunReviewTest(unittest.TestCase):
                     "else 1)"
                 ),
             ]
-            probe = self.runner.probe_command(
-                manifest_path, "CMD-001", command, 10
-            )
+            probe = self.runner.probe_command(manifest_path, "CMD-001", command, 10)
             self.assertEqual(probe["status"], "ready")
             plan = {
                 "version": 2,
                 "command_id": "CMD-001",
                 "max_parallel": 1,
-                "challenges": [
-                    self.anchored_challenge("MUT-001", "changed\n")
-                ],
+                "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
             }
             artifact_root = Path(manifest["artifact_root"])
             plan_path = artifact_root / "challenge-plan.json"
@@ -1035,32 +1017,34 @@ class RunReviewTest(unittest.TestCase):
             self.assertLess(plan_path.stat().st_size, 2048)
             batch = self.runner.challenge_batch(manifest_path, ROOT / "schemas")
             self.assertEqual(batch["results"][0]["outcome"], "failed")
-            scaffold = self.runner.scaffold_analysis(
-                manifest_path, "harden", ROOT / "schemas"
-            )
+            scaffold = self.runner.scaffold_analysis(manifest_path, "harden", ROOT / "schemas")
             self.assertEqual(scaffold["classifications"], 1)
             analysis_path = artifact_root / "review-analysis.json"
             self.assertFalse(analysis_path.exists())
             analysis = scaffold["document"]
             classification = analysis["classifications"][0]
             self.assertEqual(classification["result"], "inconclusive")
-            classification.update({
-                "source_intent": "The source retains its established value",
-                "changed_intent": "The source silently changes value",
-                "result": "killed",
-                "detecting_tests": ["focused source behavior"],
-                "observed_failure_reason": "The focused behavior check failed",
-                "contract_violation_observed": True,
-                "outcome_interpretation": {
-                    "kind": "behavioral-failure",
-                    "reason": "The changed value violated DEC-001",
-                },
-            })
+            classification.update(
+                {
+                    "source_intent": "The source retains its established value",
+                    "changed_intent": "The source silently changes value",
+                    "result": "killed",
+                    "detecting_tests": ["focused source behavior"],
+                    "observed_failure_reason": "The focused behavior check failed",
+                    "contract_violation_observed": True,
+                    "outcome_interpretation": {
+                        "kind": "behavioral-failure",
+                        "reason": "The changed value violated DEC-001",
+                    },
+                }
+            )
             analysis["stable_tests"] = ["focused source behavior"]
-            analysis["test_changes"] = [{
-                "name": "focused source behavior",
-                "disposition": "existing",
-            }]
+            analysis["test_changes"] = [
+                {
+                    "name": "focused source behavior",
+                    "disposition": "existing",
+                }
+            ]
             analysis["review"]["we_verified"] = [
                 "The focused behavior was detected by a test existing at run start"
             ]
@@ -1090,23 +1074,35 @@ class RunReviewTest(unittest.TestCase):
             ]
             self.runner.probe_command(manifest_path, "CMD-001", command, 10)
             artifact_root = Path(manifest["artifact_root"])
-            (artifact_root / "challenge-plan.json").write_text(json.dumps({
-                "version": 2,
-                "command_id": "CMD-001",
-                "max_parallel": 1,
-                "challenges": [
-                    self.anchored_challenge("MUT-001", "changed\n")
-                ],
-            }))
+            (artifact_root / "challenge-plan.json").write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "command_id": "CMD-001",
+                        "max_parallel": 1,
+                        "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
+                    }
+                )
+            )
             self.runner.challenge_batch(manifest_path, ROOT / "schemas")
             stdout = io.StringIO()
-            with patch.object(sys, "argv", [
-                "run_review.py",
-                "scaffold-analysis",
-                "--manifest", str(manifest_path),
-                "--mode", "assessment",
-                "--schema-root", str(ROOT / "schemas"),
-            ]), redirect_stdout(stdout):
+            with (
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "run_review.py",
+                        "scaffold-analysis",
+                        "--manifest",
+                        str(manifest_path),
+                        "--mode",
+                        "assessment",
+                        "--schema-root",
+                        str(ROOT / "schemas"),
+                    ],
+                ),
+                redirect_stdout(stdout),
+            ):
                 code = self.runner.main()
             self.assertEqual(code, 0)
             response = json.loads(stdout.getvalue())
@@ -1123,36 +1119,28 @@ class RunReviewTest(unittest.TestCase):
             self.assertFalse((artifact_root / "review-analysis.json").exists())
             analysis = response["document"]
             self.assertIsInstance(analysis["assessment"], dict)
-            self.assertEqual(
-                analysis["assessment"]["selected_scope"], "current-change"
-            )
+            self.assertEqual(analysis["assessment"]["selected_scope"], "current-change")
             classification = analysis["classifications"][0]
             self.assertEqual(classification["result"], "inconclusive")
-            self.assertEqual(
-                classification["outcome_interpretation"]["kind"], "unparseable"
+            self.assertEqual(classification["outcome_interpretation"]["kind"], "unparseable")
+            classification.update(
+                {
+                    "source_intent": "The source retains its established value",
+                    "changed_intent": "The source silently changes value",
+                    "result": "killed",
+                    "detecting_tests": ["focused source behavior"],
+                    "observed_failure_reason": "The focused behavior check failed",
+                    "contract_violation_observed": True,
+                    "outcome_interpretation": {
+                        "kind": "behavioral-failure",
+                        "reason": "The changed value violated DEC-001",
+                    },
+                }
             )
-            classification.update({
-                "source_intent": "The source retains its established value",
-                "changed_intent": "The source silently changes value",
-                "result": "killed",
-                "detecting_tests": ["focused source behavior"],
-                "observed_failure_reason": "The focused behavior check failed",
-                "contract_violation_observed": True,
-                "outcome_interpretation": {
-                    "kind": "behavioral-failure",
-                    "reason": "The changed value violated DEC-001",
-                },
-            })
             guide = self.runner.SCAFFOLD_FIELD_GUIDES["analysis"]
-            analysis["not_challenged"] = [
-                dict(guide["not_challenged[*]"]["template"])
-            ]
-            analysis["test_changes"] = [
-                dict(guide["test_changes[*]"]["template"])
-            ]
-            analysis["review"]["review_this"] = [
-                dict(guide["review.review_this[*]"]["template"])
-            ]
+            analysis["not_challenged"] = [dict(guide["not_challenged[*]"]["template"])]
+            analysis["test_changes"] = [dict(guide["test_changes[*]"]["template"])]
+            analysis["review"]["review_this"] = [dict(guide["review.review_this[*]"]["template"])]
             analysis["review"]["copy_ready_comments"] = [
                 dict(guide["review.copy_ready_comments[*]"]["template"])
             ]
@@ -1179,7 +1167,10 @@ class RunReviewTest(unittest.TestCase):
                 "for k in ('HOME','TMPDIR','XDG_CACHE_HOME','npm_config_cache')]"
             )
             self.assertEqual(
-                self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", script], 10), 0
+                self.runner.execute(
+                    manifest_path, "baseline", None, [sys.executable, "-c", script], 10
+                ),
+                0,
             )
             sandbox = Path(manifest["sandbox_root"])
             for value in manifest["environment"].values():
@@ -1220,15 +1211,26 @@ class RunReviewTest(unittest.TestCase):
             for key, value in manifest["environment"].items():
                 self.assertEqual(child_environment[key], value)
             for key in (
-                "GITHUB_TOKEN", "OPENAI_API_KEY", "UNKNOWN_SECRET", "PYTHONPATH", "NODE_OPTIONS"
+                "GITHUB_TOKEN",
+                "OPENAI_API_KEY",
+                "UNKNOWN_SECRET",
+                "PYTHONPATH",
+                "NODE_OPTIONS",
             ):
                 self.assertNotIn(key, child_environment)
 
             ledger_text = Path(manifest["ledger_path"]).read_text(encoding="utf-8")
             for secret in (
-                "GITHUB_TOKEN", "github-secret-value", "OPENAI_API_KEY", "openai-secret-value",
-                "UNKNOWN_SECRET", "unknown-secret-value", "PYTHONPATH", "/secret/pythonpath",
-                "NODE_OPTIONS", "--require=/secret/hook.js",
+                "GITHUB_TOKEN",
+                "github-secret-value",
+                "OPENAI_API_KEY",
+                "openai-secret-value",
+                "UNKNOWN_SECRET",
+                "unknown-secret-value",
+                "PYTHONPATH",
+                "/secret/pythonpath",
+                "NODE_OPTIONS",
+                "--require=/secret/hook.js",
             ):
                 self.assertNotIn(secret, ledger_text)
 
@@ -1284,9 +1286,7 @@ class RunReviewTest(unittest.TestCase):
 
             manifest, manifest_path = runner.preflight_with_host(head, MaterializedHost())
             self.assertEqual(manifest["change_context"], change_context)
-            self.assertEqual(
-                (Path(manifest["prepared_root"]) / "source.py").read_text(), "head\n"
-            )
+            self.assertEqual((Path(manifest["prepared_root"]) / "source.py").read_text(), "head\n")
             runner.abort(manifest_path)
             self.assertFalse(Path(manifest["artifact_root"]).exists())
 
@@ -1296,14 +1296,18 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             self.runner.execute(
-                manifest_path, "baseline", None,
-                [sys.executable, "-c", "raise SystemExit(1)"], 10,
+                manifest_path,
+                "baseline",
+                None,
+                [sys.executable, "-c", "raise SystemExit(1)"],
+                10,
             )
             report = json.loads(
                 (ROOT / "fixtures/subscription-renewal-expected-elenchus-report.json").read_text()
             )
             report["run"] = {
-                "id": manifest["run_id"], "entrypoint": self.runner.ENTRYPOINT,
+                "id": manifest["run_id"],
+                "entrypoint": self.runner.ENTRYPOINT,
                 "host_adapter": manifest["host"]["adapter_id"],
                 "run_nonce": manifest["host"]["run_nonce"],
                 "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
@@ -1311,7 +1315,10 @@ class RunReviewTest(unittest.TestCase):
             }
             with self.assertRaisesRegex(self.runner.RunGateError, "green baseline"):
                 self.runner.finish_document(
-                    manifest, report, {}, self.runner._ledger_events(manifest),
+                    manifest,
+                    report,
+                    {},
+                    self.runner._ledger_events(manifest),
                     manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                     ledger_head=self.runner._ledger_head(manifest),
                 )
@@ -1322,17 +1329,12 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            os.symlink(
-                repository / "packages", Path(manifest["prepared_root"]) / "late-link"
-            )
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
-            )
+            os.symlink(repository / "packages", Path(manifest["prepared_root"]) / "late-link")
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             with self.assertRaises(Exception):
                 self.runner.mutate(
-                    manifest_path, "MUT-001", ["DEC-001"],
-                    "late-link/app/source.ts", b"mutant\n"
+                    manifest_path, "MUT-001", ["DEC-001"], "late-link/app/source.ts", b"mutant\n"
                 )
 
     def test_ledger_chain_detects_rewritten_event(self) -> None:
@@ -1356,23 +1358,20 @@ class RunReviewTest(unittest.TestCase):
             dependency_marker = prepared / "node_modules/.bin/vitest"
             dependency_marker.parent.mkdir(parents=True, exist_ok=True)
             dependency_marker.write_text("#!/bin/sh\n")
-            store_marker = (
-                prepared / ".socratic-runtime/home/install-store-marker.txt"
-            )
+            store_marker = prepared / ".socratic-runtime/home/install-store-marker.txt"
             store_marker.parent.mkdir(parents=True, exist_ok=True)
             store_marker.write_text("install-time store\n")
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             event = self.runner.mutate(
-                manifest_path, "MUT-001", ["DEC-001"],
-                "packages/app/source.ts", b"mutant\n",
+                manifest_path,
+                "MUT-001",
+                ["DEC-001"],
+                "packages/app/source.ts",
+                b"mutant\n",
             )
             clone = Path(event["sandbox_root"])
-            self.assertEqual(
-                (clone / "node_modules/.bin/vitest").read_text(), "#!/bin/sh\n"
-            )
+            self.assertEqual((clone / "node_modules/.bin/vitest").read_text(), "#!/bin/sh\n")
             self.assertTrue((clone / "node_modules").is_dir())
             self.assertFalse((clone / "node_modules").is_symlink())
             self.assertTrue((clone / "node_modules/.bin").is_symlink())
@@ -1385,11 +1384,7 @@ class RunReviewTest(unittest.TestCase):
                 ).read_text(),
                 "install-time store\n",
             )
-            self.assertFalse(
-                (
-                    clone / ".socratic-runtime/home/install-store-marker.txt"
-                ).exists()
-            )
+            self.assertFalse((clone / ".socratic-runtime/home/install-store-marker.txt").exists())
 
     def test_dependency_layer_is_hashed_separately_from_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1447,9 +1442,7 @@ class RunReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             environment = self.runner._runtime_environment(Path(directory))
             self.assertEqual(environment["CI"], "true")
-            self.assertEqual(
-                environment["npm_config_verify_deps_before_run"], "false"
-            )
+            self.assertEqual(environment["npm_config_verify_deps_before_run"], "false")
 
     def test_baseline_execution_receives_dependency_reuse_env(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1463,9 +1456,7 @@ class RunReviewTest(unittest.TestCase):
                 "os.environ.get('CI', '') + ' ' + "
                 "os.environ.get('npm_config_verify_deps_before_run', ''))"
             )
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", code], 10
-            )
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", code], 10)
             self.assertEqual(probe.read_text(), "true false")
 
     def test_finish_rejects_registered_mutation_without_execution(self) -> None:
@@ -1478,11 +1469,16 @@ class RunReviewTest(unittest.TestCase):
             self.runner.register_prebuilt(
                 manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
             )
-            report = json.loads((ROOT / "fixtures/subscription-renewal-expected-elenchus-report.json").read_text())
+            report = json.loads(
+                (ROOT / "fixtures/subscription-renewal-expected-elenchus-report.json").read_text()
+            )
             report["mutations"] = report["mutations"][:1]
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.finish_document(
-                    manifest, report, {}, self.runner._ledger_events(manifest),
+                    manifest,
+                    report,
+                    {},
+                    self.runner._ledger_events(manifest),
                     manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                     ledger_head=self.runner._ledger_head(manifest),
                 )
@@ -1492,9 +1488,7 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             self.runner.register_prebuilt(
                 manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
@@ -1532,9 +1526,7 @@ class RunReviewTest(unittest.TestCase):
                     report,
                     {},
                     ledger,
-                    manifest_sha256=hashlib.sha256(
-                        manifest_path.read_bytes()
-                    ).hexdigest(),
+                    manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                     ledger_head=self.runner._ledger_head(manifest),
                 )
 
@@ -1557,24 +1549,33 @@ class RunReviewTest(unittest.TestCase):
             self.stage_contract(manifest)
             for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
                 self.runner.register_prebuilt(
-                    manifest_path, mutation_id, ["DEC-001"],
-                    f"packages/app/mutant-{index}.ts"
+                    manifest_path, mutation_id, ["DEC-001"], f"packages/app/mutant-{index}.ts"
                 )
                 self.runner.execute(
-                    manifest_path, "mutation", mutation_id,
-                    [sys.executable, "-c", "raise SystemExit(1)"], 10,
+                    manifest_path,
+                    "mutation",
+                    mutation_id,
+                    [sys.executable, "-c", "raise SystemExit(1)"],
+                    10,
                 )
             _contract, review = self.stage_demo_artifacts(manifest)
             rendered = self.runner._validator_module().render_review(review)
             stdout = io.StringIO()
-            with patch.object(
-                sys,
-                "argv",
-                [
-                    "run_review.py", "finish", "--manifest", str(manifest_path),
-                    "--schema-root", str(ROOT / "schemas"),
-                ],
-            ), redirect_stdout(stdout):
+            with (
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "run_review.py",
+                        "finish",
+                        "--manifest",
+                        str(manifest_path),
+                        "--schema-root",
+                        str(ROOT / "schemas"),
+                    ],
+                ),
+                redirect_stdout(stdout),
+            ):
                 self.assertEqual(self.runner.main(), 0)
             self.assertEqual(stdout.getvalue(), rendered)
             self.assertTrue(rendered.startswith("Review This:\n"))
@@ -1609,37 +1610,24 @@ class RunReviewTest(unittest.TestCase):
                 )
             )
             self.assertEqual(
-                len({
-                    item["sandbox_root"]
-                    for item in attested["prepared_snapshot"]["clones"]
-                }),
+                len({item["sandbox_root"] for item in attested["prepared_snapshot"]["clones"]}),
                 3,
             )
             self.assertEqual(attested["execution_evidence"]["source"], "host-ledger")
             self.assertEqual(
                 [
-                    {
-                        key: item[key]
-                        for key in ("attempt", "outcome", "exit_code")
-                    }
+                    {key: item[key] for key in ("attempt", "outcome", "exit_code")}
                     for item in attested["execution_evidence"]["baseline"]
                 ],
                 [{"attempt": 1, "outcome": "passed", "exit_code": 0}],
             )
-            self.assertGreaterEqual(
-                attested["execution_evidence"]["baseline"][0]["duration_ms"], 0
-            )
+            self.assertGreaterEqual(attested["execution_evidence"]["baseline"][0]["duration_ms"], 0)
             self.assertIn("phase_timings_ms", attested)
             self.assertEqual(
-                [
-                    item["outcome"]
-                    for item in attested["execution_evidence"]["mutations"]
-                ],
+                [item["outcome"] for item in attested["execution_evidence"]["mutations"]],
                 ["failed", "failed", "failed"],
             )
-            self.assertEqual(
-                attested["run"]["ledger_head"], self.runner._ledger_head(manifest)
-            )
+            self.assertEqual(attested["run"]["ledger_head"], self.runner._ledger_head(manifest))
             self.assertFalse(attested["canonical_output"]["extra_prose"])
             self.assertEqual(
                 (Path(manifest["artifact_root"]) / "renderer-output.txt").read_text(),
@@ -1656,9 +1644,7 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            dependency = (
-                Path(manifest["prepared_root"]) / "node_modules/example/index.js"
-            )
+            dependency = Path(manifest["prepared_root"]) / "node_modules/example/index.js"
             dependency.parent.mkdir(parents=True)
             dependency.write_text("installed\n")
             self.runner.execute(
@@ -1669,9 +1655,7 @@ class RunReviewTest(unittest.TestCase):
                 10,
             )
             self.stage_contract(manifest)
-            for index, mutation_id in enumerate(
-                ("MUT-001", "MUT-002", "MUT-003"), 1
-            ):
+            for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
                 self.runner.register_prebuilt(
                     manifest_path,
                     mutation_id,
@@ -1705,9 +1689,7 @@ class RunReviewTest(unittest.TestCase):
             path = Path(manifest["artifact_root"]) / self.runner.ARTIFACT_FILES["report"]
             path.write_text(json.dumps(invalid), encoding="utf-8")
             with self.assertRaisesRegex(self.runner.RunGateError, "validation failed"):
-                self.runner.stage_artifact(
-                    manifest_path, "report", ROOT / "schemas"
-                )
+                self.runner.stage_artifact(manifest_path, "report", ROOT / "schemas")
             errors = json.loads(
                 (Path(manifest["artifact_root"]) / "validation-errors.json").read_text()
             )
@@ -1749,18 +1731,18 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             for index, mutation_id in enumerate(("MUT-001", "MUT-002", "MUT-003"), 1):
                 self.runner.register_prebuilt(
-                    manifest_path, mutation_id, ["DEC-001"],
-                    f"packages/app/mutant-{index}.ts"
+                    manifest_path, mutation_id, ["DEC-001"], f"packages/app/mutant-{index}.ts"
                 )
                 self.runner.execute(
-                    manifest_path, "mutation", mutation_id,
-                    [sys.executable, "-c", "raise SystemExit(1)"], 10,
+                    manifest_path,
+                    "mutation",
+                    mutation_id,
+                    [sys.executable, "-c", "raise SystemExit(1)"],
+                    10,
                 )
             draft = self.report_draft()
             draft["mutations"][0]["contract_ids"] = ["DEC-999"]
@@ -1772,9 +1754,7 @@ class RunReviewTest(unittest.TestCase):
                 with patch.object(
                     self.runner.reporting, "_validator_module", return_value=validator
                 ):
-                    with self.assertRaisesRegex(
-                        self.runner.RunGateError, "unknown Contract IDs"
-                    ):
+                    with self.assertRaisesRegex(self.runner.RunGateError, "unknown Contract IDs"):
                         self.runner.finish(manifest_path, ROOT / "schemas")
             self.assertFalse(manifest_path.exists())
             self.assertFalse(Path(manifest["artifact_root"]).exists())
@@ -1802,9 +1782,7 @@ class RunReviewTest(unittest.TestCase):
                 self.runner.RunGateError, "failure receipt remains in Host storage"
             ):
                 self.runner.finish(manifest_path, ROOT / "schemas")
-            receipt_path = (
-                Path(manifest["host"]["storage_root"]) / "failure-receipt.json"
-            )
+            receipt_path = Path(manifest["host"]["storage_root"]) / "failure-receipt.json"
             self.assertTrue(receipt_path.is_file())
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
             self.assertEqual(receipt["phase"], "finish")
@@ -1842,9 +1820,7 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
-            self.runner.execute(
-                manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10
-            )
+            self.runner.execute(manifest_path, "baseline", None, [sys.executable, "-c", "pass"], 10)
             self.stage_contract(manifest)
             registration = self.runner.register_prebuilt(
                 manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
@@ -1855,8 +1831,11 @@ class RunReviewTest(unittest.TestCase):
                 self.runner.RunGateError, "no longer matches its guarded evidence"
             ):
                 self.runner.execute(
-                    manifest_path, "mutation", "MUT-001",
-                    [sys.executable, "-c", "pass"], 10,
+                    manifest_path,
+                    "mutation",
+                    "MUT-001",
+                    [sys.executable, "-c", "pass"],
+                    10,
                 )
 
     def test_sandbox_env_presets_pretend_version_for_gitless_snapshot(self) -> None:
@@ -1917,8 +1896,10 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(result["status"], "blocked")
             self.assertIn(".git", result["hint"])
             missing = self.runner.probe_command(
-                manifest_path, "CMD-002",
-                [str(Path(directory) / "missing-tool"), "run"], 10,
+                manifest_path,
+                "CMD-002",
+                [str(Path(directory) / "missing-tool"), "run"],
+                10,
             )
             self.assertEqual(missing["status"], "blocked")
             self.assertIn("absolute path", missing["hint"])
@@ -1958,17 +1939,19 @@ class RunReviewTest(unittest.TestCase):
             root = Path(directory)
             repository = self.make_repository(root)
             (repository / "pyproject.toml").write_text(
-                '[build-system]\n'
+                "[build-system]\n"
                 'requires = ["versioningit"]\n'
                 'build-backend = "setuptools.build_meta"\n'
-                '[project]\n'
+                "[project]\n"
                 'requires-python = ">=3.10"\n',
                 encoding="utf-8",
             )
             manifest, manifest_path = self.ready(root, repository)
             failing = self.runner.probe_command(
-                manifest_path, "CMD-001",
-                [sys.executable, "-c", "import sys; sys.exit(3)"], 10,
+                manifest_path,
+                "CMD-001",
+                [sys.executable, "-c", "import sys; sys.exit(3)"],
+                10,
             )
             self.assertEqual(failing["status"], "blocked")
             report = self.runner.doctor(manifest_path)
@@ -1980,9 +1963,7 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(report["project"]["requires_python"], ">=3.10")
             self.assertIn("versioningit", report["project"]["vcs_version_backends"])
             self.assertFalse(report["vcs_metadata"]["prepared_snapshot_has_git"])
-            self.assertEqual(
-                report["vcs_metadata"]["pretend_version_preset"], "0.0.0"
-            )
+            self.assertEqual(report["vcs_metadata"]["pretend_version_preset"], "0.0.0")
             failure = report["last_failed_command"]
             self.assertEqual(failure["kind"], "command-probe")
             self.assertEqual(failure["returncode"], 3)
@@ -1993,8 +1974,10 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             result = self.runner.probe_command(
-                manifest_path, "CMD-001",
-                [sys.executable, "-c", "import sys; sys.exit(1)"], 10,
+                manifest_path,
+                "CMD-001",
+                [sys.executable, "-c", "import sys; sys.exit(1)"],
+                10,
             )
             self.assertEqual(result["status"], "blocked")
             self.assertIn("doctor", result["diagnose"]["argv"])
@@ -2007,15 +1990,15 @@ class RunReviewTest(unittest.TestCase):
             before = self.runner._tree_hash(Path(manifest["primary_root"]))
             completed = subprocess.run(
                 [sys.executable, str(MODULE), "doctor", "--manifest", str(manifest_path)],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual(completed.returncode, 0)
             report = json.loads(completed.stdout)
             self.assertEqual(report["status"], "ok")
             self.assertIn("tools", report)
-            self.assertEqual(
-                self.runner._tree_hash(Path(manifest["primary_root"])), before
-            )
+            self.assertEqual(self.runner._tree_hash(Path(manifest["primary_root"])), before)
 
     def test_cli_probe_exit_code_reports_failure_to_the_host(self) -> None:
         # Found by the Refactor Guard self-review of this split (MUT-002): the
@@ -2027,21 +2010,41 @@ class RunReviewTest(unittest.TestCase):
             manifest, manifest_path = self.ready(root, repository)
             blocked = subprocess.run(
                 [
-                    sys.executable, str(MODULE), "probe-command",
-                    "--manifest", str(manifest_path), "--command-id", "CMD-001",
-                    "--", sys.executable, "-c", "import sys; sys.exit(1)",
+                    sys.executable,
+                    str(MODULE),
+                    "probe-command",
+                    "--manifest",
+                    str(manifest_path),
+                    "--command-id",
+                    "CMD-001",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    "import sys; sys.exit(1)",
                 ],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual(blocked.returncode, 2)
             self.assertEqual(json.loads(blocked.stdout)["status"], "blocked")
             ready = subprocess.run(
                 [
-                    sys.executable, str(MODULE), "probe-command",
-                    "--manifest", str(manifest_path), "--command-id", "CMD-001",
-                    "--", sys.executable, "-c", "pass",
+                    sys.executable,
+                    str(MODULE),
+                    "probe-command",
+                    "--manifest",
+                    str(manifest_path),
+                    "--command-id",
+                    "CMD-001",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    "pass",
                 ],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual(ready.returncode, 0)
             self.assertEqual(json.loads(ready.stdout)["status"], "ready")
@@ -2052,12 +2055,19 @@ class RunReviewTest(unittest.TestCase):
             target.mkdir()
             completed = subprocess.run(
                 [
-                    sys.executable, str(MODULE), "preflight",
-                    "--primary", str(target),
-                    "--host-socket", str(Path(directory) / "missing.sock"),
-                    "--host-token", "fixture-token",
+                    sys.executable,
+                    str(MODULE),
+                    "preflight",
+                    "--primary",
+                    str(target),
+                    "--host-socket",
+                    str(Path(directory) / "missing.sock"),
+                    "--host-token",
+                    "fixture-token",
                 ],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual(completed.returncode, 2)
             self.assertNotIn("Traceback", completed.stderr)
@@ -2070,7 +2080,9 @@ class RunReviewTest(unittest.TestCase):
             missing = Path(directory) / "missing-manifest.json"
             completed = subprocess.run(
                 [sys.executable, str(MODULE), "runbook", "--manifest", str(missing)],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual(completed.returncode, 2)
             self.assertNotIn("Traceback", completed.stderr)

@@ -5,6 +5,11 @@
 # Python
 __pycache__/
 *.pyc
+.mypy_cache/
+.venv/
+
+# Node.js
+node_modules/
 
 # macOS
 .DS_Store

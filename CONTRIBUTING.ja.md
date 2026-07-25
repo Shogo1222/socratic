@@ -28,11 +28,24 @@ Socraticは、現在初期設計段階です。コントリビューションで
 
 ```bash
 python3 scripts/check_repository.py
+python3 -m pip install -r requirements-dev.txt
+npm ci
+black --check .
+isort --check-only .
+flake8 .
+mypy hooks scripts skills tools
+npm run lint:markdown
 python3 -B -m unittest discover -s tests -t . -p 'test_*.py'
 python3 scripts/validate_fixtures.py
 python3 scripts/audit_distribution.py
 gh skill publish --dry-run
 ```
+
+各Checkoutで一度`pre-commit install`を実行してGit Hookを導入してください。Commit前にCIと
+同じBlack・isort・Flake8・mypy・Markdown・Skill ContractのCheckが実行されます。
+Repository全体をローカルで確認する場合は`pre-commit run --all-files`を使います。CIでは
+`requirements-skills.txt`で固定した上流`skills-ref`も実行します。こちらはPython 3.11以上が
+必要です。
 
 `-B`によって、ローカルの`__pycache__`が配布Checkへ混入することを防ぎます。Testは`tests/`配下で関心ごとに分類し、`-t .`によって各GroupからのRepository Root Importを安定させます。
 

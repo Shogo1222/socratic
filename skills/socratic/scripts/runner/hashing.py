@@ -36,17 +36,14 @@ def _write_exclusive(path: Path, value: Any) -> None:
 
 def _ignored(_directory: str, names: list[str]) -> set[str]:
     return {
-        name for name in names
+        name
+        for name in names
         if name in IGNORED_NAMES or name.startswith(".env.") or name.endswith(".pyc")
     }
 
 
 def _ignored_file(filename: str, ignored: set[str]) -> bool:
-    return (
-        filename in ignored
-        or filename.startswith(".env.")
-        or filename.endswith(".pyc")
-    )
+    return filename in ignored or filename.startswith(".env.") or filename.endswith(".pyc")
 
 
 def _digest_entry(digest: Any, relative: str, path: Path) -> bool:
@@ -93,7 +90,11 @@ def _prepared_hash(root: Path) -> str:
     """
     digest = hashlib.sha256()
     ignored = {
-        ".git", ".hg", ".svn", ".env", "__pycache__",
+        ".git",
+        ".hg",
+        ".svn",
+        ".env",
+        "__pycache__",
         RUNTIME_DIRECTORY_NAME,
     }
     for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):

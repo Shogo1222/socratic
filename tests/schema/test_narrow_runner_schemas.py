@@ -6,7 +6,6 @@ import unittest
 
 from tests.support import ROOT, load_module
 
-
 VALIDATOR = load_module(
     "narrow_runner_validator",
     ROOT / "skills" / "socratic" / "scripts" / "validate_and_render.py",
@@ -21,9 +20,7 @@ def execution(*, outcome: str = "passed", failed_tests: list[str] | None = None)
     result = {
         "outcome": outcome,
         "exit_code": (
-            0 if outcome == "passed"
-            else None if outcome in {"timeout", "runner-error"}
-            else 1
+            0 if outcome == "passed" else None if outcome in {"timeout", "runner-error"} else 1
         ),
         "failed_tests": [] if failed_tests is None else failed_tests,
         "duration_ms": 1,
