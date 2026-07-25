@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import io
 import json
+import shutil
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -8,8 +10,14 @@ from pathlib import Path
 from typing import Dict, Optional
 from unittest.mock import patch
 
-from tests.support import SCRIPTS
-import check_repository
+SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+# isort: off
+import check_repository  # noqa: E402
+
+# isort: on
 
 
 class ReleaseVersionTest(unittest.TestCase):
@@ -57,33 +65,85 @@ class DistributionDocumentationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.make_documents(root)
-            with patch.object(check_repository, "ROOT", root), patch.object(
-                check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 25
-            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 45):
+            with (
+                patch.object(check_repository, "ROOT", root),
+                patch.object(check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 25),
+                patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 45),
+            ):
                 check_repository.check_distribution_documentation()
 
     def test_rejects_expected_files_change_without_documentation_update(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.make_documents(root)
-            with patch.object(check_repository, "ROOT", root), patch.object(
-                check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 26
-            ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 45), redirect_stderr(io.StringIO()):
+            with (
+                patch.object(check_repository, "ROOT", root),
+                patch.object(check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 26),
+                patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 45),
+                redirect_stderr(io.StringIO()),
+            ):
                 with self.assertRaises(SystemExit):
                     check_repository.check_distribution_documentation()
 
     def test_rejects_english_or_japanese_count_mismatch(self) -> None:
         for stale_document in (
-            "docs/enterprise-installation.md", "docs/ja/enterprise-installation.md"
+            "docs/enterprise-installation.md",
+            "docs/ja/enterprise-installation.md",
         ):
-            with self.subTest(stale_document=stale_document), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(stale_document=stale_document),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 root = Path(directory)
                 self.make_documents(root, {stale_document: 16})
-                with patch.object(check_repository, "ROOT", root), patch.object(
-                    check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 25
-                ), patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 45), redirect_stderr(io.StringIO()):
+                with (
+                    patch.object(check_repository, "ROOT", root),
+                    patch.object(check_repository, "EXPECTED_DISTRIBUTION_FILE_COUNT", 25),
+                    patch.object(check_repository, "EXPECTED_PLUGIN_FILE_COUNT", 45),
+                    redirect_stderr(io.StringIO()),
+                ):
                     with self.assertRaises(SystemExit):
                         check_repository.check_distribution_documentation()
+
+
+class SkillContractTest(unittest.TestCase):
+    def copy_skills(self, root: Path) -> None:
+        shutil.copytree(check_repository.ROOT / "skills", root / "skills")
+
+    def test_current_skills_satisfy_the_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copy_skills(root)
+            with patch.object(check_repository, "ROOT", root):
+                check_repository.check_skill_structure()
+
+    def test_rejects_unknown_frontmatter_field(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copy_skills(root)
+            skill = root / "skills/socratic/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace(
+                    "name: socratic\n", "name: socratic\nunexpected: value\n", 1
+                ),
+                encoding="utf-8",
+            )
+            with patch.object(check_repository, "ROOT", root), redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    check_repository.check_skill_structure()
+
+    def test_rejects_oversized_skill_body(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copy_skills(root)
+            skill = root / "skills/maieutic/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8") + ("extra\n" * 500),
+                encoding="utf-8",
+            )
+            with patch.object(check_repository, "ROOT", root), redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    check_repository.check_skill_structure()
 
 
 class PluginStructureTest(unittest.TestCase):
@@ -99,11 +159,14 @@ class PluginStructureTest(unittest.TestCase):
             json.dumps({"name": "socratic", "version": version}), encoding="utf-8"
         )
         (root / ".claude-plugin/marketplace.json").write_text(
-            json.dumps({
-                "name": "socratic-marketplace", "version": version,
-                "owner": {"name": "Shogo1222"},
-                "plugins": [{"name": "socratic", "source": "./", "version": version}],
-            }),
+            json.dumps(
+                {
+                    "name": "socratic-marketplace",
+                    "version": version,
+                    "owner": {"name": "Shogo1222"},
+                    "plugins": [{"name": "socratic", "source": "./", "version": version}],
+                }
+            ),
             encoding="utf-8",
         )
         (root / ".codex-plugin/plugin.json").write_text(
@@ -118,22 +181,35 @@ class PluginStructureTest(unittest.TestCase):
             encoding="utf-8",
         )
         (root / ".agents/plugins/marketplace.json").write_text(
-            json.dumps({
-                "name": "socratic-marketplace",
-                "interface": {"displayName": "Socratic"},
-                "plugins": [{
-                    "name": "socratic",
-                    "source": {"source": "local", "path": "./"},
-                    "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
-                    "category": "Developer Tools",
-                }],
-            }), encoding="utf-8",
+            json.dumps(
+                {
+                    "name": "socratic-marketplace",
+                    "interface": {"displayName": "Socratic"},
+                    "plugins": [
+                        {
+                            "name": "socratic",
+                            "source": {"source": "local", "path": "./"},
+                            "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+                            "category": "Developer Tools",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
         )
         codex_hooks = {
-            "hooks": {"UserPromptSubmit": [{"hooks": [{
-                "type": "command",
-                "command": 'python3 "$PLUGIN_ROOT/hooks/codex_preflight.py"',
-            }]}]}
+            "hooks": {
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$PLUGIN_ROOT/hooks/codex_preflight.py"',
+                            }
+                        ]
+                    }
+                ]
+            }
         }
         (root / "hooks/codex-hooks.json").write_text(json.dumps(codex_hooks), encoding="utf-8")
         (root / "hooks/hooks.json").write_text(
@@ -158,18 +234,35 @@ class PluginStructureTest(unittest.TestCase):
         (root / "hooks/codex_preflight.py").write_text("# fixture\n", encoding="utf-8")
         (root / "hooks/claude_preflight.py").write_text("# fixture\n", encoding="utf-8")
         (root / ".cursor-plugin/plugin.json").write_text(
-            json.dumps({
-                "name": "socratic", "version": version, "skills": "./skills/",
-                "hooks": "./hooks/cursor-hooks.json",
-            }), encoding="utf-8",
+            json.dumps(
+                {
+                    "name": "socratic",
+                    "version": version,
+                    "skills": "./skills/",
+                    "hooks": "./hooks/cursor-hooks.json",
+                }
+            ),
+            encoding="utf-8",
         )
         (root / "hooks/cursor-hooks.json").write_text(
-            json.dumps({"version": 1, "hooks": {
-                "beforeSubmitPrompt": [{"command": "python3 cursor_preflight.py", "failClosed": True}],
-                "preToolUse": [{"command": "python3 cursor_tool_gate.py", "failClosed": True}],
-                "beforeShellExecution": [{"command": "python3 cursor_tool_gate.py", "failClosed": True}],
-                "stop": [{"command": "python3 cursor_cleanup.py"}],
-            }}), encoding="utf-8",
+            json.dumps(
+                {
+                    "version": 1,
+                    "hooks": {
+                        "beforeSubmitPrompt": [
+                            {"command": "python3 cursor_preflight.py", "failClosed": True}
+                        ],
+                        "preToolUse": [
+                            {"command": "python3 cursor_tool_gate.py", "failClosed": True}
+                        ],
+                        "beforeShellExecution": [
+                            {"command": "python3 cursor_tool_gate.py", "failClosed": True}
+                        ],
+                        "stop": [{"command": "python3 cursor_cleanup.py"}],
+                    },
+                }
+            ),
+            encoding="utf-8",
         )
         (root / "skills/socratic/agents/openai.yaml").write_text(
             "policy:\n  allow_implicit_invocation: false\n", encoding="utf-8"

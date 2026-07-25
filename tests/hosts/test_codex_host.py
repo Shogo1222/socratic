@@ -26,12 +26,14 @@ class CodexHostTest(unittest.TestCase):
             (repository / "source.py").write_text("value = 1\n", encoding="utf-8")
             session_id = "codex-native-host-fixture"
             try:
-                decision = self.hook.evaluate({
-                    "hook_event_name": "UserPromptSubmit",
-                    "prompt": "$socratic review",
-                    "session_id": session_id,
-                    "cwd": str(repository),
-                })
+                decision = self.hook.evaluate(
+                    {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "$socratic review",
+                        "session_id": session_id,
+                        "cwd": str(repository),
+                    }
+                )
                 self.assertTrue(decision["continue"])
                 self.assertIn("Trusted Socratic Host is ready", decision["systemMessage"])
                 self.assertIn("Host review context:", decision["systemMessage"])
@@ -49,51 +51,61 @@ class CodexHostTest(unittest.TestCase):
                 manifest, manifest_path = self.runner.preflight_with_host(repository, adapter)
                 self.assertEqual(manifest["status"], "ready")
                 self.assertEqual(manifest["host"]["adapter_id"], "codex-plugin-hook-host-v1")
-                artifact = (
-                    Path(state["artifact_root"]) / "review-analysis.json"
+                artifact = Path(state["artifact_root"]) / "review-analysis.json"
+                allowed_artifact = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "apply_patch",
+                        "tool_input": {
+                            "patch": f"*** Begin Patch\n*** Add File: {artifact}\n+{{}}\n*** End Patch"
+                        },
+                    }
                 )
-                allowed_artifact = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse",
-                    "session_id": session_id,
-                    "tool_name": "apply_patch",
-                    "tool_input": {
-                        "patch": f"*** Begin Patch\n*** Add File: {artifact}\n+{{}}\n*** End Patch"
-                    },
-                })
                 self.assertEqual(allowed_artifact, {})
-                denied = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse",
-                    "session_id": session_id,
-                    "tool_name": "apply_patch",
-                    "tool_input": {"patch": "*** Begin Patch"},
-                })
-                self.assertEqual(
-                    denied["hookSpecificOutput"]["permissionDecision"], "deny"
+                denied = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "apply_patch",
+                        "tool_input": {"patch": "*** Begin Patch"},
+                    }
                 )
+                self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
                 self.runner.abort(manifest_path)
             finally:
                 self.host.cleanup_session(session_id)
 
     def test_non_socratic_prompt_does_not_start_host(self) -> None:
-        self.assertEqual(self.hook.evaluate({
-            "hook_event_name": "UserPromptSubmit",
-            "prompt": "Explain this function",
-        }), {"continue": True})
+        self.assertEqual(
+            self.hook.evaluate(
+                {
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "Explain this function",
+                }
+            ),
+            {"continue": True},
+        )
 
     def test_materialization_failure_is_reported_by_the_hook(self) -> None:
-        with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
-            self.host,
-            "prepare_or_retarget_session",
-            side_effect=RuntimeError(
-                "Host could not materialize the exact pull-request base commit"
+        with (
+            patch.object(self.hook, "_host_module", return_value=self.host),
+            patch.object(
+                self.host,
+                "prepare_or_retarget_session",
+                side_effect=RuntimeError(
+                    "Host could not materialize the exact pull-request base commit"
+                ),
             ),
         ):
-            decision = self.hook.evaluate({
-                "hook_event_name": "UserPromptSubmit",
-                "prompt": "$socratic PR #438",
-                "session_id": "codex-materialization-error",
-                "cwd": str(ROOT),
-            })
+            decision = self.hook.evaluate(
+                {
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "$socratic PR #438",
+                    "session_id": "codex-materialization-error",
+                    "cwd": str(ROOT),
+                }
+            )
         self.assertEqual(
             decision["stopReason"],
             "blocked: Host could not materialize the exact pull-request base commit",
@@ -111,18 +123,26 @@ class CodexHostTest(unittest.TestCase):
                     head = storage / "change" / "head"
                     head.mkdir(parents=True)
                     return {
-                        "source": "github-pull-request", "number": requested,
+                        "source": "github-pull-request",
+                        "number": requested,
                         "url": f"https://github.com/example/repo/pull/{requested}",
                         "head_root": str(head),
                     }
 
-                with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
-                    self.host, "materialize_pull_request", side_effect=fake_materialize
+                with (
+                    patch.object(self.hook, "_host_module", return_value=self.host),
+                    patch.object(
+                        self.host, "materialize_pull_request", side_effect=fake_materialize
+                    ),
                 ):
-                    decision = self.hook.evaluate({
-                        "hook_event_name": "UserPromptSubmit", "prompt": "PR438 日本語で",
-                        "session_id": session_id, "cwd": str(repository),
-                    })
+                    decision = self.hook.evaluate(
+                        {
+                            "hook_event_name": "UserPromptSubmit",
+                            "prompt": "PR438 日本語で",
+                            "session_id": session_id,
+                            "cwd": str(repository),
+                        }
+                    )
                 state = self.host.load_session(session_id)
                 self.assertNotEqual(state["run_id"], first["run_id"])
                 self.assertEqual(state["change_context"]["number"], 438)
@@ -133,9 +153,12 @@ class CodexHostTest(unittest.TestCase):
     def test_direct_maieutic_and_elenchus_require_host_context(self) -> None:
         for prompt in ("$maieutic confirm intent", "$elenchus assess tests"):
             with self.subTest(prompt=prompt):
-                decision = self.hook.evaluate({
-                    "hook_event_name": "UserPromptSubmit", "prompt": prompt,
-                })
+                decision = self.hook.evaluate(
+                    {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": prompt,
+                    }
+                )
                 self.assertFalse(decision["continue"])
 
 

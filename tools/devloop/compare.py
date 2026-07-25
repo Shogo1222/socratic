@@ -13,8 +13,15 @@ from pathlib import Path
 DEVLOOP_HOME = Path(os.environ.get("SOCRATIC_DEVLOOP_HOME", Path.home() / ".socratic-devloop"))
 RUNS_DIR = DEVLOOP_HOME / "runs"
 
-META_KEYS = ("duration_s", "num_turns", "is_error", "subtype",
-             "permission_denials", "target_tree_clean", "total_cost_usd")
+META_KEYS = (
+    "duration_s",
+    "num_turns",
+    "is_error",
+    "subtype",
+    "permission_denials",
+    "target_tree_clean",
+    "total_cost_usd",
+)
 
 
 def load(name: str) -> tuple:
@@ -43,10 +50,20 @@ def main() -> int:
     old_meta, old_review = load(old_name)
     new_meta, new_review = load(new_name)
 
-    print("old:", old_name, "| socratic", old_meta["socratic"]["rev"],
-          old_meta["socratic"]["working_tree_digest"] if old_meta["socratic"]["dirty"] else "clean")
-    print("new:", new_name, "| socratic", new_meta["socratic"]["rev"],
-          new_meta["socratic"]["working_tree_digest"] if new_meta["socratic"]["dirty"] else "clean")
+    print(
+        "old:",
+        old_name,
+        "| socratic",
+        old_meta["socratic"]["rev"],
+        old_meta["socratic"]["working_tree_digest"] if old_meta["socratic"]["dirty"] else "clean",
+    )
+    print(
+        "new:",
+        new_name,
+        "| socratic",
+        new_meta["socratic"]["rev"],
+        new_meta["socratic"]["working_tree_digest"] if new_meta["socratic"]["dirty"] else "clean",
+    )
     print()
     for key in META_KEYS:
         old_value, new_value = old_meta.get(key), new_meta.get(key)
@@ -54,9 +71,14 @@ def main() -> int:
         print("{} {:<20} {} | {}".format(marker, key, old_value, new_value))
     print()
 
-    diff = list(difflib.unified_diff(
-        old_review.splitlines(keepends=True), new_review.splitlines(keepends=True),
-        fromfile=old_name + "/review.md", tofile=new_name + "/review.md"))
+    diff = list(
+        difflib.unified_diff(
+            old_review.splitlines(keepends=True),
+            new_review.splitlines(keepends=True),
+            fromfile=old_name + "/review.md",
+            tofile=new_name + "/review.md",
+        )
+    )
     if diff:
         sys.stdout.writelines(diff)
     else:

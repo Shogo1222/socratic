@@ -12,8 +12,8 @@ from typing import Any
 from runner.constants import (
     ENTRYPOINT,
     REVIEW_TYPES,
-    RunGateError,
     SOCRATIC_VERSION,
+    RunGateError,
     _load_json,
     _skills_root,
 )
@@ -62,7 +62,9 @@ def blocked_preflight(primary_path: Path) -> dict[str, Any]:
     }
 
 
-def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[dict[str, Any], Path]:
+def preflight_with_host(
+    primary_path: Path, host_adapter: HostAdapter
+) -> tuple[dict[str, Any], Path]:
     primary_root = _repository_root(primary_path)
     grant = host_adapter.begin_review_run(primary_root)
     allowed_modes = {"os-read-only", "permission-read-only", "host-events", "os-audit"}
@@ -91,9 +93,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
     elif isinstance(grant.review_type, dict):
         review_type = grant.review_type
     else:
-        raise RunGateError(
-            "trusted host adapter returned an invalid Review Type context"
-        )
+        raise RunGateError("trusted host adapter returned an invalid Review Type context")
     if (
         review_type.get("recommended") not in (*REVIEW_TYPES, None)
         or review_type.get("options") != list(REVIEW_TYPES)
@@ -178,7 +178,9 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
             "change_context": change_context,
             "review_type": review_type,
         }
-        _write_exclusive(ledger_path, {"header": {"run_id": grant.run_id, "run_nonce": grant.run_nonce}})
+        _write_exclusive(
+            ledger_path, {"header": {"run_id": grant.run_id, "run_nonce": grant.run_nonce}}
+        )
         ledger_created = True
         _write_exclusive(
             artifact_index_path,
@@ -202,9 +204,7 @@ def preflight_with_host(primary_path: Path, host_adapter: HostAdapter) -> tuple[
         raise
 
 
-def _ready_manifest(
-    manifest_path: Path, *, allow_missing_sandbox: bool = False
-) -> dict[str, Any]:
+def _ready_manifest(manifest_path: Path, *, allow_missing_sandbox: bool = False) -> dict[str, Any]:
     if not manifest_path.is_file():
         raise RunGateError("a valid run manifest is required")
     manifest = _load_json(manifest_path)
@@ -213,9 +213,13 @@ def _ready_manifest(
     except ImportError as error:
         raise RunGateError("jsonschema is required to validate the run manifest") from error
     schema = _load_json(_skills_root() / "socratic" / "references" / "run-manifest.schema.json")
-    errors = sorted(Draft202012Validator(schema).iter_errors(manifest), key=lambda item: list(item.path))
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(manifest), key=lambda item: list(item.path)
+    )
     if errors:
-        raise RunGateError("run manifest schema validation failed: " + "; ".join(item.message for item in errors))
+        raise RunGateError(
+            "run manifest schema validation failed: " + "; ".join(item.message for item in errors)
+        )
     primary_root = Path(manifest["primary_root"]).resolve(strict=True)
     _outside(manifest_path, primary_root, "manifest", strict=True)
     _outside(Path(manifest["ledger_path"]), primary_root, "ledger", strict=True)
@@ -239,22 +243,16 @@ def _ready_manifest(
             "dependency layer",
             strict=not allow_missing_sandbox,
         )
-        sandbox_root = Path(manifest["sandbox_root"]).resolve(
-            strict=not allow_missing_sandbox
-        )
+        sandbox_root = Path(manifest["sandbox_root"]).resolve(strict=not allow_missing_sandbox)
         if allow_missing_sandbox and not sandbox_root.exists():
             pass
         elif not resolved_dependency_root.is_relative_to(sandbox_root):
-            raise RunGateError(
-                "dependency layer must be inside the disposable sandbox"
-            )
+            raise RunGateError("dependency layer must be inside the disposable sandbox")
     storage_root = _outside(
         Path(manifest["host"]["storage_root"]), primary_root, "host storage", strict=True
     )
     _outside(Path(manifest["artifact_root"]), primary_root, "artifact root", strict=True)
-    _outside(
-        Path(manifest["artifact_index_path"]), primary_root, "artifact index", strict=True
-    )
+    _outside(Path(manifest["artifact_index_path"]), primary_root, "artifact index", strict=True)
     if manifest.get("status") != "ready" or manifest.get("entrypoint") != ENTRYPOINT:
         raise RunGateError("run manifest is blocked or was not created by the mandatory entrypoint")
     if manifest.get("protection", {}).get("verified") is not True:
@@ -324,9 +322,9 @@ def _record_failure_receipt(
     try:
         primary_postflight_ok: bool | None
         try:
-            primary_postflight_ok = _tree_hash(
-                Path(manifest["primary_root"])
-            ) == manifest["primary_sha256"]
+            primary_postflight_ok = (
+                _tree_hash(Path(manifest["primary_root"])) == manifest["primary_sha256"]
+            )
         except (KeyError, OSError, RunGateError):
             primary_postflight_ok = None
         receipt = {
@@ -341,9 +339,7 @@ def _record_failure_receipt(
             "recorded_at_epoch": round(time.time(), 3),
         }
         path = manifest_path.parent / "failure-receipt.json"
-        path.write_text(
-            json.dumps(receipt, ensure_ascii=False, sort_keys=True), encoding="utf-8"
-        )
+        path.write_text(json.dumps(receipt, ensure_ascii=False, sort_keys=True), encoding="utf-8")
         path.chmod(0o600)
         return path
     except BaseException:
@@ -357,9 +353,7 @@ def abort(manifest_path: Path) -> None:
     if not isinstance(manifest, dict):
         manifest_path.unlink(missing_ok=True)
         return
-    required = {
-        "sandbox_root", "artifact_root", "ledger_path", "artifact_index_path"
-    }
+    required = {"sandbox_root", "artifact_root", "ledger_path", "artifact_index_path"}
     if required.issubset(manifest):
         _cleanup_loaded(manifest, manifest_path)
     else:

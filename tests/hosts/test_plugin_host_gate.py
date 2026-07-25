@@ -5,9 +5,9 @@ import json
 import subprocess
 import sys
 import unittest
-from pathlib import Path
 
 from tests.support import ROOT, load_module
+
 HOOK = ROOT / "hooks/socratic_preflight.py"
 CLAUDE_HOOK = ROOT / "hooks/claude_preflight.py"
 FIXTURE = ROOT / "fixtures/pr438-blocked-bypass.json"
@@ -39,20 +39,23 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertEqual(agent_events, [])
         self.assertEqual(repository_commands, [])
         self.assertEqual(self.fixture["expected_events_after_hook"], [])
-        self.assertEqual(
-            decision["stopReason"], self.fixture["expected_terminal_text"]
-        )
+        self.assertEqual(decision["stopReason"], self.fixture["expected_terminal_text"])
         rendered = json.dumps(decision)
         for forbidden in (
-            "Review This", "We Verified", "Still at Risk", "Copy-ready Comments",
-            "MUT-", "killed", "survived", "Apply tests", "Stryker",
+            "Review This",
+            "We Verified",
+            "Still at Risk",
+            "Copy-ready Comments",
+            "MUT-",
+            "killed",
+            "survived",
+            "Apply tests",
+            "Stryker",
         ):
             self.assertNotIn(forbidden, rendered)
 
     def test_pr438_fixture_models_the_fresh_session_and_bypass_pressure(self) -> None:
-        self.assertEqual(
-            self.fixture["transcript"], ["/clear", "/socratic", "日本語で PR438"]
-        )
+        self.assertEqual(self.fixture["transcript"], ["/clear", "/socratic", "日本語で PR438"])
         self.assertTrue(self.fixture["prior_conversation_contains_findings"])
         self.assertTrue(self.fixture["broken_test_shim_present"])
         self.assertIn("git", self.fixture["forbidden_commands_after_hook"])
@@ -82,15 +85,15 @@ class PluginHostGateTest(unittest.TestCase):
 
     def test_leading_command_variants_are_intercepted(self) -> None:
         for prompt in (
-            "/socratic 日本語で PR438", "  $SoCrAtIc review this",
-            "$maieutic confirm intent", "/elenchus assess tests",
+            "/socratic 日本語で PR438",
+            "  $SoCrAtIc review this",
+            "$maieutic confirm intent",
+            "/elenchus assess tests",
             "/socratic:socratic https://github.com/owner/repo/pull/438",
         ):
             with self.subTest(prompt=prompt):
                 self.assertEqual(
-                    self.hook.evaluate(
-                        {"hook_event_name": "UserPromptSubmit", "prompt": prompt}
-                    ),
+                    self.hook.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt}),
                     self.fixture["expected_hook_output"],
                 )
 
@@ -103,9 +106,7 @@ class PluginHostGateTest(unittest.TestCase):
         ):
             with self.subTest(prompt=prompt):
                 self.assertEqual(
-                    self.hook.evaluate(
-                        {"hook_event_name": "UserPromptSubmit", "prompt": prompt}
-                    ),
+                    self.hook.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt}),
                     {"continue": True},
                 )
 
@@ -117,9 +118,7 @@ class PluginHostGateTest(unittest.TestCase):
         self.assertIn("allow_implicit_invocation: false", metadata)
 
     def test_plugin_manifest_bundles_skills_and_pre_agent_hook(self) -> None:
-        manifest = json.loads(
-            (ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
-        )
+        manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "socratic")
         self.assertEqual(manifest["skills"], "./skills/")
         self.assertEqual(manifest["hooks"], "./hooks/codex-hooks.json")
@@ -137,7 +136,9 @@ class PluginHostGateTest(unittest.TestCase):
             "reason": "blocked: trusted Host Adapter capability is unavailable",
         }
         self.assertEqual(module.evaluate(self.fixture["hook_input"]), expected)
-        self.assertEqual(module.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": "hello"}), {})
+        self.assertEqual(
+            module.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": "hello"}), {}
+        )
         manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], "0.5.0-beta.1")
         hooks = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))

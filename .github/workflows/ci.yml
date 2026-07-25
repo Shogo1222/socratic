@@ -35,8 +35,30 @@ jobs:
       - name: Install schema validation dependencies
         run: python3 -m pip install --quiet jsonschema referencing
 
+      - name: Install development quality tools
+        run: python3 -m pip install --quiet -r requirements-dev.txt
+
+      - name: Install Skill and Markdown quality tools
+        run: |
+          python3 -m pip install --quiet -r requirements-skills.txt
+          npm ci
+
       - name: Check repository consistency
         run: python3 scripts/check_repository.py
+
+      - name: Check Python quality
+        run: |
+          black --check .
+          isort --check-only .
+          flake8 .
+          mypy hooks scripts skills tools
+
+      - name: Check Markdown and Agent Skills
+        run: |
+          npm run lint:markdown
+          skills-ref validate skills/socratic
+          skills-ref validate skills/maieutic
+          skills-ref validate skills/elenchus
 
       - name: Test validation scripts
         env:

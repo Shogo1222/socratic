@@ -11,11 +11,17 @@ def main() -> int:
     path = Path(__file__).resolve().parent / "claude_tool_gate.py"
     spec = importlib.util.spec_from_file_location("socratic_codex_tool_gate", path)
     if spec is None or spec.loader is None:
-        print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": "Socratic Codex gate is unavailable",
-        }}))
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": "Socratic Codex gate is unavailable",
+                    }
+                }
+            )
+        )
         return 0
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

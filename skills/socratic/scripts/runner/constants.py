@@ -16,7 +16,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 ENTRYPOINT = "socratic/scripts/run_review.py"
 SOCRATIC_VERSION = "0.5.0-beta.1"
 MAX_INSPECT_BYTES = 64 * 1024
@@ -38,8 +37,18 @@ REVIEW_TYPES = (
     "Test Assessment",
 )
 IGNORED_NAMES = {
-    ".git", ".hg", ".svn", ".env", "node_modules", "__pycache__",
-    ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", "dist", "build",
+    ".git",
+    ".hg",
+    ".svn",
+    ".env",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".next",
+    "dist",
+    "build",
 }
 DEPENDENCY_DIRECTORY_NAMES = {"node_modules"}
 VIRTUAL_ENV_DIRECTORY_NAMES = {".venv", "venv"}
@@ -83,7 +92,15 @@ MISSING_EXECUTABLE_SIGNATURES = (
 )
 
 DOCTOR_TOOLS = (
-    "python3", "python", "node", "npm", "pnpm", "yarn", "uv", "pytest", "vitest",
+    "python3",
+    "python",
+    "node",
+    "npm",
+    "pnpm",
+    "yarn",
+    "uv",
+    "pytest",
+    "vitest",
 )
 
 # The absolute location of the pinned CLI entrypoint. Schemas, hooks, and docs
@@ -164,9 +181,7 @@ def _timed(timings: dict, label: str):
     try:
         yield
     finally:
-        timings[label] = timings.get(label, 0) + max(
-            0, round((time.monotonic() - started) * 1000)
-        )
+        timings[label] = timings.get(label, 0) + max(0, round((time.monotonic() - started) * 1000))
 
 
 def _emit_runner_timings(phase: str, timings: dict) -> None:

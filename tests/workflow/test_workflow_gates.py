@@ -3,10 +3,8 @@
 
 import json
 import unittest
-from pathlib import Path
 
 from tests.support import ROOT, load_module
-
 
 artifacts = load_module(
     "validate_and_render_workflow_gates",

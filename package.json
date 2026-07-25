@@ -1,0 +1,13 @@
+{
+  "name": "socratic-quality-tools",
+  "private": true,
+  "scripts": {
+    "lint:markdown": "markdownlint-cli2 \"**/*.md\" \"#.claude/worktrees/**\" \"#node_modules/**\""
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "0.23.1"
+  },
+  "overrides": {
+    "js-yaml": "5.2.2"
+  }
+}

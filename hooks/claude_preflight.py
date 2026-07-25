@@ -3,20 +3,16 @@
 
 from __future__ import annotations
 
-import json
 import importlib.util
-import os
+import json
 import re
 import shlex
 import sys
-from typing import Any
 from pathlib import Path
-
+from typing import Any
 
 BLOCKED_REASON = "blocked: trusted Host Adapter capability is unavailable"
-SOCRATIC_INVOCATION = re.compile(
-    r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE
-)
+SOCRATIC_INVOCATION = re.compile(r"\A\s*(?:\$|/)(?:socratic|maieutic|elenchus)\b", re.IGNORECASE)
 
 
 def _invoked(prompt: str) -> bool:
@@ -54,7 +50,7 @@ def _runtime_python() -> Path:
     return module.ensure_runtime(Path(__file__).resolve().parent.parent)
 
 
-def evaluate(payload: Any) -> dict[str, str]:
+def evaluate(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return _blocked()
     if payload.get("hook_event_name") != "UserPromptSubmit":
@@ -73,9 +69,7 @@ def evaluate(payload: Any) -> dict[str, str]:
     )
     if _invoked(prompt) or active:
         try:
-            state, retargeted = host.prepare_or_retarget_session(
-                session_id, Path(cwd), prompt
-            )
+            state, retargeted = host.prepare_or_retarget_session(session_id, Path(cwd), prompt)
             runtime_python = _runtime_python()
         except RuntimeError as error:
             return _blocked(str(error))
@@ -88,11 +82,10 @@ def evaluate(payload: Any) -> dict[str, str]:
             "previous run and materialized a fresh review root. Discard all scope, "
             "findings, plans, and agent results from the previous run. Do not use "
             "git fetch, gh, or a subagent to obtain the pull request.\n"
-            if retargeted else ""
+            if retargeted
+            else ""
         )
-        review_context = json.dumps(
-            state["review_context"], ensure_ascii=False, sort_keys=True
-        )
+        review_context = json.dumps(state["review_context"], ensure_ascii=False, sort_keys=True)
         context = retarget_context + (
             f"Host review context: {review_context}\n"
             "Start by stating the injected Mission in the user's language. Before "
@@ -128,9 +121,12 @@ def evaluate(payload: Any) -> dict[str, str]:
             "Do not read schemas or hand-write run identity, Host evidence, postflight, "
             "report mechanics, or renderer hashes."
         )
-        return {"hookSpecificOutput": {
-            "hookEventName": "UserPromptSubmit", "additionalContext": context
-        }}
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": context,
+            }
+        }
     return {}
 
 

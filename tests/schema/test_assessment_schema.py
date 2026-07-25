@@ -63,8 +63,7 @@ class AssessmentSchemaTest(unittest.TestCase):
         killed_rule = next(
             rule["then"]["properties"]
             for rule in self.result["allOf"]
-            if "contract_violation_observed"
-            in rule.get("then", {}).get("properties", {})
+            if "contract_violation_observed" in rule.get("then", {}).get("properties", {})
         )
         self.assertEqual(killed_rule["contract_violation_observed"]["const"], True)
         self.assertEqual(killed_rule["observed_failure_reason"]["minLength"], 1)
@@ -75,15 +74,11 @@ class AssessmentSchemaTest(unittest.TestCase):
         self.assertIn("execution_evidence", self.report["required"])
         self.assertIn("prepared_snapshot", self.report["required"])
         self.assertEqual(
-            self.report["properties"]["prepared_snapshot"]["properties"][
-                "protection"
-            ]["const"],
+            self.report["properties"]["prepared_snapshot"]["properties"]["protection"]["const"],
             "host-managed-hash-verified",
         )
         self.assertEqual(
-            self.report["properties"]["execution_evidence"]["properties"]["source"][
-                "const"
-            ],
+            self.report["properties"]["execution_evidence"]["properties"]["source"]["const"],
             "host-ledger",
         )
 

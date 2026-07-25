@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import SCRIPTS
-from audit_distribution import (
+SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+# isort: off
+from audit_distribution import (  # noqa: E402
     EXPECTED_FILES,
     EXPECTED_PLUGIN_FILES,
     ROOT,
     inspect_plugin_tree,
     inspect_tree,
 )
+
+# isort: on
 
 
 class DistributionAuditTest(unittest.TestCase):
@@ -70,7 +77,10 @@ class DistributionAuditTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             skill_root = self.copy_skills(Path(directory))
             skill = skill_root / "socratic" / "SKILL.md"
-            skill.write_text(skill.read_text(encoding="utf-8") + "\nhttps://unapproved.example/test\n", encoding="utf-8")
+            skill.write_text(
+                skill.read_text(encoding="utf-8") + "\nhttps://unapproved.example/test\n",
+                encoding="utf-8",
+            )
 
             _, errors = inspect_tree(skill_root, require_safety_text=True)
             self.assertTrue(any("external URL host is not approved" in error for error in errors))

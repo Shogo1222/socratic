@@ -45,12 +45,11 @@ for _runner_module in (
     reporting,
     cli,
 ):
-    globals().update({
-        key: value
-        for key, value in vars(_runner_module).items()
-        if not key.startswith("__")
-    })
+    globals().update(
+        {key: value for key, value in vars(_runner_module).items() if not key.startswith("__")}
+    )
 del _runner_module
+main = cli.main
 
 
 if __name__ == "__main__":

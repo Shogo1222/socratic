@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 TOOL_ALIASES = {
     "Delete": "Edit",
     "Shell": "Bash",
@@ -51,19 +50,22 @@ def evaluate(payload: Any) -> dict[str, str]:
     event = payload.get("hook_event_name")
     if event not in {"preToolUse", "beforeShellExecution"}:
         return {"permission": "allow"}
-    tool = payload.get("tool_name")
+    raw_tool = payload.get("tool_name")
+    tool = raw_tool if isinstance(raw_tool, str) else ""
     tool_input = payload.get("tool_input")
     tool_input = dict(tool_input) if isinstance(tool_input, dict) else {}
     if event == "beforeShellExecution":
         tool = "Bash"
         if "command" not in tool_input and isinstance(payload.get("command"), str):
             tool_input["command"] = payload["command"]
-    verdict = _shared_gate().evaluate({
-        "hook_event_name": "PreToolUse",
-        "session_id": _session_id(payload),
-        "tool_name": TOOL_ALIASES.get(tool, tool),
-        "tool_input": tool_input,
-    })
+    verdict = _shared_gate().evaluate(
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": _session_id(payload),
+            "tool_name": TOOL_ALIASES.get(tool, tool),
+            "tool_input": tool_input,
+        }
+    )
     if not verdict:
         return {"permission": "allow"}
     reason = verdict.get("hookSpecificOutput", {}).get(

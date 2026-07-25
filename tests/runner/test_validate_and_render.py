@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-import importlib.util
 import hashlib
+import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from tests.support import ROOT, load_module
-
 
 MODULE_PATH = ROOT / "skills" / "socratic" / "scripts" / "validate_and_render.py"
 validate_and_render = load_module("validate_and_render", MODULE_PATH)
@@ -114,7 +113,9 @@ class ValidateAndRenderTest(unittest.TestCase):
 
     def test_canonical_hash_is_renderer_stdout_hash(self) -> None:
         review = {
-            "review_this": [], "we_verified": [], "still_at_risk": [],
+            "review_this": [],
+            "we_verified": [],
+            "still_at_risk": [],
             "copy_ready_comments": [],
         }
         expected = hashlib.sha256(
@@ -131,8 +132,11 @@ class ValidateAndRenderTest(unittest.TestCase):
             "version": 1,
             "mode": "harden",
             "baseline": {
-                "command": "test", "status": "green", "attempts": 1,
-                "stable_tests": ["test"], "excluded_tests": [],
+                "command": "test",
+                "status": "green",
+                "attempts": 1,
+                "stable_tests": ["test"],
+                "excluded_tests": [],
             },
             "assessment": None,
             "mutations": [],
@@ -141,13 +145,12 @@ class ValidateAndRenderTest(unittest.TestCase):
             "test_handoff": None,
             "authorized_workspace_changes": [],
             "persistent_side_effects": {
-                "authorization": "not-requested", "writes": [],
+                "authorization": "not-requested",
+                "writes": [],
             },
             "run": {"id": "agent-authored"},
         }
-        with self.assertRaisesRegex(
-            validate_and_render.ArtifactError, "Additional properties"
-        ):
+        with self.assertRaisesRegex(validate_and_render.ArtifactError, "Additional properties"):
             validate_and_render.validate_document(
                 draft, "mutation-report-draft.schema.json", ROOT / "schemas"
             )
@@ -225,15 +228,15 @@ class ValidateAndRenderTest(unittest.TestCase):
             "persistent_side_effects": {"writes": []},
         }
         review = {
-            "review_this": [{
-                "kind": "confirmed-behavior",
-                "body": "Ask the specification owner",
-                "contract_ids": ["UNR-001"],
-            }]
+            "review_this": [
+                {
+                    "kind": "confirmed-behavior",
+                    "body": "Ask the specification owner",
+                    "contract_ids": ["UNR-001"],
+                }
+            ]
         }
-        with self.assertRaisesRegex(
-            validate_and_render.ArtifactError, "hides an unresolved ID"
-        ):
+        with self.assertRaisesRegex(validate_and_render.ArtifactError, "hides an unresolved ID"):
             validate_and_render.validate_cross_artifact(contract, report, review)
 
     def test_direct_cli_is_disabled_in_favor_of_mandatory_run_entrypoint(self) -> None:
@@ -250,9 +253,9 @@ class ValidateAndRenderTest(unittest.TestCase):
             )
         )
         report = json.loads(
-            (
-                ROOT / "fixtures" / "subscription-renewal-expected-elenchus-report.json"
-            ).read_text(encoding="utf-8")
+            (ROOT / "fixtures" / "subscription-renewal-expected-elenchus-report.json").read_text(
+                encoding="utf-8"
+            )
         )
         review = json.loads(
             (ROOT / "fixtures" / "subscription-renewal-canonical-review.json").read_text(
@@ -267,18 +270,16 @@ class ValidateAndRenderTest(unittest.TestCase):
     )
     def test_schema_rejects_infrastructure_failure_claimed_as_killed(self) -> None:
         report = json.loads(
-            (
-                ROOT / "fixtures" / "subscription-renewal-expected-elenchus-report.json"
-            ).read_text(encoding="utf-8")
+            (ROOT / "fixtures" / "subscription-renewal-expected-elenchus-report.json").read_text(
+                encoding="utf-8"
+            )
         )
         mutation = report["mutations"][0]
         mutation["outcome_interpretation"] = {
             "kind": "infrastructure-failure",
             "reason": "The test runner failed before collecting assertions.",
         }
-        with self.assertRaisesRegex(
-            validate_and_render.ArtifactError, "behavioral-failure"
-        ):
+        with self.assertRaisesRegex(validate_and_render.ArtifactError, "behavioral-failure"):
             validate_and_render.validate_document(
                 mutation, "mutation-result.schema.json", ROOT / "schemas"
             )

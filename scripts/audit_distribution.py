@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-
 ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_FILES = (
     "elenchus/SKILL.md",
@@ -136,9 +135,7 @@ REQUIRED_SAFETY_TEXT = {
         "Elenchus is blocked for unresolved Contract IDs",
         "canonical output hash does not match renderer stdout",
     ),
-    "socratic/scripts/run_review.py": (
-        "Host-gated fail-closed entrypoint",
-    ),
+    "socratic/scripts/run_review.py": ("Host-gated fail-closed entrypoint",),
     # The Runner implementation is split into the runner/ package behind the
     # pinned run_review.py entrypoint; each required safety rule is audited in
     # the module that raises it.
@@ -146,9 +143,7 @@ REQUIRED_SAFETY_TEXT = {
         "self-asserted JSON is not accepted",
         "a trusted Host protection attestation is required",
     ),
-    "socratic/scripts/runner/ledger.py": (
-        "append-only mutation ledger chain is invalid",
-    ),
+    "socratic/scripts/runner/ledger.py": ("append-only mutation ledger chain is invalid",),
     "socratic/scripts/runner/reporting.py": (
         "Review-only run wrote to the primary repository, even if later restored",
         "every reported mutation requires guarded mutation and execution evidence",
@@ -164,7 +159,9 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def inspect_tree(root: Path, *, require_safety_text: bool) -> tuple[list[dict[str, object]], list[str]]:
+def inspect_tree(
+    root: Path, *, require_safety_text: bool
+) -> tuple[list[dict[str, object]], list[str]]:
     errors: list[str] = []
     actual_files: dict[str, Path] = {}
 
@@ -279,7 +276,12 @@ def inspect_plugin_tree(root: Path) -> tuple[list[dict[str, object]], list[str]]
         except UnicodeDecodeError:
             errors.append(f"plugin file is not valid UTF-8 text: {relative}")
         entries.append(
-            {"path": relative, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw), "mode": f"{mode:04o}"}
+            {
+                "path": relative,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "mode": f"{mode:04o}",
+            }
         )
     return entries, errors
 
@@ -308,9 +310,15 @@ def parse_args() -> argparse.Namespace:
         help="also verify the exact file set produced by gh skill install --dir",
     )
     parser.add_argument("--manifest-output", type=Path, help="write a JSON file manifest")
-    parser.add_argument("--skill-sums-output", type=Path, help="write SHA-256 sums for all skill files")
-    parser.add_argument("--plugin-manifest-output", type=Path, help="write the Plugin JSON file manifest")
-    parser.add_argument("--plugin-sums-output", type=Path, help="write SHA-256 sums for all Plugin files")
+    parser.add_argument(
+        "--skill-sums-output", type=Path, help="write SHA-256 sums for all skill files"
+    )
+    parser.add_argument(
+        "--plugin-manifest-output", type=Path, help="write the Plugin JSON file manifest"
+    )
+    parser.add_argument(
+        "--plugin-sums-output", type=Path, help="write SHA-256 sums for all Plugin files"
+    )
     return parser.parse_args()
 
 

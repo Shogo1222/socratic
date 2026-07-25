@@ -4,15 +4,13 @@
 import io
 import json
 import os
-import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import unittest
-from pathlib import Path
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from tests.support import ROOT, load_module
@@ -24,9 +22,7 @@ class ClaudeHostTest(unittest.TestCase):
         cls.host = load_module("socratic_claude_host", ROOT / "scripts/claude_host.py")
         cls.hook = load_module("socratic_claude_hook", ROOT / "hooks/claude_preflight.py")
         cls.tool_gate = load_module("socratic_tool_gate", ROOT / "hooks/claude_tool_gate.py")
-        cls.cleanup_hook = load_module(
-            "socratic_claude_cleanup", ROOT / "hooks/claude_cleanup.py"
-        )
+        cls.cleanup_hook = load_module("socratic_claude_cleanup", ROOT / "hooks/claude_cleanup.py")
         cls.runner = load_module(
             "socratic_runner_host", ROOT / "skills/socratic/scripts/run_review.py"
         )
@@ -39,19 +35,21 @@ class ClaudeHostTest(unittest.TestCase):
             (repository / "source.py").write_text("value = 1\n")
             session_id = "automatic-host-fixture"
             try:
-                decision = self.hook.evaluate({
-                    "hook_event_name": "UserPromptSubmit", "prompt": "/socratic:socratic review",
-                    "session_id": session_id, "cwd": str(repository),
-                })
+                decision = self.hook.evaluate(
+                    {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "/socratic:socratic review",
+                        "session_id": session_id,
+                        "cwd": str(repository),
+                    }
+                )
                 context = decision["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("Trusted Socratic Host is ready", context)
                 self.assertIn("Host review context:", context)
                 self.assertIn("Start by stating the injected Mission", context)
                 self.assertIn("recommended Review Type", context)
                 self.assertIn("problem, changed behavior, preserved behavior", context)
-                self.assertIn(
-                    "Do not launch subagents for deterministic diff", context
-                )
+                self.assertIn("Do not launch subagents for deterministic diff", context)
                 state = self.host.load_session(session_id)
                 self.assertIsNotNone(state)
                 review_context = state["review_context"]
@@ -83,199 +81,270 @@ class ClaudeHostTest(unittest.TestCase):
                     manifest["change_context"],
                     {"source": "local-workspace", "head_root": str(repository.resolve())},
                 )
-                artifact_path = (
-                    Path(state["artifact_root"]) / "intent-contract.draft.json"
+                artifact_path = Path(state["artifact_root"]) / "intent-contract.draft.json"
+                review_analysis = Path(state["artifact_root"]) / "review-analysis.json"
+                denied_edit_before_create = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Edit",
+                        "tool_input": {"file_path": str(review_analysis)},
+                    }
                 )
-                review_analysis = (
-                    Path(state["artifact_root"]) / "review-analysis.json"
-                )
-                denied_edit_before_create = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Edit", "tool_input": {"file_path": str(review_analysis)},
-                })
                 self.assertEqual(
-                    denied_edit_before_create["hookSpecificOutput"][
-                        "permissionDecision"
-                    ],
+                    denied_edit_before_create["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
-                allowed_artifact = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write", "tool_input": {"file_path": str(artifact_path)},
-                })
+                allowed_artifact = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {"file_path": str(artifact_path)},
+                    }
+                )
                 self.assertEqual(allowed_artifact, {})
                 artifact_path.write_text("{}", encoding="utf-8")
-                denied_rewrite = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write", "tool_input": {"file_path": str(artifact_path)},
-                })
-                self.assertEqual(
-                    denied_rewrite["hookSpecificOutput"]["permissionDecision"], "deny"
+                denied_rewrite = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {"file_path": str(artifact_path)},
+                    }
                 )
+                self.assertEqual(denied_rewrite["hookSpecificOutput"]["permissionDecision"], "deny")
                 self.assertIn(
                     "Read it, then use Edit",
                     denied_rewrite["hookSpecificOutput"]["permissionDecisionReason"],
                 )
-                allowed_edit = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Edit", "tool_input": {"file_path": str(artifact_path)},
-                })
+                allowed_edit = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Edit",
+                        "tool_input": {"file_path": str(artifact_path)},
+                    }
+                )
                 self.assertEqual(allowed_edit, {})
-                denied_arbitrary_temp = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write", "tool_input": {"file_path": "/tmp/not-host-issued.json"},
-                })
+                denied_arbitrary_temp = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {"file_path": "/tmp/not-host-issued.json"},
+                    }
+                )
                 self.assertEqual(
                     denied_arbitrary_temp["hookSpecificOutput"]["permissionDecision"], "deny"
                 )
-                allowed_artifact_patch = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "apply_patch", "tool_input": {
-                        "patch": f"*** Begin Patch\n*** Update File: {artifact_path}\n@@\n-{{}}\n+{{\"ready\": true}}\n*** End Patch"
-                    },
-                })
+                allowed_artifact_patch = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "apply_patch",
+                        "tool_input": {
+                            "patch": f'*** Begin Patch\n*** Update File: {artifact_path}\n@@\n-{{}}\n+{{"ready": true}}\n*** End Patch'
+                        },
+                    }
+                )
                 self.assertEqual(allowed_artifact_patch, {})
                 challenge_plan = Path(state["artifact_root"]) / "challenge-plan.json"
-                allowed_challenge_plan = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write",
-                    "tool_input": {"file_path": str(challenge_plan)},
-                })
+                allowed_challenge_plan = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {"file_path": str(challenge_plan)},
+                    }
+                )
                 self.assertEqual(allowed_challenge_plan, {})
-                self.assertEqual(self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write",
-                    "tool_input": {"file_path": str(review_analysis)},
-                }), {})
-                denied_manual_report = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write",
-                    "tool_input": {"file_path": str(
-                        Path(state["artifact_root"]) / "mutation-report.draft.json"
-                    )},
-                })
+                self.assertEqual(
+                    self.tool_gate.evaluate(
+                        {
+                            "hook_event_name": "PreToolUse",
+                            "session_id": session_id,
+                            "tool_name": "Write",
+                            "tool_input": {"file_path": str(review_analysis)},
+                        }
+                    ),
+                    {},
+                )
+                denied_manual_report = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {
+                            "file_path": str(
+                                Path(state["artifact_root"]) / "mutation-report.draft.json"
+                            )
+                        },
+                    }
+                )
                 self.assertEqual(
                     denied_manual_report["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
                 experiment_plan = Path(state["artifact_root"]) / "experiment-plan.json"
-                self.assertEqual(self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write",
-                    "tool_input": {"file_path": str(experiment_plan)},
-                }), {})
-                denied_self_asserted_evidence = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write", "tool_input": {
-                        "file_path": str(
-                            Path(state["artifact_root"]) / "evidence-bundle.json"
-                        )
-                    },
-                })
                 self.assertEqual(
-                    denied_self_asserted_evidence["hookSpecificOutput"][
-                        "permissionDecision"
-                    ],
+                    self.tool_gate.evaluate(
+                        {
+                            "hook_event_name": "PreToolUse",
+                            "session_id": session_id,
+                            "tool_name": "Write",
+                            "tool_input": {"file_path": str(experiment_plan)},
+                        }
+                    ),
+                    {},
+                )
+                denied_self_asserted_evidence = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {
+                            "file_path": str(Path(state["artifact_root"]) / "evidence-bundle.json")
+                        },
+                    }
+                )
+                self.assertEqual(
+                    denied_self_asserted_evidence["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
-                denied_arbitrary_artifact = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write", "tool_input": {
-                        "file_path": str(Path(state["artifact_root"]) / "helper.py")
-                    },
-                })
+                denied_arbitrary_artifact = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {
+                            "file_path": str(Path(state["artifact_root"]) / "helper.py")
+                        },
+                    }
+                )
                 self.assertEqual(
                     denied_arbitrary_artifact["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
-                denied_manifest = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Write", "tool_input": {
-                        "file_path": str(Path(state["storage_root"]) / "run-manifest.json")
-                    },
-                })
+                denied_manifest = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Write",
+                        "tool_input": {
+                            "file_path": str(Path(state["storage_root"]) / "run-manifest.json")
+                        },
+                    }
+                )
                 self.assertEqual(
                     denied_manifest["hookSpecificOutput"]["permissionDecision"], "deny"
                 )
-                with patch.object(
-                    sys, "stdin", io.StringIO(json.dumps({"session_id": session_id}))
-                ), redirect_stdout(io.StringIO()):
+                with (
+                    patch.object(sys, "stdin", io.StringIO(json.dumps({"session_id": session_id}))),
+                    redirect_stdout(io.StringIO()),
+                ):
                     self.cleanup_hook.main()
                 preserved = self.host.load_session(session_id)
                 self.assertEqual(preserved["run_id"], state["run_id"])
-                follow_up = self.hook.evaluate({
-                    "hook_event_name": "UserPromptSubmit", "prompt": "continue",
-                    "session_id": session_id, "cwd": str(repository),
-                })
-                self.assertIn("Trusted Socratic Host is ready", follow_up["hookSpecificOutput"]["additionalContext"])
-                denied = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Edit", "tool_input": {"file_path": str(repository / "source.py")},
-                })
-                self.assertEqual(
-                    denied["hookSpecificOutput"]["permissionDecision"], "deny"
+                follow_up = self.hook.evaluate(
+                    {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "continue",
+                        "session_id": session_id,
+                        "cwd": str(repository),
+                    }
                 )
-                denied_bash = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Bash", "tool_input": {"command": "npm test"},
-                })
-                self.assertEqual(
-                    denied_bash["hookSpecificOutput"]["permissionDecision"], "deny"
+                self.assertIn(
+                    "Trusted Socratic Host is ready",
+                    follow_up["hookSpecificOutput"]["additionalContext"],
                 )
-                allowed_runner = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Bash", "tool_input": {
-                        "command": (
-                            "python3 "
-                            f"{ROOT / 'skills/socratic/scripts/run_review.py'} preflight"
-                        )
-                    },
-                })
+                denied = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Edit",
+                        "tool_input": {"file_path": str(repository / "source.py")},
+                    }
+                )
+                self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+                denied_bash = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": {"command": "npm test"},
+                    }
+                )
+                self.assertEqual(denied_bash["hookSpecificOutput"]["permissionDecision"], "deny")
+                allowed_runner = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": {
+                            "command": (
+                                "python3 "
+                                f"{ROOT / 'skills/socratic/scripts/run_review.py'} preflight"
+                            )
+                        },
+                    }
+                )
                 self.assertEqual(allowed_runner, {})
                 planted_runner = repository / "run_review.py"
                 planted_runner.write_text("print('planted')\n", encoding="utf-8")
-                denied_foreign_runner = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Bash", "tool_input": {
-                        "command": f"python3 {planted_runner} preflight"
-                    },
-                })
+                denied_foreign_runner = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": {"command": f"python3 {planted_runner} preflight"},
+                    }
+                )
                 self.assertEqual(
                     denied_foreign_runner["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
-                denied_archive = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Bash", "tool_input": {
-                        "command": "git --no-pager archive -o /tmp/leak.tar HEAD"
-                    },
-                })
-                self.assertEqual(
-                    denied_archive["hookSpecificOutput"]["permissionDecision"], "deny"
+                denied_archive = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": {"command": "git --no-pager archive -o /tmp/leak.tar HEAD"},
+                    }
                 )
-                denied_unknown_tool = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "mcp__filesystem__write_file",
-                    "tool_input": {"path": str(repository / "source.py")},
-                })
+                self.assertEqual(denied_archive["hookSpecificOutput"]["permissionDecision"], "deny")
+                denied_unknown_tool = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "mcp__filesystem__write_file",
+                        "tool_input": {"path": str(repository / "source.py")},
+                    }
+                )
                 self.assertEqual(
                     denied_unknown_tool["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
-                denied_multi_edit = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "MultiEdit",
-                    "tool_input": {"file_path": str(repository / "source.py")},
-                })
+                denied_multi_edit = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "MultiEdit",
+                        "tool_input": {"file_path": str(repository / "source.py")},
+                    }
+                )
                 self.assertEqual(
                     denied_multi_edit["hookSpecificOutput"]["permissionDecision"],
                     "deny",
                 )
-                allowed_read = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Read",
-                    "tool_input": {"file_path": str(repository / "source.py")},
-                })
+                allowed_read = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Read",
+                        "tool_input": {"file_path": str(repository / "source.py")},
+                    }
+                )
                 self.assertEqual(allowed_read, {})
                 for background_input in (
                     {
@@ -292,23 +361,21 @@ class ClaudeHostTest(unittest.TestCase):
                         ),
                     },
                 ):
-                    denied_background = self.tool_gate.evaluate({
-                        "hook_event_name": "PreToolUse",
-                        "session_id": session_id,
-                        "tool_name": "Bash",
-                        "tool_input": background_input,
-                    })
+                    denied_background = self.tool_gate.evaluate(
+                        {
+                            "hook_event_name": "PreToolUse",
+                            "session_id": session_id,
+                            "tool_name": "Bash",
+                            "tool_input": background_input,
+                        }
+                    )
                     self.assertEqual(
-                        denied_background["hookSpecificOutput"][
-                            "permissionDecision"
-                        ],
+                        denied_background["hookSpecificOutput"]["permissionDecision"],
                         "deny",
                     )
                     self.assertIn(
                         "foreground",
-                        denied_background["hookSpecificOutput"][
-                            "permissionDecisionReason"
-                        ],
+                        denied_background["hookSpecificOutput"]["permissionDecisionReason"],
                     )
                 for command in (
                     "git --no-pager status --short",
@@ -316,32 +383,44 @@ class ClaudeHostTest(unittest.TestCase):
                     "git --no-pager show --no-ext-diff --no-textconv HEAD",
                     "git --no-pager log --no-ext-diff --no-textconv -3",
                 ):
-                    self.assertEqual(self.tool_gate.evaluate({
-                        "hook_event_name": "PreToolUse", "session_id": session_id,
-                        "tool_name": "Bash", "tool_input": {"command": command},
-                    }), {})
-                unsafe_git = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Bash", "tool_input": {
-                        "command": "git --no-pager diff --output=/tmp/leak HEAD"
-                    },
-                })
-                self.assertEqual(
-                    unsafe_git["hookSpecificOutput"]["permissionDecision"], "deny"
+                    self.assertEqual(
+                        self.tool_gate.evaluate(
+                            {
+                                "hook_event_name": "PreToolUse",
+                                "session_id": session_id,
+                                "tool_name": "Bash",
+                                "tool_input": {"command": command},
+                            }
+                        ),
+                        {},
+                    )
+                unsafe_git = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": {"command": "git --no-pager diff --output=/tmp/leak HEAD"},
+                    }
                 )
-                conflicting_git = self.tool_gate.evaluate({
-                    "hook_event_name": "PreToolUse", "session_id": session_id,
-                    "tool_name": "Bash", "tool_input": {
-                        "command": "git --no-pager diff --no-ext-diff --no-textconv --ext-diff HEAD"
-                    },
-                })
+                self.assertEqual(unsafe_git["hookSpecificOutput"]["permissionDecision"], "deny")
+                conflicting_git = self.tool_gate.evaluate(
+                    {
+                        "hook_event_name": "PreToolUse",
+                        "session_id": session_id,
+                        "tool_name": "Bash",
+                        "tool_input": {
+                            "command": "git --no-pager diff --no-ext-diff --no-textconv --ext-diff HEAD"
+                        },
+                    }
+                )
                 self.assertEqual(
                     conflicting_git["hookSpecificOutput"]["permissionDecision"], "deny"
                 )
                 self.runner.abort(manifest_path)
-                with patch.object(
-                    sys, "stdin", io.StringIO(json.dumps({"session_id": session_id}))
-                ), redirect_stdout(io.StringIO()):
+                with (
+                    patch.object(sys, "stdin", io.StringIO(json.dumps({"session_id": session_id}))),
+                    redirect_stdout(io.StringIO()),
+                ):
                     self.cleanup_hook.main()
                 self.assertIsNone(self.host.load_session(session_id))
             finally:
@@ -410,15 +489,20 @@ class ClaudeHostTest(unittest.TestCase):
                         "head_root": str(head),
                     }
 
-                with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
-                    self.host, "materialize_pull_request", side_effect=fake_materialize
+                with (
+                    patch.object(self.hook, "_host_module", return_value=self.host),
+                    patch.object(
+                        self.host, "materialize_pull_request", side_effect=fake_materialize
+                    ),
                 ):
-                    decision = self.hook.evaluate({
-                        "hook_event_name": "UserPromptSubmit",
-                        "prompt": "PR438 日本語で",
-                        "session_id": session_id,
-                        "cwd": str(repository),
-                    })
+                    decision = self.hook.evaluate(
+                        {
+                            "hook_event_name": "UserPromptSubmit",
+                            "prompt": "PR438 日本語で",
+                            "session_id": session_id,
+                            "cwd": str(repository),
+                        }
+                    )
                 state = self.host.load_session(session_id)
                 self.assertNotEqual(state["run_id"], first["run_id"])
                 self.assertEqual(state["change_context"]["number"], 438)
@@ -446,8 +530,12 @@ class ClaudeHostTest(unittest.TestCase):
             remote = root / "origin.git"
             storage = root / "storage"
             storage.mkdir()
-            subprocess.run(["git", "init", "-b", "main", str(primary)], check=True,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["git", "init", "-b", "main", str(primary)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             subprocess.run(["git", "-C", str(primary), "config", "user.name", "Test"], check=True)
             subprocess.run(
                 ["git", "-C", str(primary), "config", "user.email", "test@example.com"],
@@ -455,44 +543,72 @@ class ClaudeHostTest(unittest.TestCase):
             )
             (primary / "value.txt").write_text("base\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(primary), "add", "value.txt"], check=True)
-            subprocess.run(["git", "-C", str(primary), "commit", "-m", "base"], check=True,
-                           stdout=subprocess.DEVNULL)
+            subprocess.run(
+                ["git", "-C", str(primary), "commit", "-m", "base"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
             base_sha = subprocess.run(
-                ["git", "-C", str(primary), "rev-parse", "HEAD"], check=True,
-                stdout=subprocess.PIPE, text=True,
+                ["git", "-C", str(primary), "rev-parse", "HEAD"],
+                check=True,
+                stdout=subprocess.PIPE,
+                text=True,
             ).stdout.strip()
-            subprocess.run(["git", "init", "--bare", str(remote)], check=True,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(["git", "-C", str(primary), "remote", "add", "origin", str(remote)],
-                           check=True)
-            subprocess.run(["git", "-C", str(primary), "push", "origin", "main"], check=True,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(["git", "-C", str(primary), "switch", "-c", "feature"], check=True,
-                           stdout=subprocess.DEVNULL)
+            subprocess.run(
+                ["git", "init", "--bare", str(remote)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                ["git", "-C", str(primary), "remote", "add", "origin", str(remote)], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(primary), "push", "origin", "main"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                ["git", "-C", str(primary), "switch", "-c", "feature"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
             (primary / "value.txt").write_text("head\n", encoding="utf-8")
-            subprocess.run(["git", "-C", str(primary), "commit", "-am", "head"], check=True,
-                           stdout=subprocess.DEVNULL)
+            subprocess.run(
+                ["git", "-C", str(primary), "commit", "-am", "head"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
             head_sha = subprocess.run(
-                ["git", "-C", str(primary), "rev-parse", "HEAD"], check=True,
-                stdout=subprocess.PIPE, text=True,
+                ["git", "-C", str(primary), "rev-parse", "HEAD"],
+                check=True,
+                stdout=subprocess.PIPE,
+                text=True,
             ).stdout.strip()
             subprocess.run(
                 ["git", "-C", str(primary), "push", "origin", "HEAD:refs/pull/7/head"],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             subprocess.run(
                 ["git", "-C", str(primary), "switch", "main"],
-                check=True, stdout=subprocess.DEVNULL,
+                check=True,
+                stdout=subprocess.DEVNULL,
             )
             (primary / "after-pr.txt").write_text("main advanced\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(primary), "add", "after-pr.txt"], check=True)
             subprocess.run(
                 ["git", "-C", str(primary), "commit", "-m", "advance main"],
-                check=True, stdout=subprocess.DEVNULL,
+                check=True,
+                stdout=subprocess.DEVNULL,
             )
             subprocess.run(
                 ["git", "-C", str(primary), "push", "origin", "main"],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             metadata = {
                 "number": 7,
@@ -518,12 +634,8 @@ class ClaudeHostTest(unittest.TestCase):
             self.assertEqual(provenance["head_sha"], head_sha)
             self.assertEqual(provenance["title"], metadata["title"])
             self.assertEqual(provenance["changed_files"], ["value.txt"])
-            self.assertEqual(
-                (Path(provenance["base_root"]) / "value.txt").read_text(), "base\n"
-            )
-            self.assertEqual(
-                (Path(provenance["head_root"]) / "value.txt").read_text(), "head\n"
-            )
+            self.assertEqual((Path(provenance["base_root"]) / "value.txt").read_text(), "base\n")
+            self.assertEqual((Path(provenance["head_root"]) / "value.txt").read_text(), "head\n")
             self.assertFalse((Path(provenance["base_root"]) / "after-pr.txt").exists())
             bad_metadata = dict(metadata, headRefOid="0" * 40)
 
@@ -535,9 +647,7 @@ class ClaudeHostTest(unittest.TestCase):
             rejected_storage = root / "rejected"
             rejected_storage.mkdir()
             with patch.object(self.host.subprocess, "run", side_effect=fake_bad_gh):
-                with self.assertRaisesRegex(
-                    RuntimeError, "does not match GitHub provenance"
-                ):
+                with self.assertRaisesRegex(RuntimeError, "does not match GitHub provenance"):
                     self.host.materialize_pull_request(
                         primary, rejected_storage, metadata["number"]
                     )
@@ -548,19 +658,24 @@ class ClaudeHostTest(unittest.TestCase):
             self.assertEqual(self.hook.evaluate(payload)["decision"], "block")
 
     def test_materialization_failure_is_reported_by_the_hook(self) -> None:
-        with patch.object(self.hook, "_host_module", return_value=self.host), patch.object(
-            self.host,
-            "prepare_or_retarget_session",
-            side_effect=RuntimeError(
-                "Host could not materialize the exact pull-request base commit"
+        with (
+            patch.object(self.hook, "_host_module", return_value=self.host),
+            patch.object(
+                self.host,
+                "prepare_or_retarget_session",
+                side_effect=RuntimeError(
+                    "Host could not materialize the exact pull-request base commit"
+                ),
             ),
         ):
-            decision = self.hook.evaluate({
-                "hook_event_name": "UserPromptSubmit",
-                "prompt": "/socratic:socratic PR #438",
-                "session_id": "materialization-error",
-                "cwd": str(ROOT),
-            })
+            decision = self.hook.evaluate(
+                {
+                    "hook_event_name": "UserPromptSubmit",
+                    "prompt": "/socratic:socratic PR #438",
+                    "session_id": "materialization-error",
+                    "cwd": str(ROOT),
+                }
+            )
         self.assertEqual(
             decision["reason"],
             "blocked: Host could not materialize the exact pull-request base commit",
@@ -573,11 +688,18 @@ class ClaudeHostTest(unittest.TestCase):
             for index, prompt in enumerate(("/socratic", "/maieutic", "/elenchus")):
                 session_id = f"explicit-skill-{index}"
                 try:
-                    decision = self.hook.evaluate({
-                        "hook_event_name": "UserPromptSubmit", "prompt": prompt,
-                        "session_id": session_id, "cwd": str(repository),
-                    })
-                    self.assertIn("Trusted Socratic Host is ready", decision["hookSpecificOutput"]["additionalContext"])
+                    decision = self.hook.evaluate(
+                        {
+                            "hook_event_name": "UserPromptSubmit",
+                            "prompt": prompt,
+                            "session_id": session_id,
+                            "cwd": str(repository),
+                        }
+                    )
+                    self.assertIn(
+                        "Trusted Socratic Host is ready",
+                        decision["hookSpecificOutput"]["additionalContext"],
+                    )
                 finally:
                     self.host.cleanup_session(session_id)
 
@@ -587,16 +709,18 @@ class ClaudeHostTest(unittest.TestCase):
             (repository / ".git").mkdir(parents=True)
             session_id = "quoted-mention-fixture"
             try:
-                decision = self.hook.evaluate({
-                    "hook_event_name": "UserPromptSubmit",
-                    "prompt": (
-                        "A task report quoted `$maieutic` and a fenced example:\n"
-                        "```text\n/socratic https://github.com/owner/repo/pull/1\n```\n"
-                        "Summarize the report."
-                    ),
-                    "session_id": session_id,
-                    "cwd": str(repository),
-                })
+                decision = self.hook.evaluate(
+                    {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": (
+                            "A task report quoted `$maieutic` and a fenced example:\n"
+                            "```text\n/socratic https://github.com/owner/repo/pull/1\n```\n"
+                            "Summarize the report."
+                        ),
+                        "session_id": session_id,
+                        "cwd": str(repository),
+                    }
+                )
                 self.assertEqual(decision, {})
                 self.assertIsNone(self.host.load_session(session_id))
             finally:
@@ -611,17 +735,19 @@ class ClaudeHostTest(unittest.TestCase):
                 first = self.host.prepare_session(session_id, repository)
                 os.kill(int(first["pid"]), 15)
                 for _ in range(50):
-                    if self.host.request(
-                        Path(first["socket_path"]), first["token"]
-                    ) == {"status": "blocked"}:
+                    if self.host.request(Path(first["socket_path"]), first["token"]) == {
+                        "status": "blocked"
+                    }:
                         break
                     time.sleep(0.02)
-                decision = self.hook.evaluate({
-                    "hook_event_name": "UserPromptSubmit",
-                    "prompt": "/socratic:socratic retry the review",
-                    "session_id": session_id,
-                    "cwd": str(repository),
-                })
+                decision = self.hook.evaluate(
+                    {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "/socratic:socratic retry the review",
+                        "session_id": session_id,
+                        "cwd": str(repository),
+                    }
+                )
                 self.assertIn(
                     "Trusted Socratic Host is ready",
                     decision["hookSpecificOutput"]["additionalContext"],
@@ -661,17 +787,19 @@ class ClaudeHostTest(unittest.TestCase):
             state = self.host.prepare_session(session_id, repository)
             os.kill(int(state["pid"]), 15)
             for _ in range(50):
-                if self.host.request(Path(state["socket_path"]), state["token"]) == {"status": "blocked"}:
+                if self.host.request(Path(state["socket_path"]), state["token"]) == {
+                    "status": "blocked"
+                }:
                     break
                 time.sleep(0.02)
             payload = {
-                "hook_event_name": "PreToolUse", "session_id": session_id,
-                "tool_name": "Edit", "tool_input": {"file_path": str(repository / "source.py")},
+                "hook_event_name": "PreToolUse",
+                "session_id": session_id,
+                "tool_name": "Edit",
+                "tool_input": {"file_path": str(repository / "source.py")},
             }
             still_blocked = self.tool_gate.evaluate(payload)
-            self.assertEqual(
-                still_blocked["hookSpecificOutput"]["permissionDecision"], "deny"
-            )
+            self.assertEqual(still_blocked["hookSpecificOutput"]["permissionDecision"], "deny")
             state_path = self.host.session_root(session_id) / "state.json"
             expired = time.time() - self.host.BROKER_IDLE_TTL_SECONDS - 1
             os.utime(state_path, (expired, expired))
@@ -691,13 +819,17 @@ class ClaudeHostTest(unittest.TestCase):
                 self.assertNotEqual(Path(cwd).resolve(), primary.resolve())
                 self.assertEqual((Path(cwd) / "source.py").read_text(), "original\n")
                 self.assertEqual(
-                    self.host.request(Path(env["SOCRATIC_HOST_SOCKET"]), env["SOCRATIC_HOST_TOKEN"]),
+                    self.host.request(
+                        Path(env["SOCRATIC_HOST_SOCKET"]), env["SOCRATIC_HOST_TOKEN"]
+                    ),
                     {"status": "ready"},
                 )
                 return type("Completed", (), {"returncode": 0})()
 
             with patch.object(self.host.subprocess, "run", side_effect=fake_run):
-                self.assertEqual(self.host.launch(primary, ROOT, "claude", ["--model", "sonnet"]), 0)
+                self.assertEqual(
+                    self.host.launch(primary, ROOT, "claude", ["--model", "sonnet"]), 0
+                )
             self.assertEqual((primary / "source.py").read_text(), "original\n")
             self.assertFalse(observed["cwd"].exists())
             self.assertEqual(observed["argv"][:2], ["claude", "--plugin-dir"])

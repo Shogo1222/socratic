@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 from tests.support import ROOT, load_module
 
-
 SKILL_SCRIPTS = ROOT / "skills" / "socratic" / "scripts"
 if str(SKILL_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SKILL_SCRIPTS))
@@ -28,8 +27,7 @@ class RunExperimentTest(unittest.TestCase):
         (self.source / "tests").mkdir(parents=True)
         (self.source / "tests" / "__init__.py").write_text("", encoding="utf-8")
         (self.source / "calculator.py").write_text(
-            "def is_positive(value):\n"
-            "    return value > 0\n",
+            "def is_positive(value):\n" "    return value > 0\n",
             encoding="utf-8",
         )
         (self.source / "tests" / "test_calculator.py").write_text(
@@ -58,14 +56,11 @@ class RunExperimentTest(unittest.TestCase):
             "probe": "passed",
             "missing_dependencies": [],
         }
-        self.probe = patch.object(
-            RUNNER, "_probe_runtime", return_value=(self.runtime, None)
-        )
+        self.probe = patch.object(RUNNER, "_probe_runtime", return_value=(self.runtime, None))
         self.probe.start()
         self.addCleanup(self.probe.stop)
 
     def make_plan(self, mutations: list[dict] | None = None) -> dict:
-        target = self.source / "calculator.py"
         if mutations is None:
             mutations = [
                 {
@@ -131,8 +126,9 @@ class RunExperimentTest(unittest.TestCase):
         source_before = RUNNER.source_digest(self.source)
         run_root = self.root / "disposable-run"
 
-        with patch.dict(os.environ, {"SOCRATIC_TEST_SECRET": "must-not-leak"}), patch.object(
-            RUNNER.tempfile, "mkdtemp", return_value=str(run_root)
+        with (
+            patch.dict(os.environ, {"SOCRATIC_TEST_SECRET": "must-not-leak"}),
+            patch.object(RUNNER.tempfile, "mkdtemp", return_value=str(run_root)),
         ):
             evidence = RUNNER.assess(self.source, self.plan_path, self.evidence_path)
 
@@ -145,9 +141,7 @@ class RunExperimentTest(unittest.TestCase):
             [mutation["execution"]["outcome"] for mutation in evidence["mutations"]],
             ["failed", "failed"],
         )
-        self.assertIn(
-            "test_zero", " ".join(evidence["mutations"][0]["execution"]["failed_tests"])
-        )
+        self.assertIn("test_zero", " ".join(evidence["mutations"][0]["execution"]["failed_tests"]))
         self.assertIn(
             "test_positive",
             " ".join(evidence["mutations"][1]["execution"]["failed_tests"]),
@@ -157,9 +151,7 @@ class RunExperimentTest(unittest.TestCase):
         self.assertEqual(evidence["cleanup"], {"completed": True, "remaining_paths": []})
         self.assertFalse(run_root.exists())
         self.assertEqual(RUNNER.source_digest(self.source), source_before)
-        self.assertEqual(
-            json.loads(self.evidence_path.read_text(encoding="utf-8")), evidence
-        )
+        self.assertEqual(json.loads(self.evidence_path.read_text(encoding="utf-8")), evidence)
 
     def test_guarded_entrypoint_exposes_one_operation_assess(self) -> None:
         self.write_plan(self.make_plan())
@@ -184,9 +176,7 @@ class RunExperimentTest(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         rendered = json.loads(completed.stdout)
-        self.assertIn(
-            rendered["baseline"]["outcome"], {"passed", "runner-error"}
-        )
+        self.assertIn(rendered["baseline"]["outcome"], {"passed", "runner-error"})
         if rendered["baseline"]["outcome"] == "passed":
             self.assertEqual(len(rendered["mutations"]), 2)
         else:
@@ -200,10 +190,12 @@ class RunExperimentTest(unittest.TestCase):
     def test_runtime_dependency_failure_is_structured_before_baseline(self) -> None:
         self.write_plan(self.make_plan())
         unavailable = dict(self.runtime)
-        unavailable.update({
-            "probe": "failed",
-            "missing_dependencies": ["jsonschema"],
-        })
+        unavailable.update(
+            {
+                "probe": "failed",
+                "missing_dependencies": ["jsonschema"],
+            }
+        )
         runner_error = {
             "outcome": "runner-error",
             "exit_code": None,
@@ -215,12 +207,8 @@ class RunExperimentTest(unittest.TestCase):
             "stderr": RUNNER._bounded_output(b""),
         }
         self.probe.stop()
-        with patch.object(
-            RUNNER, "_probe_runtime", return_value=(unavailable, runner_error)
-        ):
-            evidence = RUNNER.assess(
-                self.source, self.plan_path, self.evidence_path
-            )
+        with patch.object(RUNNER, "_probe_runtime", return_value=(unavailable, runner_error)):
+            evidence = RUNNER.assess(self.source, self.plan_path, self.evidence_path)
 
         self.assertEqual(evidence["baseline"]["outcome"], "runner-error")
         self.assertEqual(evidence["mutations"], [])
@@ -269,12 +257,11 @@ class RunExperimentTest(unittest.TestCase):
         run_root = self.root / "cleanup-failure"
         real_rmtree = RUNNER.shutil.rmtree
 
-        with patch.object(RUNNER.tempfile, "mkdtemp", return_value=str(run_root)), patch.object(
-            RUNNER.shutil, "rmtree", side_effect=OSError("busy")
+        with (
+            patch.object(RUNNER.tempfile, "mkdtemp", return_value=str(run_root)),
+            patch.object(RUNNER.shutil, "rmtree", side_effect=OSError("busy")),
         ):
-            evidence = RUNNER.assess(
-                self.source, self.plan_path, self.evidence_path
-            )
+            evidence = RUNNER.assess(self.source, self.plan_path, self.evidence_path)
 
         self.assertEqual(
             evidence["cleanup"],
@@ -298,9 +285,7 @@ class RunExperimentTest(unittest.TestCase):
     def test_rejects_evidence_inside_source_or_existing_output(self) -> None:
         self.write_plan(self.make_plan())
         with self.assertRaisesRegex(RUNNER.ExperimentError, "outside the source"):
-            RUNNER.assess(
-                self.source, self.plan_path, self.source / "evidence.json"
-            )
+            RUNNER.assess(self.source, self.plan_path, self.source / "evidence.json")
 
         self.evidence_path.write_text("existing", encoding="utf-8")
         with self.assertRaisesRegex(RUNNER.ExperimentError, "already exists"):

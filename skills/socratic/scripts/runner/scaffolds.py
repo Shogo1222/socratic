@@ -11,8 +11,8 @@ from runner.constants import (
     ARTIFACT_SCHEMAS,
     ENTRYPOINT_PATH,
     REVIEW_TYPES,
-    RunGateError,
     SOCRATIC_VERSION,
+    RunGateError,
     _load_json,
     _validator_module,
 )
@@ -52,10 +52,15 @@ def _next_step(*arguments: str, note: str | None = None) -> dict[str, Any]:
 
 def _probe_next(manifest_path: Path) -> dict[str, Any]:
     return _next_step(
-        "probe-command", "--manifest", str(manifest_path),
-        "--command-id", "CMD-001",
-        "--cwd", "<package-directory-or-dot>",
-        "--", "<focused-test-argv>",
+        "probe-command",
+        "--manifest",
+        str(manifest_path),
+        "--command-id",
+        "CMD-001",
+        "--cwd",
+        "<package-directory-or-dot>",
+        "--",
+        "<focused-test-argv>",
         note=(
             "replace placeholders with the package directory (or .) and direct "
             "test executable located via inspect search; never use a "
@@ -67,18 +72,29 @@ def _probe_next(manifest_path: Path) -> dict[str, Any]:
 SCAFFOLD_EDITABLE_FIELDS = {
     "contract": [
         "status",
-        "change.base", "change.head", "change.summary",
-        "intent.statement", "intent.confidence", "intent.evidence[*]",
-        "decisions[*]", "invariants[*]",
-        "side_effects.required[*]", "side_effects.prohibited[*]",
-        "unresolved[*]", "coverage[*]",
+        "change.base",
+        "change.head",
+        "change.summary",
+        "intent.statement",
+        "intent.confidence",
+        "intent.evidence[*]",
+        "decisions[*]",
+        "invariants[*]",
+        "side_effects.required[*]",
+        "side_effects.prohibited[*]",
+        "unresolved[*]",
+        "coverage[*]",
     ],
     "plan": [
         "max_parallel",
-        "challenges[*].id", "challenges[*].contract_ids",
-        "challenges[*].accident", "challenges[*].expected_detection",
-        "challenges[*].severity", "challenges[*].likelihood",
-        "challenges[*].code_location", "challenges[*].mutation",
+        "challenges[*].id",
+        "challenges[*].contract_ids",
+        "challenges[*].accident",
+        "challenges[*].expected_detection",
+        "challenges[*].severity",
+        "challenges[*].likelihood",
+        "challenges[*].code_location",
+        "challenges[*].mutation",
     ],
     "analysis": [
         "stable_tests[*]",
@@ -109,8 +125,12 @@ SCAFFOLD_FIELD_GUIDES = {
     "contract": {
         "status": {
             "allowed": [
-                "provisional", "needs-decision", "confirmed",
-                "tested", "challenged", "hardened",
+                "provisional",
+                "needs-decision",
+                "confirmed",
+                "tested",
+                "challenged",
+                "hardened",
             ],
             "rule": (
                 "Use needs-decision exactly when unresolved has an item; a "
@@ -189,8 +209,14 @@ SCAFFOLD_FIELD_GUIDES = {
         "max_parallel": {"type": "integer", "minimum": 1, "maximum": 8},
         "challenges[*]": {
             "required_keys": [
-                "id", "contract_ids", "accident", "expected_detection",
-                "severity", "likelihood", "code_location", "mutation",
+                "id",
+                "contract_ids",
+                "accident",
+                "expected_detection",
+                "severity",
+                "likelihood",
+                "code_location",
+                "mutation",
             ],
             "allowed_severity": ["low", "medium", "high", "critical"],
             "allowed_likelihood": ["low", "medium", "high"],
@@ -230,22 +256,39 @@ SCAFFOLD_FIELD_GUIDES = {
                 "or catch unless a cohort comparison is being reported."
             ),
             "required_keys": [
-                "selected_scope", "selection_reason", "production_files",
-                "existing_tests", "changed_tests", "excluded_scope", "comparisons",
+                "selected_scope",
+                "selection_reason",
+                "production_files",
+                "existing_tests",
+                "changed_tests",
+                "excluded_scope",
+                "comparisons",
             ],
             "allowed_selected_scope": [
-                "current-change", "changed-tests", "broader-target",
+                "current-change",
+                "changed-tests",
+                "broader-target",
             ],
             "comparison_required_keys": [
-                "mutation_id", "existing_result", "changed_result", "classification",
+                "mutation_id",
+                "existing_result",
+                "changed_result",
+                "classification",
             ],
             "allowed_comparison_results": [
-                "killed", "survived", "not-run", "not-comparable", "inconclusive",
+                "killed",
+                "survived",
+                "not-run",
+                "not-comparable",
+                "inconclusive",
             ],
             "allowed_comparison_classification": [
-                "existing-protection", "incremental-protection",
-                "protection-regression", "unprotected",
-                "not-comparable", "inconclusive",
+                "existing-protection",
+                "incremental-protection",
+                "protection-regression",
+                "unprotected",
+                "not-comparable",
+                "inconclusive",
             ],
             "comparison_template": {
                 "mutation_id": "MUT-001",
@@ -257,17 +300,33 @@ SCAFFOLD_FIELD_GUIDES = {
         "classifications[*]": {
             "runner_created": True,
             "allowed_result": [
-                "killed", "survived", "timeout", "invalid", "equivalent",
-                "inconclusive", "weak-catch", "strong-catch",
-                "false-positive", "not-comparable", "no-catch",
+                "killed",
+                "survived",
+                "timeout",
+                "invalid",
+                "equivalent",
+                "inconclusive",
+                "weak-catch",
+                "strong-catch",
+                "false-positive",
+                "not-comparable",
+                "no-catch",
             ],
             "allowed_follow_up": [
-                "none", "harden-test", "clarify-intent",
-                "replace-mutant", "investigate-flake", "fix-infrastructure",
+                "none",
+                "harden-test",
+                "clarify-intent",
+                "replace-mutant",
+                "investigate-flake",
+                "fix-infrastructure",
             ],
             "allowed_outcome_kind": [
-                "passed", "behavioral-failure", "infrastructure-failure",
-                "process-crash", "timeout", "unparseable",
+                "passed",
+                "behavioral-failure",
+                "infrastructure-failure",
+                "process-crash",
+                "timeout",
+                "unparseable",
             ],
             "rules": [
                 "killed requires outcome kind behavioral-failure, at least one detecting test, and contract_violation_observed=true",
@@ -281,7 +340,10 @@ SCAFFOLD_FIELD_GUIDES = {
             "required_in_mode": "catch",
             "allowed_outcome": ["pass", "fail", "not-runnable"],
             "allowed_human_verdict": [
-                "intended", "unintended", "unanswered", "not-requested",
+                "intended",
+                "unintended",
+                "unanswered",
+                "not-requested",
             ],
             "template": {
                 "parent_outcome": "not-runnable",
@@ -293,7 +355,11 @@ SCAFFOLD_FIELD_GUIDES = {
         "not_challenged[*]": {
             "required_keys": ["contract_id", "reason", "residual_risk"],
             "allowed_reason": [
-                "budget", "not-observable", "not-applicable", "deferred", "blocked",
+                "budget",
+                "not-observable",
+                "not-applicable",
+                "deferred",
+                "blocked",
             ],
             "template": {
                 "contract_id": "INV-001",
@@ -324,8 +390,10 @@ SCAFFOLD_FIELD_GUIDES = {
         "review.review_this[*]": {
             "required_keys": ["kind", "body", "contract_ids"],
             "allowed_kind": [
-                "confirmed-behavior", "behavior-difference",
-                "test-gap", "needs-decision",
+                "confirmed-behavior",
+                "behavior-difference",
+                "test-gap",
+                "needs-decision",
             ],
             "template": {
                 "kind": "test-gap",
@@ -390,13 +458,24 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
             "classification complete -> complete generates, renders, and cleans up",
         ],
         "agent_edits": [
-            "intent", "decisions", "invariants", "side effects",
-            "accident models", "classification reasons", "detecting tests",
+            "intent",
+            "decisions",
+            "invariants",
+            "side effects",
+            "accident models",
+            "classification reasons",
+            "detecting tests",
             "reviewer-facing claims",
         ],
         "runner_owns": [
-            "JSON structure", "command IDs", "run identity", "hashes",
-            "ledger", "attestation", "report mechanics", "cleanup",
+            "JSON structure",
+            "command IDs",
+            "run identity",
+            "hashes",
+            "ledger",
+            "attestation",
+            "report mechanics",
+            "cleanup",
         ],
         "hard_rules": [
             "run every Runner command synchronously in the foreground; never background one",
@@ -436,7 +515,11 @@ def runbook(manifest_path: Path) -> dict[str, Any]:
             ),
         },
         "next": _next_step(
-            "inspect", "--manifest", m, "--kind", "diff",
+            "inspect",
+            "--manifest",
+            m,
+            "--kind",
+            "diff",
             note=(
                 "run after Review Type confirmation; use further bounded inspect "
                 "calls if needed, then complete the Diff understanding checkpoint"
@@ -475,7 +558,8 @@ def stage_artifact(
     if (
         not artifact_path.is_file()
         or artifact_path.is_symlink()
-        or artifact_path.parent.resolve(strict=True) != Path(manifest["artifact_root"]).resolve(strict=True)
+        or artifact_path.parent.resolve(strict=True)
+        != Path(manifest["artifact_root"]).resolve(strict=True)
     ):
         raise RunGateError(f"draft artifact is missing from the Host staging channel: {kind}")
     document = _load_json(artifact_path)
@@ -512,15 +596,11 @@ def _scaffold_document(
         raise RunGateError(f"scaffold failed self-validation: {error}") from error
     artifact = Path(manifest["artifact_root"]) / filename
     if artifact.exists():
-        raise RunGateError(
-            f"{filename} already exists; edit it in place instead of scaffolding"
-        )
+        raise RunGateError(f"{filename} already exists; edit it in place instead of scaffolding")
     return document
 
 
-def _scaffold_write_protocol(
-    manifest: dict[str, Any], filename: str
-) -> dict[str, Any]:
+def _scaffold_write_protocol(manifest: dict[str, Any], filename: str) -> dict[str, Any]:
     path = Path(manifest["artifact_root"]) / filename
     return {
         "artifact_path": str(path),
@@ -537,9 +617,7 @@ def _scaffold_write_protocol(
     }
 
 
-def scaffold_contract(
-    manifest_path: Path, schema_root: Path | None = None
-) -> dict[str, Any]:
+def scaffold_contract(manifest_path: Path, schema_root: Path | None = None) -> dict[str, Any]:
     """Generate a structurally valid Intent Contract for one first Write.
 
     Agents fill every replace-me value from repository evidence and never need
@@ -584,19 +662,19 @@ def scaffold_contract(
         "coverage": [],
     }
     return _scaffold_document(
-        manifest, ARTIFACT_FILES["contract"], document,
-        "intent-contract.schema.json", schema_root,
+        manifest,
+        ARTIFACT_FILES["contract"],
+        document,
+        "intent-contract.schema.json",
+        schema_root,
     )
 
 
-def scaffold_plan(
-    manifest_path: Path, schema_root: Path | None = None
-) -> dict[str, Any]:
+def scaffold_plan(manifest_path: Path, schema_root: Path | None = None) -> dict[str, Any]:
     """Write a structurally valid challenge-plan template bound to the validated command."""
     manifest = _ready_manifest(manifest_path)
     validated = [
-        item for item in _ledger_events(manifest)
-        if item.get("kind") == "validated-command"
+        item for item in _ledger_events(manifest) if item.get("kind") == "validated-command"
     ]
     if not validated:
         raise RunGateError("scaffold-plan requires a successful probe-command first")
@@ -623,8 +701,11 @@ def scaffold_plan(
         ],
     }
     return _scaffold_document(
-        manifest, "challenge-plan.json", document,
-        "challenge-plan.schema.json", schema_root,
+        manifest,
+        "challenge-plan.json",
+        document,
+        "challenge-plan.schema.json",
+        schema_root,
     )
 
 
@@ -643,9 +724,7 @@ def scaffold_analysis(
         raise RunGateError("challenge plan root must be an object")
     validator = _validator_module()
     try:
-        validator.validate_document(
-            plan, "challenge-plan.schema.json", schema_root
-        )
+        validator.validate_document(plan, "challenge-plan.schema.json", schema_root)
     except validator.ArtifactError as error:
         raise RunGateError(str(error)) from error
     executions = {
@@ -655,9 +734,7 @@ def scaffold_analysis(
     }
     planned_ids = [item["id"] for item in plan["challenges"]]
     if set(executions) != set(planned_ids):
-        raise RunGateError(
-            "analysis scaffold requires raw execution for every planned challenge"
-        )
+        raise RunGateError("analysis scaffold requires raw execution for every planned challenge")
     classifications = []
     for mutation_id in planned_ids:
         event = executions[mutation_id]
@@ -734,9 +811,7 @@ def scaffold_analysis(
         },
     }
     try:
-        validator.validate_document(
-            document, "review-analysis.schema.json", schema_root
-        )
+        validator.validate_document(document, "review-analysis.schema.json", schema_root)
     except validator.ArtifactError as error:
         raise RunGateError(str(error)) from error
     path = artifact_root / "review-analysis.json"

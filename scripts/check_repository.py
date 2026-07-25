@@ -7,10 +7,19 @@ from pathlib import Path
 
 from audit_distribution import EXPECTED_FILES, EXPECTED_PLUGIN_FILES
 
-
 ROOT = Path(__file__).resolve().parent.parent
 JAPANESE = re.compile(r"[ぁ-んァ-ヶ一-龠]")
 SEMVER = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
+SKILL_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+SKILL_FRONTMATTER_FIELDS = {
+    "allowed-tools",
+    "compatibility",
+    "description",
+    "license",
+    "metadata",
+    "name",
+}
+MAX_SKILL_LINES = 500
 EXPECTED_DISTRIBUTION_FILE_COUNT = len(EXPECTED_FILES)
 EXPECTED_PLUGIN_FILE_COUNT = len(EXPECTED_PLUGIN_FILES)
 DISTRIBUTION_COUNT_DOCUMENTS = (
@@ -58,9 +67,7 @@ SCHEMA_MIRRORS = {
     "schemas/canonical-review.schema.json": (
         "skills/socratic/references/canonical-review.schema.json",
     ),
-    "schemas/run-manifest.schema.json": (
-        "skills/socratic/references/run-manifest.schema.json",
-    ),
+    "schemas/run-manifest.schema.json": ("skills/socratic/references/run-manifest.schema.json",),
 }
 
 TRANSLATION_PAIRS = {
@@ -121,7 +128,10 @@ def check_distribution_documentation() -> None:
                 f"(expected {EXPECTED_DISTRIBUTION_FILE_COUNT})"
             )
         plugin_markers = plugin_marker_pattern.findall(text)
-        if plugin_markers != [str(EXPECTED_PLUGIN_FILE_COUNT)] or text.count(expected_plugin_marker) != 1:
+        if (
+            plugin_markers != [str(EXPECTED_PLUGIN_FILE_COUNT)]
+            or text.count(expected_plugin_marker) != 1
+        ):
             fail(
                 f"documented Plugin file count is stale: {relative} "
                 f"(expected {EXPECTED_PLUGIN_FILE_COUNT})"
@@ -149,7 +159,8 @@ def check_plugin_gate() -> None:
         fail("Codex Marketplace must publish exactly one Plugin")
     codex_entry = codex_entries[0]
     if codex_entry.get("name") != "socratic" or codex_entry.get("source") != {
-        "source": "local", "path": "./"
+        "source": "local",
+        "path": "./",
     }:
         fail("Codex Marketplace must publish the repository-root Socratic Plugin")
 
@@ -175,14 +186,10 @@ def check_plugin_gate() -> None:
         fail("plugin preflight hook must not have a POSIX execute bit")
     hook_script.read_text(encoding="utf-8")
 
-    claude_manifest = json.loads(
-        (ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8")
-    )
+    claude_manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
     if claude_manifest.get("name") != "socratic" or claude_manifest.get("version") != version:
         fail("Claude Plugin identity and version must match VERSION")
-    marketplace = json.loads(
-        (ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8")
-    )
+    marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
     if marketplace.get("name") != "socratic-marketplace":
         fail("Claude Marketplace name must be socratic-marketplace")
     if marketplace.get("version") != version:
@@ -200,9 +207,7 @@ def check_plugin_gate() -> None:
     if "${CLAUDE_PLUGIN_ROOT}/hooks/claude_preflight.py" not in claude_handler.get("command", ""):
         fail("Claude Plugin must invoke its Claude-format preflight hook")
 
-    cursor_manifest = json.loads(
-        (ROOT / ".cursor-plugin/plugin.json").read_text(encoding="utf-8")
-    )
+    cursor_manifest = json.loads((ROOT / ".cursor-plugin/plugin.json").read_text(encoding="utf-8"))
     if cursor_manifest.get("name") != "socratic" or cursor_manifest.get("version") != version:
         fail("Cursor Plugin identity and version must match VERSION")
     if cursor_manifest.get("skills") != "./skills/":
@@ -215,7 +220,11 @@ def check_plugin_gate() -> None:
         fail("Cursor Plugin must declare the complete local Desktop lifecycle gate")
     for event in ("beforeSubmitPrompt", "preToolUse", "beforeShellExecution"):
         handlers = cursor_hooks["hooks"].get(event)
-        if not isinstance(handlers, list) or len(handlers) != 1 or handlers[0].get("failClosed") is not True:
+        if (
+            not isinstance(handlers, list)
+            or len(handlers) != 1
+            or handlers[0].get("failClosed") is not True
+        ):
             fail(f"Cursor {event} hook must be a single fail-closed handler")
 
     metadata = (ROOT / "skills/socratic/agents/openai.yaml").read_text(encoding="utf-8")
@@ -231,7 +240,9 @@ def check_schema_references() -> None:
             value = pending.pop()
             if isinstance(value, dict):
                 reference = value.get("$ref")
-                if isinstance(reference, str) and not reference.startswith(("#", "http://", "https://")):
+                if isinstance(reference, str) and not reference.startswith(
+                    ("#", "http://", "https://")
+                ):
                     target = reference.split("#", 1)[0]
                     if target and not (path.parent / target).is_file():
                         fail(f"broken schema reference: {path.relative_to(ROOT)} -> {reference}")
@@ -252,7 +263,9 @@ def check_translations() -> None:
         if not JAPANESE.search(text):
             fail(f"Japanese translation has no Japanese text: {japanese}")
         if english.startswith("skills/"):
-            source_headings = len(re.findall(r"^#{1,6} ", source.read_text(encoding="utf-8"), re.MULTILINE))
+            source_headings = len(
+                re.findall(r"^#{1,6} ", source.read_text(encoding="utf-8"), re.MULTILINE)
+            )
             translated_headings = len(re.findall(r"^#{1,6} ", text, re.MULTILINE))
             if source_headings != translated_headings:
                 fail(f"translation heading count differs: {japanese} != {english}")
@@ -261,12 +274,15 @@ def check_translations() -> None:
 def check_markdown_links() -> None:
     link_pattern = re.compile(r"\]\(([^)]+)\)")
     for path in ROOT.rglob("*.md"):
+        relative_path = path.relative_to(ROOT)
+        if any(part in {".git", ".claude", "node_modules"} for part in relative_path.parts):
+            continue
         for link in link_pattern.findall(path.read_text(encoding="utf-8")):
             if link.startswith(("http://", "https://", "#")):
                 continue
             relative = link.split("#", 1)[0]
             if relative and not (path.parent / relative).resolve().exists():
-                fail(f"broken Markdown link: {path.relative_to(ROOT)} -> {link}")
+                fail(f"broken Markdown link: {relative_path} -> {link}")
 
 
 def check_runtime_skills_are_english_only() -> None:
@@ -289,8 +305,24 @@ def check_skill_structure() -> None:
     for skill_name in expected:
         path = ROOT / "skills" / skill_name / "SKILL.md"
         text = path.read_text(encoding="utf-8")
-        if not re.search(rf"^name: {re.escape(skill_name)}$", text, re.MULTILINE):
+        parts = text.split("---\n", 2)
+        if len(parts) != 3 or parts[0]:
+            fail(f"skill frontmatter is missing or malformed: {skill_name}")
+        frontmatter, body = parts[1], parts[2]
+        fields = re.findall(r"^([A-Za-z][A-Za-z0-9-]*):", frontmatter, re.MULTILINE)
+        unknown = set(fields) - SKILL_FRONTMATTER_FIELDS
+        if unknown:
+            fail(f"skill frontmatter has unsupported fields: {skill_name}: {sorted(unknown)}")
+        names = re.findall(r"^name:\s*(.+)$", frontmatter, re.MULTILINE)
+        descriptions = re.findall(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
+        if names != [skill_name] or not SKILL_NAME.fullmatch(skill_name) or len(skill_name) > 64:
             fail(f"skill name does not match directory: {skill_name}")
+        if len(descriptions) != 1 or not descriptions[0].strip() or len(descriptions[0]) > 1024:
+            fail(f"skill description is missing or exceeds 1024 characters: {skill_name}")
+        if not body.strip():
+            fail(f"skill body is empty: {skill_name}")
+        if len(text.splitlines()) > MAX_SKILL_LINES:
+            fail(f"SKILL.md exceeds {MAX_SKILL_LINES} lines: {skill_name}")
 
     orchestrator = (ROOT / "skills/socratic/SKILL.md").read_text(encoding="utf-8")
     for dependency in ("$maieutic", "$elenchus"):

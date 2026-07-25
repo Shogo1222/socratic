@@ -15,9 +15,9 @@ from runner.constants import (
     DEPENDENCY_DIRECTORY_NAMES,
     NODE_RUNTIME_DIRECTORY_NAMES,
     RUNTIME_DIRECTORY_NAME,
-    RunGateError,
     SANDBOX_ENV_DEFAULTS,
     VIRTUAL_ENV_DIRECTORY_NAMES,
+    RunGateError,
     _timed,
 )
 from runner.hashing import _dependency_hash, _prepared_hash
@@ -27,19 +27,13 @@ from runner.ledger import _append_event, _ledger_events
 def _dependency_directories(root: Path) -> list[Path]:
     """Return top-level dependency trees for the shared verified layer."""
     dependencies: list[Path] = []
-    for directory, names, _filenames in os.walk(
-        root, topdown=True, followlinks=False
-    ):
+    for directory, names, _filenames in os.walk(root, topdown=True, followlinks=False):
         current = Path(directory)
         kept: list[str] = []
         for name in sorted(names):
             candidate = current / name
-            is_dependency = (
-                name in DEPENDENCY_DIRECTORY_NAMES
-                or (
-                    name in VIRTUAL_ENV_DIRECTORY_NAMES
-                    and (candidate / "pyvenv.cfg").is_file()
-                )
+            is_dependency = name in DEPENDENCY_DIRECTORY_NAMES or (
+                name in VIRTUAL_ENV_DIRECTORY_NAMES and (candidate / "pyvenv.cfg").is_file()
             )
             if is_dependency and not candidate.is_symlink():
                 dependencies.append(candidate)
@@ -51,9 +45,7 @@ def _dependency_directories(root: Path) -> list[Path]:
 
 def _dependency_layer_event(manifest: dict[str, Any]) -> dict[str, Any] | None:
     events = [
-        item
-        for item in _ledger_events(manifest)
-        if item.get("kind") == "dependency-layer-sealed"
+        item for item in _ledger_events(manifest) if item.get("kind") == "dependency-layer-sealed"
     ]
     if len(events) > 1:
         raise RunGateError("dependency layer was materialized more than once")
@@ -99,9 +91,7 @@ def _materialize_dependency_layer(
                 for entry in sorted(destination.iterdir(), key=lambda item: item.name):
                     if entry.name in NODE_RUNTIME_DIRECTORY_NAMES:
                         continue
-                    (source / entry.name).symlink_to(
-                        entry, target_is_directory=entry.is_dir()
-                    )
+                    (source / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
             else:
                 source.symlink_to(destination, target_is_directory=True)
             attached.append(relative.as_posix())
@@ -142,9 +132,7 @@ def _seal_dependency_layer(
     )
 
 
-def _verify_dependency_layer(
-    manifest: dict[str, Any], evidence: dict[str, Any]
-) -> None:
+def _verify_dependency_layer(manifest: dict[str, Any], evidence: dict[str, Any]) -> None:
     dependency_root = Path(manifest["dependency_root"])
     if (
         evidence.get("root") != str(dependency_root)
@@ -177,12 +165,10 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
     if sealed:
         return sealed[0]
     baselines = [
-        item for item in events
-        if item.get("kind") == "command" and item.get("phase") == "baseline"
+        item for item in events if item.get("kind") == "command" and item.get("phase") == "baseline"
     ]
     if not baselines or any(
-        item.get("result") != "completed" or item.get("returncode") != 0
-        for item in baselines
+        item.get("result") != "completed" or item.get("returncode") != 0 for item in baselines
     ):
         raise RunGateError("a successful baseline must precede prepared snapshot sealing")
     prepared = Path(manifest["prepared_root"])
@@ -196,8 +182,7 @@ def _prepared_snapshot(manifest: dict[str, Any]) -> dict[str, Any]:
         "sha256": _prepared_hash(prepared),
         "protection": "host-managed-hash-verified",
         "dependency_layer": {
-            key: dependency[key]
-            for key in ("root", "sha256", "attached_paths", "protection")
+            key: dependency[key] for key in ("root", "sha256", "attached_paths", "protection")
         },
     }
     return _append_event(manifest, event)
@@ -220,9 +205,7 @@ def _copy_prepared(prepared: Path, destination: Path) -> str:
     if sys.platform == "darwin":
         try:
             libsystem = ctypes.CDLL(ctypes.util.find_library("System"), use_errno=True)
-            if libsystem.clonefile(
-                os.fsencode(prepared), os.fsencode(destination), 0
-            ) == 0:
+            if libsystem.clonefile(os.fsencode(prepared), os.fsencode(destination), 0) == 0:
                 return "kernel-clone"
         except (OSError, AttributeError, TypeError):
             pass
@@ -233,9 +216,7 @@ def _copy_prepared(prepared: Path, destination: Path) -> str:
     if sys.platform == "darwin":
         commands.append(["cp", "-cR", str(prepared), str(destination)])
     elif sys.platform.startswith("linux"):
-        commands.append(
-            ["cp", "--reflink=always", "-a", str(prepared), str(destination)]
-        )
+        commands.append(["cp", "--reflink=always", "-a", str(prepared), str(destination)])
     for command in commands:
         completed = subprocess.run(
             command, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -249,13 +230,10 @@ def _copy_prepared(prepared: Path, destination: Path) -> str:
     return strategy
 
 
-def _clone_prepared(
-    manifest: dict[str, Any], mutation_id: str
-) -> tuple[Path, str, str]:
+def _clone_prepared(manifest: dict[str, Any], mutation_id: str) -> tuple[Path, str, str]:
     events = _ledger_events(manifest)
     if any(
-        item.get("mutation_id") == mutation_id
-        and item.get("kind") in {"guarded-write", "prebuilt"}
+        item.get("mutation_id") == mutation_id and item.get("kind") in {"guarded-write", "prebuilt"}
         for item in events
     ):
         raise RunGateError(f"mutation already has a sandbox: {mutation_id}")

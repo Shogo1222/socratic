@@ -17,6 +17,7 @@ from runner.constants import (
     _timed,
     _validator_module,
 )
+from runner.execution import _validated_command
 from runner.hashing import (
     _canonical_bytes,
     _prepared_hash,
@@ -32,9 +33,8 @@ from runner.lifecycle import (
     _record_failure_receipt,
     cleanup,
 )
-from runner.snapshots import _verify_dependency_layer
-from runner.execution import _validated_command
 from runner.scaffolds import _record_validation_error, stage_artifact
+from runner.snapshots import _verify_dependency_layer
 
 
 def _staged_artifacts(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -65,9 +65,7 @@ def _attested_report(
     ledger_head: str,
 ) -> dict[str, Any]:
     guarded = [item for item in ledger if item.get("kind") == "guarded-write"]
-    registered = [
-        item for item in ledger if item.get("kind") in {"guarded-write", "prebuilt"}
-    ]
+    registered = [item for item in ledger if item.get("kind") in {"guarded-write", "prebuilt"}]
     if guarded:
         strategy = "guarded-file-write"
     elif registered:
@@ -79,22 +77,17 @@ def _attested_report(
     monitored = protection["mode"] in {"host-events", "os-audit"}
     unresolved = [item["id"] for item in contract.get("unresolved", [])]
     baselines = [
-        item for item in ledger
-        if item.get("kind") == "command" and item.get("phase") == "baseline"
+        item for item in ledger if item.get("kind") == "command" and item.get("phase") == "baseline"
     ]
     mutation_executions = [
-        item for item in ledger
-        if item.get("kind") == "command" and item.get("phase") == "mutation"
+        item for item in ledger if item.get("kind") == "command" and item.get("phase") == "mutation"
     ]
-    prepared_events = [
-        item for item in ledger if item.get("kind") == "prepared-snapshot"
-    ]
+    prepared_events = [item for item in ledger if item.get("kind") == "prepared-snapshot"]
     if len(prepared_events) != 1:
         raise RunGateError("finish requires exactly one sealed prepared snapshot")
     prepared = prepared_events[0]
     clone_events = [
-        item for item in registered
-        if item.get("sandbox_root") and item.get("clone_strategy")
+        item for item in registered if item.get("sandbox_root") and item.get("clone_strategy")
     ]
 
     def raw_outcome(item: dict[str, Any]) -> str:
@@ -151,9 +144,7 @@ def _attested_report(
                     "sandbox_root": item["sandbox_root"],
                     "strategy": item["clone_strategy"],
                 }
-                for item in sorted(
-                    clone_events, key=lambda event: event["mutation_id"]
-                )
+                for item in sorted(clone_events, key=lambda event: event["mutation_id"])
             ],
         },
         "execution_evidence": {
@@ -175,14 +166,9 @@ def _attested_report(
                     "exit_code": item.get("returncode"),
                     "duration_ms": item.get("duration_ms", 0),
                 }
-                for mutation_id in sorted({
-                    item["mutation_id"] for item in mutation_executions
-                })
+                for mutation_id in sorted({item["mutation_id"] for item in mutation_executions})
                 for attempt, item in enumerate(
-                    [
-                        event for event in mutation_executions
-                        if event["mutation_id"] == mutation_id
-                    ],
+                    [event for event in mutation_executions if event["mutation_id"] == mutation_id],
                     1,
                 )
             ],
@@ -242,29 +228,49 @@ def _attested_report(
 
 
 def finish_document(
-    manifest: dict[str, Any], report: dict[str, Any], review: dict[str, Any],
-    ledger: list[dict[str, Any]], *, manifest_sha256: str, ledger_head: str,
+    manifest: dict[str, Any],
+    report: dict[str, Any],
+    review: dict[str, Any],
+    ledger: list[dict[str, Any]],
+    *,
+    manifest_sha256: str,
+    ledger_head: str,
 ) -> None:
-    if manifest.get("status") != "ready" or manifest.get("protection", {}).get("verified") is not True:
+    if (
+        manifest.get("status") != "ready"
+        or manifest.get("protection", {}).get("verified") is not True
+    ):
         raise RunGateError("run did not pass trusted Host-attested preflight")
-    if report.get("write_mode") == "review-only" and report.get("postflight", {}).get("primary_written_during_run") is not False:
-        raise RunGateError("Review-only run wrote to the primary repository, even if later restored")
+    if (
+        report.get("write_mode") == "review-only"
+        and report.get("postflight", {}).get("primary_written_during_run") is not False
+    ):
+        raise RunGateError(
+            "Review-only run wrote to the primary repository, even if later restored"
+        )
     run = report.get("run", {})
     expected_run = {
-        "id": manifest["run_id"], "entrypoint": ENTRYPOINT,
+        "id": manifest["run_id"],
+        "entrypoint": ENTRYPOINT,
         "host_adapter": manifest["host"]["adapter_id"],
         "run_nonce": manifest["host"]["run_nonce"],
-        "manifest_sha256": manifest_sha256, "ledger_head": ledger_head,
+        "manifest_sha256": manifest_sha256,
+        "ledger_head": ledger_head,
     }
     if run != expected_run:
-        raise RunGateError("report run identity does not match the host-issued manifest and ledger chain")
+        raise RunGateError(
+            "report run identity does not match the host-issued manifest and ledger chain"
+        )
     mutations = {item["id"]: item for item in report.get("mutations", [])}
     registered = {
-        item.get("mutation_id") for item in ledger
+        item.get("mutation_id")
+        for item in ledger
         if item.get("kind") in {"guarded-write", "prebuilt"}
     }
     executions: dict[str, list[dict[str, Any]]] = {}
-    baselines = [item for item in ledger if item.get("kind") == "command" and item.get("phase") == "baseline"]
+    baselines = [
+        item for item in ledger if item.get("kind") == "command" and item.get("phase") == "baseline"
+    ]
     for item in ledger:
         if item.get("kind") == "command" and item.get("phase") == "mutation":
             executions.setdefault(item["mutation_id"], []).append(item)
@@ -291,48 +297,43 @@ def finish_document(
     ):
         raise RunGateError("not-runnable baseline has no timeout execution evidence")
     if baseline_status == "flaky-reduced" and not (
-        any(result == "completed" and code == 0 for result, code in zip(baseline_results, baseline_codes))
+        any(
+            result == "completed" and code == 0
+            for result, code in zip(baseline_results, baseline_codes)
+        )
         and baseline.get("excluded_tests")
     ):
         raise RunGateError("flaky-reduced baseline lacks a green execution and excluded tests")
     if set(mutations) != registered or set(mutations) != set(executions):
-        raise RunGateError("every reported mutation requires guarded mutation and execution evidence")
+        raise RunGateError(
+            "every reported mutation requires guarded mutation and execution evidence"
+        )
     for mutation_id, mutation in mutations.items():
         mutation_executions = executions[mutation_id]
         completed_codes = [
-            item.get("returncode") for item in mutation_executions
+            item.get("returncode")
+            for item in mutation_executions
             if item.get("result", "completed") == "completed"
         ]
         timed_out = any(item.get("result") == "timeout" for item in mutation_executions)
-        runner_failed = any(
-            item.get("result") == "runner-error" for item in mutation_executions
-        )
+        runner_failed = any(item.get("result") == "runner-error" for item in mutation_executions)
         interpretation = mutation.get("outcome_interpretation", {}).get("kind")
         failed = any(code != 0 for code in completed_codes)
         passed = bool(completed_codes) and all(code == 0 for code in completed_codes)
         if interpretation == "passed" and (timed_out or not passed):
-            raise RunGateError(
-                f"passed interpretation contradicts raw execution: {mutation_id}"
-            )
+            raise RunGateError(f"passed interpretation contradicts raw execution: {mutation_id}")
         if interpretation in {
             "behavioral-failure",
             "infrastructure-failure",
             "process-crash",
             "unparseable",
         } and not (failed or runner_failed):
-            raise RunGateError(
-                f"failure interpretation has no failing execution: {mutation_id}"
-            )
+            raise RunGateError(f"failure interpretation has no failing execution: {mutation_id}")
         if interpretation == "timeout" and not timed_out:
-            raise RunGateError(
-                f"timeout interpretation has no timeout execution: {mutation_id}"
-            )
+            raise RunGateError(f"timeout interpretation has no timeout execution: {mutation_id}")
         if mutation["result"] == "killed" and not any(code != 0 for code in completed_codes):
             raise RunGateError(f"killed mutation has no failing execution: {mutation_id}")
-        if (
-            mutation["result"] == "killed"
-            and interpretation != "behavioral-failure"
-        ):
+        if mutation["result"] == "killed" and interpretation != "behavioral-failure":
             raise RunGateError(
                 f"killed mutation is not classified as a behavioral failure: {mutation_id}"
             )
@@ -341,28 +342,35 @@ def finish_document(
         ):
             raise RunGateError(f"survived mutation has a failing execution: {mutation_id}")
         if mutation["result"] == "survived" and interpretation != "passed":
-            raise RunGateError(
-                f"survived mutation is not classified as passed: {mutation_id}"
-            )
+            raise RunGateError(f"survived mutation is not classified as passed: {mutation_id}")
         if mutation["result"] == "timeout" and not timed_out:
             raise RunGateError(f"timeout mutation has no timeout execution: {mutation_id}")
     isolation = report.get("isolation", {})
-    if isolation.get("primary_root") != manifest["primary_root"] or isolation.get("sandbox_root") != manifest["sandbox_root"]:
+    if (
+        isolation.get("primary_root") != manifest["primary_root"]
+        or isolation.get("sandbox_root") != manifest["sandbox_root"]
+    ):
         raise RunGateError("report roots differ from trusted host preflight")
     protection = manifest["protection"]
-    evidence = isolation.get("host_protection", {}) if protection["mode"] in {"os-read-only", "permission-read-only"} else isolation.get("write_monitor", {})
+    evidence = (
+        isolation.get("host_protection", {})
+        if protection["mode"] in {"os-read-only", "permission-read-only"}
+        else isolation.get("write_monitor", {})
+    )
     if evidence.get("mode") != protection["mode"] or evidence.get("verified") is not True:
         raise RunGateError("report protection evidence differs from the trusted Host attestation")
-    targets = {(item.get("mutation_id"), item.get("resolved_path")) for item in isolation.get("mutation_targets", [])}
+    targets = {
+        (item.get("mutation_id"), item.get("resolved_path"))
+        for item in isolation.get("mutation_targets", [])
+    }
     guarded = {
         (item.get("mutation_id"), item.get("resolved_path"))
-        for item in ledger if item.get("kind") == "guarded-write"
+        for item in ledger
+        if item.get("kind") == "guarded-write"
     }
     if targets != guarded:
         raise RunGateError("report mutation targets do not match the guarded write ledger")
-    prepared_events = [
-        item for item in ledger if item.get("kind") == "prepared-snapshot"
-    ]
+    prepared_events = [item for item in ledger if item.get("kind") == "prepared-snapshot"]
     if len(prepared_events) != 1:
         raise RunGateError("report lacks a unique prepared snapshot event")
     prepared_report = report.get("prepared_snapshot", {})
@@ -379,10 +387,7 @@ def finish_document(
                 "strategy": item["clone_strategy"],
             }
             for item in sorted(
-                [
-                    event for event in ledger
-                    if event.get("kind") in {"guarded-write", "prebuilt"}
-                ],
+                [event for event in ledger if event.get("kind") in {"guarded-write", "prebuilt"}],
                 key=lambda event: event["mutation_id"],
             )
         ],
@@ -420,22 +425,17 @@ def _analysis_drafts(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     events = _ledger_events(manifest)
     baselines = [
-        item for item in events
-        if item.get("kind") == "command" and item.get("phase") == "baseline"
+        item for item in events if item.get("kind") == "command" and item.get("phase") == "baseline"
     ]
     if not baselines:
         raise RunGateError("complete requires one probed baseline command")
     command = _validated_command(manifest, plan["command_id"])
     challenges = {item["id"]: item for item in plan["challenges"]}
-    classifications = {
-        item["mutation_id"]: item for item in analysis["classifications"]
-    }
+    classifications = {item["mutation_id"]: item for item in analysis["classifications"]}
     if len(classifications) != len(analysis["classifications"]):
         raise RunGateError("analysis classification IDs must be unique")
     if set(classifications) != set(challenges):
-        raise RunGateError(
-            "analysis must classify every planned challenge exactly once"
-        )
+        raise RunGateError("analysis must classify every planned challenge exactly once")
     mutations: list[dict[str, Any]] = []
     for mutation_id in sorted(challenges):
         challenge = challenges[mutation_id]
@@ -451,17 +451,14 @@ def _analysis_drafts(
             "severity": challenge["severity"],
             "likelihood": challenge["likelihood"],
             "code_change": (
-                f"{operation['kind']} at exact anchor in "
-                f"{operation['relative_path']}"
+                f"{operation['kind']} at exact anchor in " f"{operation['relative_path']}"
             ),
             "code_location": challenge["code_location"],
             "expected_detection": challenge["expected_detection"],
             "result": classification["result"],
             "detecting_tests": classification["detecting_tests"],
             "observed_failure_reason": classification["observed_failure_reason"],
-            "contract_violation_observed": classification[
-                "contract_violation_observed"
-            ],
+            "contract_violation_observed": classification["contract_violation_observed"],
             "follow_up": classification["follow_up"],
             "outcome_interpretation": classification["outcome_interpretation"],
         }
@@ -509,12 +506,8 @@ def complete(
         raise RunGateError("complete inputs must be JSON objects")
     validator = _validator_module()
     try:
-        validator.validate_document(
-            analysis, "review-analysis.schema.json", schema_root
-        )
-        validator.validate_document(
-            plan, "challenge-plan.schema.json", schema_root
-        )
+        validator.validate_document(analysis, "review-analysis.schema.json", schema_root)
+        validator.validate_document(plan, "challenge-plan.schema.json", schema_root)
     except validator.ArtifactError as error:
         _record_validation_error(manifest, "complete-input", str(error))
         raise RunGateError(str(error)) from error
@@ -522,12 +515,8 @@ def complete(
     with _timed(runner_timings, "draft_generation"):
         report, review = _analysis_drafts(manifest, analysis, plan)
         try:
-            validator.validate_document(
-                report, "mutation-report-draft.schema.json", schema_root
-            )
-            validator.validate_document(
-                review, "canonical-review.schema.json", schema_root
-            )
+            validator.validate_document(report, "mutation-report-draft.schema.json", schema_root)
+            validator.validate_document(review, "canonical-review.schema.json", schema_root)
         except validator.ArtifactError as error:
             _record_validation_error(manifest, "complete-generated", str(error))
             raise RunGateError(str(error)) from error
@@ -560,9 +549,7 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
             current_primary_hash = _tree_hash(Path(manifest["primary_root"]))
         if current_primary_hash != manifest["primary_sha256"]:
             raise RunGateError("Primary content hash changed during the Review-only run")
-        prepared_events = [
-            item for item in ledger if item.get("kind") == "prepared-snapshot"
-        ]
+        prepared_events = [item for item in ledger if item.get("kind") == "prepared-snapshot"]
         with _timed(runner_timings, "source_snapshot_verify"):
             source_unchanged = len(prepared_events) == 1 and _prepared_hash(
                 Path(manifest["prepared_root"])
@@ -570,9 +557,7 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
         if not source_unchanged:
             raise RunGateError("prepared source snapshot changed after it was sealed")
         dependency_evidence = (
-            prepared_events[0].get("dependency_layer", {})
-            if prepared_events
-            else {}
+            prepared_events[0].get("dependency_layer", {}) if prepared_events else {}
         )
         with _timed(runner_timings, "dependency_layer_verify"):
             _verify_dependency_layer(manifest, dependency_evidence)
@@ -591,8 +576,12 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
                 ledger_head=_ledger_head(manifest),
             )
             finish_document(
-                manifest, report, documents["review"], ledger,
-                manifest_sha256=_sha256_path(manifest_path), ledger_head=_ledger_head(manifest),
+                manifest,
+                report,
+                documents["review"],
+                ledger,
+                manifest_sha256=_sha256_path(manifest_path),
+                ledger_head=_ledger_head(manifest),
             )
         validator = _validator_module()
         try:
@@ -600,9 +589,7 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
                 validator.validate_document(
                     documents["contract"], "intent-contract.schema.json", schema_root
                 )
-                validator.validate_document(
-                    report, "mutation-report.schema.json", schema_root
-                )
+                validator.validate_document(report, "mutation-report.schema.json", schema_root)
                 validator.validate_document(
                     documents["review"], "canonical-review.schema.json", schema_root
                 )
@@ -611,9 +598,7 @@ def finish(manifest_path: Path, schema_root: Path | None = None) -> str:
                 )
             with _timed(runner_timings, "render"):
                 rendered = validator.render_review(documents["review"])
-            report["canonical_output"]["sha256"] = _sha256_bytes(
-                rendered.encode("utf-8")
-            )
+            report["canonical_output"]["sha256"] = _sha256_bytes(rendered.encode("utf-8"))
             with _timed(runner_timings, "schema_validation"):
                 validator.validate_with_schemas(
                     documents["contract"], report, documents["review"], schema_root

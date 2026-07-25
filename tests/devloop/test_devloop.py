@@ -34,31 +34,37 @@ class DevloopTest(unittest.TestCase):
         return json.dumps({"type": event_type, "message": {"content": [block]}})
 
     def test_extract_canonical_surface_prefers_tool_result_with_all_blocks(self) -> None:
-        surface = ("Socratic Review\n\nReview This:\n  ! x\n\nWe Verified:\n  y\n\n"
-                   "Still at Risk:\n  z\n\nCopy-ready Comments:\n  1 comment")
+        surface = (
+            "Socratic Review\n\nReview This:\n  ! x\n\nWe Verified:\n  y\n\n"
+            "Still at Risk:\n  z\n\nCopy-ready Comments:\n  1 comment"
+        )
         lines = [
-            self._transcript_line({"type": "text", "text": "Review This mention only"},
-                                  "assistant"),
-            self._transcript_line({"type": "tool_result",
-                                   "content": [{"type": "text", "text": surface}]}),
-            self._transcript_line({"type": "text", "text": "the blocks are above"},
-                                  "assistant"),
+            self._transcript_line(
+                {"type": "text", "text": "Review This mention only"}, "assistant"
+            ),
+            self._transcript_line(
+                {"type": "tool_result", "content": [{"type": "text", "text": surface}]}
+            ),
+            self._transcript_line({"type": "text", "text": "the blocks are above"}, "assistant"),
         ]
         self.assertEqual(self.loop.extract_canonical_surface(lines), surface)
 
     def test_extract_canonical_surface_returns_none_without_all_markers(self) -> None:
         lines = [
-            self._transcript_line({"type": "text",
-                                   "text": "Review This: ...\nWe Verified: ..."},
-                                  "assistant"),
+            self._transcript_line(
+                {"type": "text", "text": "Review This: ...\nWe Verified: ..."}, "assistant"
+            ),
             "not json at all",
         ]
         self.assertIsNone(self.loop.extract_canonical_surface(lines))
 
     def test_extract_canonical_surface_takes_the_last_candidate(self) -> None:
         def surface(tag: str) -> str:
-            return ("Review This: {0}\nWe Verified: {0}\n"
-                    "Still at Risk: {0}\nCopy-ready Comments: {0}").format(tag)
+            return (
+                "Review This: {0}\nWe Verified: {0}\n"
+                "Still at Risk: {0}\nCopy-ready Comments: {0}"
+            ).format(tag)
+
         lines = [
             self._transcript_line({"type": "tool_result", "content": surface("draft")}),
             self._transcript_line({"type": "tool_result", "content": surface("final")}),
@@ -71,11 +77,17 @@ class DevloopTest(unittest.TestCase):
 
             def git(*args: str) -> None:
                 subprocess.run(
-                    ["git", "-C", str(repo), *args], check=True, capture_output=True,
-                    env={"PATH": "/usr/bin:/bin:/usr/local/bin",
-                         "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                         "HOME": directory},
+                    ["git", "-C", str(repo), *args],
+                    check=True,
+                    capture_output=True,
+                    env={
+                        "PATH": "/usr/bin:/bin:/usr/local/bin",
+                        "GIT_AUTHOR_NAME": "t",
+                        "GIT_AUTHOR_EMAIL": "t@t",
+                        "GIT_COMMITTER_NAME": "t",
+                        "GIT_COMMITTER_EMAIL": "t@t",
+                        "HOME": directory,
+                    },
                 )
 
             git("init", "-q", "-b", "main")

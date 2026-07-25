@@ -58,8 +58,10 @@ class ClaudeSocketHostAdapter:
         except (OSError, KeyError, TypeError, UnicodeError, json.JSONDecodeError) as error:
             raise RunGateError("trusted Claude Host broker rejected the run") from error
         return HostGrant(
-            adapter_id=grant["adapter_id"], run_id=grant["run_id"],
-            run_nonce=grant["run_nonce"], storage_root=Path(grant["storage_root"]),
+            adapter_id=grant["adapter_id"],
+            run_id=grant["run_id"],
+            run_nonce=grant["run_nonce"],
+            storage_root=Path(grant["storage_root"]),
             protection_mode=grant["protection_mode"],
             protection_details=grant["protection_details"],
             change_context=grant.get("change_context"),

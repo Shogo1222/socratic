@@ -59,7 +59,7 @@ def _clip(text: str, limit: int = 8000) -> str:
     return text if len(text) <= limit else text[:limit] + "\n... (clipped)"
 
 
-def build_prompt(run: Path, against: Path) -> str:
+def build_prompt(run: Path, against: Path | None) -> str:
     meta = (run / "meta.json").read_text()
     review = _clip((run / "review.md").read_text())
     comparison = ""
@@ -67,16 +67,31 @@ def build_prompt(run: Path, against: Path) -> str:
         comparison = COMPARISON_TEMPLATE.format(
             name=against.name,
             meta=(against / "meta.json").read_text(),
-            review=_clip((against / "review.md").read_text()))
-    return PROMPT_TEMPLATE.format(root=SOCRATIC_ROOT, meta=meta, review=review, comparison=comparison)
+            review=_clip((against / "review.md").read_text()),
+        )
+    return PROMPT_TEMPLATE.format(
+        root=SOCRATIC_ROOT, meta=meta, review=review, comparison=comparison
+    )
 
 
 def run_backend(backend: str, prompt: str, max_turns: int) -> str:
     if backend == "claude":
         cli = subprocess.run(
-            ["claude", "-p", prompt, "--output-format", "json",
-             "--max-turns", str(max_turns), "--allowedTools", "Read,Grep,Glob"],
-            cwd=SOCRATIC_ROOT, capture_output=True, text=True)
+            [
+                "claude",
+                "-p",
+                prompt,
+                "--output-format",
+                "json",
+                "--max-turns",
+                str(max_turns),
+                "--allowedTools",
+                "Read,Grep,Glob",
+            ],
+            cwd=SOCRATIC_ROOT,
+            capture_output=True,
+            text=True,
+        )
         try:
             return json.loads(cli.stdout).get("result") or "(empty result)\n" + cli.stderr
         except json.JSONDecodeError:
@@ -89,7 +104,9 @@ def run_backend(backend: str, prompt: str, max_turns: int) -> str:
         # run unsandboxed.
         cli = subprocess.run(
             ["codex", "exec", "--sandbox", "read-only", prompt],
-            cwd=SOCRATIC_ROOT, capture_output=True, text=True,
+            cwd=SOCRATIC_ROOT,
+            capture_output=True,
+            text=True,
         )
         if cli.returncode != 0:
             raise SystemExit(
@@ -124,6 +141,7 @@ def main() -> int:
         run = recorded[-1]
     against = resolve_run(args.against) if args.against else None
 
+    assert run is not None
     proposal = run_backend(args.backend, build_prompt(run, against), args.max_turns)
     existing = len(list(run.glob("proposal-*.md")))
     output = run / "proposal-{}-{}.md".format(existing + 1, args.backend)

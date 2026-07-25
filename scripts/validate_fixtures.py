@@ -7,7 +7,6 @@ import json
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
 
 FIXTURES = {
@@ -61,7 +60,9 @@ def main() -> int:
     if failures:
         return 1
 
-    print(f"Fixture validation passed: {len(FIXTURES)} fixtures validated against the normative schemas")
+    print(
+        f"Fixture validation passed: {len(FIXTURES)} fixtures validated against the normative schemas"
+    )
     return 0
 
 
