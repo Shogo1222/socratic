@@ -12,7 +12,7 @@ Run artifacts are chat-first and ephemeral by default. During a run, the Intent 
 
 When Review-only proves a missing test, Elenchus also creates a temporary proven-test handoff outside the working tree: a test-only patch plus a validated manifest. The handoff remains available only until the user chooses Apply tests, Output patch, or Discard. It is not a substitute for persistent tests.
 
-After the final surface is rendered, proven tests are resolved first through a structured Apply tests / Output patch / Discard question. The separate run-artifact question then offers discard (default), save locally, or output as Markdown. When saved locally, the canonical paths are:
+Retention is resolved before `complete`, because `complete` renders the final surface and performs the default cleanup in the same step: a question asked after rendering can no longer save anything. After classification and before invoking `complete`, the structured run-artifact question offers discard (default), save locally, or output as Markdown; no answer means discard, and `--retention keep` is passed only for an explicit keep choice. Proven tests are resolved through their own structured Apply tests / Output patch / Discard question after the four review blocks — the handoff outlives `complete`, but run artifacts do not. When saved locally, the canonical paths are:
 
 - `.socratic/intent-contract.json`: active Intent Contract produced by Maieutic;
 - `.socratic/elenchus-report.json`: latest Catch or Harden report produced by Elenchus.
@@ -41,6 +41,14 @@ HARDENED
 
 An unresolved item cannot advance to `TESTED`. Passing implementation behavior is not confirmation. Budget exhaustion is not `HARDENED` unless unchallenged items and residual risk are explicitly accepted. `TESTED` and `HARDENED` also require tests that persist beyond the run — pre-existing tests or tests applied to the working tree; a Review-only run whose proof rests on proposed tests stops at `CONFIRMED` or `CHALLENGED`.
 
+## Runner pipeline and human checkpoints
+
+A canonical Socratic run follows one fixed Runner pipeline after trusted Host preflight: `runbook` once, bounded `inspect`, `scaffold-contract`, `stage-artifact`, optional `execute --phase prepare`, one successful `probe-command`, `scaffold-plan`, one `challenge-batch`, `scaffold-analysis`, then `complete` as the terminal command. The runbook explains the ID glossary, the gate order, and the editable fields; every semantic document starts from a Runner scaffold with its `editable_fields` and `field_guide`; and every successful Runner result carries the exact next command.
+
+The Host recommends one of four Review Types, and the human confirms or corrects it before repository inspection: Bug Fix Review (verify that the reported failure is removed while established behavior remains), Feature Review (establish and challenge newly introduced observable behavior), Refactor Guard (compare Base and Head observations for a behavior-preserving change), and Test Assessment (evaluate whether an existing test cohort detects realistic accidents).
+
+The full run asks the human at exactly four checkpoints: Review Type; Diff understanding (the problem, the changed behavior, the behavior to preserve, the new observable behavior, and consequential uncertainty); an Intent/oracle decision only when repository evidence cannot resolve it; and final interpretation and disposition. In a non-interactive session the run proceeds with the recommended Review Type and from repository-evidence understanding, recording both as not human-confirmed. An intent/oracle decision never inherits that default — an unresolved oracle keeps its mapped challenges blocked — and the artifact-retention default is discard.
+
 ## Catch branch
 
 Catch Mode branches from `PROVISIONAL` or `NEEDS_DECISION`:
@@ -62,16 +70,17 @@ A test that does not build or run comparably on parent and diff is `not-comparab
 
 The normative machine-readable shape is [intent-contract.schema.json](../schemas/intent-contract.schema.json). It contains the change boundary, lifecycle status, observable intent and evidence, confirmed decisions and provenance, invariants, side effects, unresolved decisions, and test mappings.
 
-Decision provenance has two values only:
+Decision provenance has three values:
 
 - `user-confirmed`;
-- `repository-established`.
+- `repository-established`;
+- `reviewer-selected-benchmark-assumption`.
 
 Unconfirmed reasoning belongs in `intent.evidence`. Unresolved oracle choices belong in `unresolved`.
 
 ### Mutation Result, Report, and Test Handoff
 
-[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Assessment and Catch classifications. [test-handoff.schema.json](../schemas/test-handoff.schema.json) represents an exact proven test patch, its file-hash preconditions and postimages, Contract mappings, and bidirectional proof. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, Test Assessment scope and cohort comparisons, unchallenged Contract IDs, unresolved decisions, test changes and handoff status, authorized workspace changes, and postflight mutation-removal proof.
+[mutation-result.schema.json](../schemas/mutation-result.schema.json) represents one intent mutation from candidate design through execution, including Assessment and Catch classifications. [test-handoff.schema.json](../schemas/test-handoff.schema.json) represents an exact proven test patch, its file-hash preconditions and postimages, Contract mappings, and bidirectional proof. [mutation-report.schema.json](../schemas/mutation-report.schema.json) wraps the run with the write mode, baseline evidence, Test Assessment scope and cohort comparisons, unchallenged Contract IDs, unresolved decisions, test changes and handoff status, authorized workspace changes, and postflight mutation-removal proof. At `complete` the Runner, not the agent, builds the attested Mutation Report (schema v10) from Host evidence — run identity, the ledger head, prepared-snapshot and dependency-layer hashes, execution evidence, and postflight — and in schema v10 `verified: true` records that the Runner accepted the trusted Host's attestation.
 
 ## Human decision boundary
 
@@ -96,7 +105,7 @@ Standalone assessment is Review-only and does not create tests by default. Harde
 
 ## Review output boundary
 
-The reviewer-facing surface is exactly four blocks: Review This, We Verified, Still at Risk, and Copy-ready Comments. Findings route by state, not type: unconfirmed behavior differences and unresolved decisions are Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection are We Verified; everything unverified is Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. This four-block surface governs Socratic-orchestrated review output; a standalone Test Assessment run uses the assessment surface defined under the Elenchus assessment-scope boundary.
+The reviewer-facing surface is exactly four blocks: Review This, We Verified, Still at Risk, and Copy-ready Comments. Findings route by state, not type: unconfirmed behavior differences and unresolved decisions are Review This; confirmed intended changes, applied or proposed-and-proven tests, resolved test gaps, and proven detection are We Verified; everything unverified is Still at Risk. A resolution that rests on a proposed test also appears under Still at Risk as protection not applied yet. The Runner's `complete` command generates, validates, and renders this surface; the agent presents the renderer output verbatim and never hand-writes the four blocks. This four-block surface governs Socratic-orchestrated review output; a standalone Test Assessment run uses the assessment surface defined under the Elenchus assessment-scope boundary.
 
 The operational proven-test choice appears after those four blocks through the host's structured question UI, not as a fifth review block.
 
@@ -143,12 +152,14 @@ When unit tests cannot observe an artifact, use the narrowest deterministic repo
 
 ## Safety boundary
 
-Review-only mutation execution has one normative Host Adapter entrypoint in `skills/socratic/scripts/run_review.py`. The standalone CLI is intentionally blocked and cannot accept self-asserted attestation JSON. A trusted host issues the run ID, nonce, protected external storage, and repository-wide protection capability. Baseline and mutation-specific `execute` events join guarded mutation evidence in a nonce-bound append-only chain, and `finish` requires each reported Mutation ID to have both write/registration and execution evidence. Helper omission, Primary mutation followed by restoration, hand-written artifacts, and renderer-like prose are not valid protocol implementations.
+Review-only mutation execution has one normative Host Adapter entrypoint in `skills/socratic/scripts/run_review.py`, reached through each Host's gated invocation — `/socratic:socratic` in Claude Code. The standalone CLI is intentionally blocked and cannot accept self-asserted attestation JSON. A trusted host issues the run ID, nonce, protected external storage, and repository-wide protection capability.
+
+Probe, baseline, guarded mutation, and execution events join a nonce-bound append-only ledger chain. `complete` is the terminal command: it validates the semantic analysis, generates and stages the Report and Review Drafts, requires each reported Mutation ID to have both guarded write/registration and execution evidence, cross-checks every classification against the recorded raw outcomes, builds the attested Mutation Report (schema v10), renders the canonical surface, and performs the default cleanup in the same step. A `complete` failure is terminal: it cleans the disposable run, leaves a secret-free failure receipt in Host storage instead of a canonical review, and is never retried against the deleted manifest. Infrastructure failures are investigated through the read-only `doctor` report, never through ad-hoc shell probing. Helper omission, Primary mutation followed by restoration, hand-written artifacts, and renderer-like prose are not valid protocol implementations.
 
 All production mutations live only in disposable workspaces marked with `.socratic-disposable`. Every mutation write passes through the bundled Isolation Gate immediately before the write; backup and restore is not isolation. The primary workspace may receive authorized test or documentation changes, never temporary production mutations. Reports record run-time primary writes separately from final hash equality, and no compile or infrastructure failure counts as a behavioral kill or catch.
 
 ## Version-control safety boundary
 
-Skills may use only allowlisted, read-only local Git commands to inspect evidence and export immutable Base and Head snapshots. They never stage, commit, amend, push, pull, fetch, create or switch branches, check out files, reset, stash, merge, rebase, cherry-pick, tag, create worktrees, invoke `gh`, create pull requests, or post comments. They do not request permission for prohibited operations; every version-control decision remains with the user.
+Skills may use only allowlisted, read-only local Git commands to inspect evidence: `git diff`, `git show`, `git log`, `git rev-parse`, `git merge-base`, and `git ls-files`. `git archive` is not read-only (`-o` writes a file) and the Host gate denies it. They never stage, commit, amend, push, pull, fetch, create or switch branches, check out files, reset, stash, merge, rebase, cherry-pick, tag, create worktrees, invoke `gh`, create pull requests, or post comments. They do not request permission for prohibited operations; every version-control decision remains with the user.
 
 Base and Head are snapshot identities, not branches the skill manages. Materialize them as host-provided directories or disposable filesystem snapshots. If a required object is unavailable locally and would require a remote operation, mark the comparison blocked. Mutation safety uses scoped filesystem manifests and content hashes, not Git restoration.

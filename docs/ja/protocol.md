@@ -12,7 +12,7 @@
 
 Review-onlyで不足テストを証明した場合、ElenchusはWorking Tree外へ一時的な証明済みテスト引き渡しも作成します。これは、テスト専用Patchと検証済みManifestからなり、ユーザーが「テストを適用」「Patchを出力」「破棄」のいずれかを選ぶまでだけ保持します。永続的なテストの代わりにはなりません。
 
-最終Surfaceの描画後、まず構造化質問で証明済みテストを「適用・Patch出力・破棄」のいずれかに処理します。別の実行Artifact質問では、保存しない(デフォルト)、ローカルに保存、Markdownとして出力の3択を提示します。ローカル保存を選んだ場合の正準Pathは次のとおりです。
+Retentionは`complete`より前に確定します。`complete`は最終Surfaceの描画と既定のCleanupを同じStepで行うため、描画後の質問では何も保存できません。分類の完了後、`complete`を呼び出す前に、構造化された実行Artifact質問で、保存しない(デフォルト)、ローカルに保存、Markdownとして出力の3択を提示します。無回答は破棄を意味し、`--retention keep`は明示的なKeep選択に対してだけ渡します。証明済みテストは、4つのReviewブロックの後に固有の構造化質問「テストを適用・Patchを出力・破棄」で処理します——引き渡しは`complete`より長く残りますが、実行Artifactは残りません。ローカル保存を選んだ場合の正準Pathは次のとおりです。
 
 - `.socratic/intent-contract.json`: Maieuticが作成する現在のIntent Contract
 - `.socratic/elenchus-report.json`: Elenchusが作成する最新のCatchまたはHarden Report
@@ -41,6 +41,14 @@ HARDENED（強化済み）
 
 未解決項目は`TESTED`へ進めません。実装が成功することは仕様確認ではありません。予算切れだけでは`HARDENED`にならず、未挑戦項目と残存リスクの明示的な受容が必要です。`TESTED`と`HARDENED`には、実行後も残るテスト——既存テスト、またはWorking Treeへ適用済みのテスト——が必要です。証明が提案テストだけに依存するReview-only実行は、`CONFIRMED`または`CHALLENGED`で止まります。
 
+## Runner Pipelineと人間のCheckpoint
+
+正準のSocratic実行は、信頼されたHost Preflightの後、1つの固定Runner Pipelineに従います: 1回の`runbook`、範囲制限付き`inspect`、`scaffold-contract`、`stage-artifact`、任意の`execute --phase prepare`、1回成功する`probe-command`、`scaffold-plan`、1回の`challenge-batch`、`scaffold-analysis`、そして終端Commandとしての`complete`です。RunbookはID Glossary、Gateの順序、編集可能Fieldを説明します。すべての意味的Documentは`editable_fields`と`field_guide`を伴うRunnerのScaffoldから始まり、成功した各Runner Resultは正確な次のCommandを持ちます。
+
+Hostは4つのReview Typeから1つを推奨し、人間がリポジトリInspectionの前に確認または修正します: Bug Fix Review(報告された失敗が除去され、確立済みの振る舞いが保たれることを検証する)、Feature Review(新しく導入された観測可能な振る舞いを確立して反証する)、Refactor Guard(振る舞いを保存する変更についてBaseとHeadの観測を比較する)、Test Assessment(既存のTest Cohortが現実的なAccidentを検知できるかを評価する)です。
+
+実行全体で人間に尋ねるのは、ちょうど4つのCheckpointです: Review Type、Diffの理解(課題、変わる振る舞い、保存すべき振る舞い、新しい観測可能な振る舞い、影響の大きい不確実性)、リポジトリの根拠で解決できない場合だけのIntent/Oracle判断、そして最終の解釈と処理方法です。非対話Sessionでは、推奨されたReview Typeとリポジトリ根拠に基づく理解で進行し、どちらも人間未確認として記録します。Intent/Oracle判断はこの既定を決して継承しません——未解決のOracleは対応するChallengeをBlockしたままにします——そして、ArtifactのRetentionの既定は破棄です。
+
 ## Catch分岐
 
 Catch Modeは`PROVISIONAL`または`NEEDS_DECISION`から分岐します。
@@ -62,16 +70,17 @@ ParentとDiffの両方で比較可能にBuild・実行できないテストは`n
 
 正式な機械可読形式は[intent-contract.schema.json](../../schemas/intent-contract.schema.json)です。変更範囲、ライフサイクル状態、観測可能な意図と根拠、確認済み判断と由来、不変条件、副作用、未解決判断、テストとの対応を保持します。
 
-Decision Provenanceは次の2値だけです。
+Decision Provenanceは次の3値です。
 
 - `user-confirmed`
 - `repository-established`
+- `reviewer-selected-benchmark-assumption`
 
 未確認の推論は`intent.evidence`、未解決のオラクル選択は`unresolved`へ記録します。
 
 ### Mutation Result、Report、Test Handoff
 
-[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをAssessment・Catch分類を含めて表現します。[test-handoff.schema.json](../../schemas/test-handoff.schema.json)は、証明済みテストの正確なPatch、ファイルHashのPreconditionとPostimage、Contract対応、双方向証跡を表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、Test AssessmentのScopeとCohort比較、未挑戦Contract ID、未解決判断、Test Changeと引き渡しStatus、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。
+[mutation-result.schema.json](../../schemas/mutation-result.schema.json)は、Candidate設計から実行までの1つのIntent MutationをAssessment・Catch分類を含めて表現します。[test-handoff.schema.json](../../schemas/test-handoff.schema.json)は、証明済みテストの正確なPatch、ファイルHashのPreconditionとPostimage、Contract対応、双方向証跡を表現します。[mutation-report.schema.json](../../schemas/mutation-report.schema.json)は、Write Mode、Baseline証跡、Test AssessmentのScopeとCohort比較、未挑戦Contract ID、未解決判断、Test Changeと引き渡しStatus、許可されたWorkspace変更、Mutation除去の実行後証跡を含む実行全体を表現します。`complete`ではAgentではなくRunnerが、Hostの証跡——Run Identity、Ledger Head、Prepared SnapshotとDependency LayerのHash、Execution証跡、Postflight——からAttest済みMutation Report(Schema v10)を構築します。Schema v10の`verified: true`は、信頼されたHostのAttestationをRunnerが受理したことを記録します。
 
 ## 人間が判断する境界
 
@@ -96,7 +105,7 @@ Standalone AssessmentはReview-onlyで、既定ではTestを作りません。Su
 
 ## Review出力の境界
 
-レビュアー向けのSurfaceは、Review This、We Verified、Still at Risk、Copy-ready Commentsの4ブロックだけです。発見は種類ではなく状態で振り分けます。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未検証のすべてはStill at Riskです。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載します。この4ブロックSurfaceはSocraticが統合するReview出力に適用されます。StandaloneのTest Assessment実行は、Elenchus Assessment Scopeの境界で定義するAssessment Surfaceを使います。
+レビュアー向けのSurfaceは、Review This、We Verified、Still at Risk、Copy-ready Commentsの4ブロックだけです。発見は種類ではなく状態で振り分けます。未確定のBehavior Diffと未解決の判断はReview This、意図的と確認済みの変更・適用済みまたは証明済み提案のテスト・解決済みTest Gap・実証した検知能力はWe Verified、未検証のすべてはStill at Riskです。提案テストに依存する解決は、あわせてStill at Riskへ「保護は未適用」として記載します。Runnerの`complete` CommandがこのSurfaceを生成・検証・描画し、AgentはRendererの出力をそのまま提示して4ブロックを手書きしません。この4ブロックSurfaceはSocraticが統合するReview出力に適用されます。StandaloneのTest Assessment実行は、Elenchus Assessment Scopeの境界で定義するAssessment Surfaceを使います。
 
 証明済みテストをどう処理するかという運用上の選択は、この4ブロックの後にHostの構造化質問UIで提示し、5つ目のReviewブロックにはしません。
 
@@ -143,12 +152,14 @@ Unit Testで観測できないArtifactには、リポジトリが対応する最
 
 ## 安全性の境界
 
-Review-only Mutation実行の正規Entry Pointは`run_review.py`のHost Adapter APIだけである。Standalone CLIは自己申告Attestation JSONを受理せず常に`blocked`となる。信頼されたHostがRun ID、Nonce、保護された外部Storage、Repository全体の保護Capabilityを発行する。BaselineとMutation ID付き`execute`をGuarded Mutation証跡とNonce付きAppend-only Chainへ結合し、各Report Mutationに両方の証跡を要求する。
+Review-only Mutation実行の正規Entrypointは`skills/socratic/scripts/run_review.py`だけであり、各HostのGateされたInvocation——Claude Codeでは`/socratic:socratic`——を通じて到達します。Standalone CLIは意図的にBlockされ、自己申告のAttestation JSONを受理できません。信頼されたHostがRun ID、Nonce、保護された外部Storage、Repository全体の保護Capabilityを発行します。
+
+Probe、Baseline、Guarded Mutation、Executionの各Eventは、Nonceに束縛されたAppend-only Ledger Chainへ結合します。`complete`が終端Commandです: 意味的Analysisを検証し、ReportとReview Draftを生成してStageし、報告される各Mutation IDにGuarded Write／Registration証跡とExecution証跡の両方を要求し、すべての分類を記録済みRaw Outcomeと突き合わせ、Attest済みMutation Report(Schema v10)を構築し、正準SurfaceをRenderし、既定のCleanupを同じStepで実行します。`complete`の失敗はTerminalです: Disposable Runを削除し、正準Reviewの代わりにSecret-freeなFailure ReceiptをHost Storageへ残し、削除済みManifestへは再試行しません。Infrastructure Failureは読み取り専用の`doctor` Reportで調査し、Ad-hocなShell調査は行いません。Helperの省略、Primaryを直接Mutationしてから復元する方法、手書きのArtifact、Rendererを装った散文は、有効なProtocol実装ではありません。
 
 本番コードのMutationは`.socratic-disposable`でMarker付けした使い捨てWorkspaceだけに存在させます。すべてのMutation書き込みを直前に同梱Isolation Gateへ通し、BackupとRestoreを隔離として認めません。主要Workspaceへ反映できるのは許可されたテストまたはドキュメント変更だけです。Reportでは実行中の主要Workspace書き込みと最終Hash一致を分離し、CompileまたはInfrastructure Failureを振る舞い上のKillやCatchとして数えません。
 
 ## Version Controlの安全性境界
 
-スキルは、根拠確認とImmutableなBase・Head Snapshot出力のために、Allowlist化した読み取り専用のローカルGitコマンドだけを使用できます。Stage、Commit、Amend、Push、Pull、Fetch、Branchの作成・切替、Checkout、Reset、Stash、Merge、Rebase、Cherry-pick、Tag、Worktree作成、`gh`呼び出し、Pull Request作成、コメント投稿は行いません。禁止操作の許可を求めず、Version Control上の判断をすべてユーザーへ残します。
+スキルは、根拠確認のためにAllowlist化した読み取り専用のローカルGitコマンド——`git diff`、`git show`、`git log`、`git rev-parse`、`git merge-base`、`git ls-files`——だけを使用できます。`git archive`は読み取り専用ではなく(`-o`がファイルを書く)、Host Gateが拒否します。Stage、Commit、Amend、Push、Pull、Fetch、Branchの作成・切替、Checkout、Reset、Stash、Merge、Rebase、Cherry-pick、Tag、Worktree作成、`gh`呼び出し、Pull Request作成、コメント投稿は行いません。禁止操作の許可を求めず、Version Control上の判断をすべてユーザーへ残します。
 
 BaseとHeadは、スキルが管理するBranchではなくSnapshotの識別子です。Host提供Directoryまたは使い捨てFilesystem Snapshotとして展開します。必要なObjectがローカルになくRemote操作が必要なら、その比較をBlockedとします。Mutationの安全確認にはGit復元ではなく、対象範囲のFilesystem ManifestとContent Hashを使います。
