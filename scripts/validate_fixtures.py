@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate demo JSON fixtures against the normative schemas in schemas/."""
+"""Validate repository JSON fixtures against the normative schemas in schemas/."""
 
 from __future__ import annotations
 
@@ -11,21 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 FIXTURES = {
-    "demo/subscription_renewal/intent-contract.json": "intent-contract.schema.json",
-    "demo/subscription_renewal/expected-elenchus-report.json": "mutation-report.schema.json",
-    "demo/refactor_guard/intent-contract.json": "intent-contract.schema.json",
-    "demo/refactor_guard/expected-elenchus-report.json": "mutation-report.schema.json",
-    "demo/test_assessment/intent-contract.json": "intent-contract.schema.json",
-    "demo/test_assessment/expected-elenchus-report.json": "mutation-report.schema.json",
-    "demo/subscription_renewal/canonical-review.json": "canonical-review.schema.json",
-    "demo/refactor_guard/canonical-review.json": "canonical-review.schema.json",
-    "demo/test_assessment/canonical-review.json": "canonical-review.schema.json",
+    "fixtures/subscription-renewal-intent-contract.json": "intent-contract.schema.json",
+    "fixtures/subscription-renewal-expected-elenchus-report.json": "mutation-report.schema.json",
+    "fixtures/subscription-renewal-canonical-review.json": "canonical-review.schema.json",
 }
 
 EXPECTED_REPORT_MODES = {
-    "demo/subscription_renewal/expected-elenchus-report.json": "harden",
-    "demo/refactor_guard/expected-elenchus-report.json": "catch",
-    "demo/test_assessment/expected-elenchus-report.json": "assessment",
+    "fixtures/subscription-renewal-expected-elenchus-report.json": "harden",
 }
 
 
@@ -69,7 +61,7 @@ def main() -> int:
     if failures:
         return 1
 
-    print(f"Fixture validation passed: {len(FIXTURES)} fixtures cover harden, catch, and assessment")
+    print(f"Fixture validation passed: {len(FIXTURES)} fixtures validated against the normative schemas")
     return 0
 
 

@@ -501,7 +501,8 @@ When Socratic invokes Elenchus, it passes the already-confirmed scope, so Elench
 
 ```text
 skills/
-  socratic/   End-to-end orchestration
+  socratic/   End-to-end orchestration; scripts/run_review.py is the pinned
+              Runner entrypoint over the twelve-module scripts/runner/ package
   maieutic/   Intent elicitation and test design/completion
   elenchus/   Existing/changed-test assessment and intent-mutation validation
 docs/
@@ -517,6 +518,9 @@ schemas/
   mutation-report.schema.json
   run-manifest.schema.json
   test-handoff.schema.json
+fixtures/        Schema-validated JSON fixtures shared by tests and CI
+tools/
+  devloop/       Headless plugin-iteration harness (records outside the repo)
 tests/
   schema/        Schema contracts
   distribution/ Release and bundle integrity
@@ -524,6 +528,7 @@ tests/
   runner/        Guarded execution and rendering
   security/      Isolation boundaries
   workflow/      Intent and lifecycle gates
+  devloop/       Harness unit coverage
 .github/workflows/
   ci.yml         Repository validation
   release.yml    Tag and GitHub Release creation

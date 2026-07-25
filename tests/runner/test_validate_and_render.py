@@ -158,7 +158,7 @@ class ValidateAndRenderTest(unittest.TestCase):
     )
     def test_validation_error_names_path_type_and_allowed_values(self) -> None:
         contract = json.loads(
-            (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+            (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
         )
         contract["coverage"][0]["tests"] = "not-an-array"
         contract["decisions"][0]["provenance"] = "guessed"
@@ -243,22 +243,19 @@ class ValidateAndRenderTest(unittest.TestCase):
         importlib.util.find_spec("jsonschema") and importlib.util.find_spec("referencing"),
         "schema validation dependencies unavailable",
     )
-    def test_validates_complete_demo_artifacts(self) -> None:
+    def test_validates_complete_fixture_artifacts(self) -> None:
         contract = json.loads(
-            (ROOT / "demo" / "subscription_renewal" / "intent-contract.json").read_text(
+            (ROOT / "fixtures" / "subscription-renewal-intent-contract.json").read_text(
                 encoding="utf-8"
             )
         )
         report = json.loads(
             (
-                ROOT
-                / "demo"
-                / "subscription_renewal"
-                / "expected-elenchus-report.json"
+                ROOT / "fixtures" / "subscription-renewal-expected-elenchus-report.json"
             ).read_text(encoding="utf-8")
         )
         review = json.loads(
-            (ROOT / "demo" / "subscription_renewal" / "canonical-review.json").read_text(
+            (ROOT / "fixtures" / "subscription-renewal-canonical-review.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -271,10 +268,7 @@ class ValidateAndRenderTest(unittest.TestCase):
     def test_schema_rejects_infrastructure_failure_claimed_as_killed(self) -> None:
         report = json.loads(
             (
-                ROOT
-                / "demo"
-                / "subscription_renewal"
-                / "expected-elenchus-report.json"
+                ROOT / "fixtures" / "subscription-renewal-expected-elenchus-report.json"
             ).read_text(encoding="utf-8")
         )
         mutation = report["mutations"][0]
