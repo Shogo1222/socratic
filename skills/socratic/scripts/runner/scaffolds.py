@@ -13,7 +13,9 @@ from runner.constants import (
     REVIEW_TYPES,
     RunGateError,
     SOCRATIC_VERSION,
+    _bounded_text,
     _load_json,
+    _safe_relative_path,
     _validator_module,
 )
 from runner.hashing import _sha256_path
@@ -132,11 +134,31 @@ SCAFFOLD_FIELD_GUIDES = {
                 "repository-established",
                 "reviewer-selected-benchmark-assumption",
             ],
+            "rule": (
+                "provenance repository-established also requires citations, and the "
+                "Runner rejects the Contract when a cited file does not contain the "
+                "quoted text. Cite a snapshot-relative path and the exact text there. "
+                "Pull-request and commit text are not visible to the Runner and do not "
+                "qualify: cite where the intent is written in the repository, or ask the "
+                "specification owner and record user-confirmed instead."
+            ),
             "template": {
                 "id": "DEC-001",
                 "question": "What observable behavior is expected?",
                 "expected": "Describe the expected observable behavior",
+                "provenance": "user-confirmed",
+            },
+            "repository_established_template": {
+                "id": "DEC-001",
+                "question": "What observable behavior is expected?",
+                "expected": "Describe the expected observable behavior",
                 "provenance": "repository-established",
+                "citations": [
+                    {
+                        "path": "path/to/file",
+                        "quote": "exact text that occurs in that file",
+                    }
+                ],
             },
         },
         "invariants[*]": {
@@ -460,6 +482,61 @@ def _record_validation_error(manifest: dict[str, Any], kind: str, message: str) 
     _write_index(path, current)
 
 
+def _verify_decision_citations(manifest: dict[str, Any], document: dict[str, Any]) -> None:
+    """Require every repository-established decision to cite text that exists.
+
+    A decision recorded as settled by repository evidence skips the human
+    question entirely, so the claim needs a mechanical check. The Runner
+    verifies that each cited file in the reviewed snapshot contains the quoted
+    text. It cannot verify that the inference drawn from that text is sound —
+    that judgment stays with the agent and the reviewer — but a citation to
+    text that does not exist is rejected before the Contract is staged.
+
+    Evidence the Runner cannot see, such as pull-request or commit text, does
+    not qualify: the intent must be cited where it is written in the
+    repository, or confirmed by a human and recorded as user-confirmed.
+    """
+    decisions = document.get("decisions")
+    if not isinstance(decisions, list):
+        return
+    prepared = Path(manifest["prepared_root"])
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        if decision.get("provenance") != "repository-established":
+            continue
+        identifier = decision.get("id", "<unknown>")
+        citations = decision.get("citations")
+        if not isinstance(citations, list) or not citations:
+            raise RunGateError(
+                f"{identifier} claims repository-established intent without a citation; "
+                "cite the snapshot file and exact text that settles it, or ask the "
+                "specification owner and record user-confirmed"
+            )
+        for citation in citations:
+            if not isinstance(citation, dict):
+                raise RunGateError(f"{identifier} has a malformed citation")
+            quote = citation.get("quote", "")
+            raw_path = citation.get("path", "")
+            try:
+                relative = _safe_relative_path(raw_path)
+            except RunGateError as error:
+                raise RunGateError(
+                    f"{identifier} cites an unsafe path: {raw_path!r}"
+                ) from error
+            target = prepared / relative
+            if not target.is_file() or target.is_symlink():
+                raise RunGateError(
+                    f"{identifier} cites {relative.as_posix()}, which is not a file in "
+                    "the reviewed snapshot"
+                )
+            if quote not in _bounded_text(target, limit=2 * 1024 * 1024):
+                raise RunGateError(
+                    f"{identifier} cites {relative.as_posix()}, but the quoted text is "
+                    f"not there: {quote[:80]!r}"
+                )
+
+
 def stage_artifact(
     manifest_path: Path,
     kind: str,
@@ -487,6 +564,12 @@ def stage_artifact(
     except validator.ArtifactError as error:
         _record_validation_error(manifest, kind, str(error))
         raise RunGateError(str(error)) from error
+    if kind == "contract":
+        try:
+            _verify_decision_citations(manifest, document)
+        except RunGateError as error:
+            _record_validation_error(manifest, kind, str(error))
+            raise
     record = {
         "path": str(artifact_path),
         "sha256": _sha256_path(artifact_path),
@@ -569,7 +652,7 @@ def scaffold_contract(
                 "id": "DEC-001",
                 "question": "replace-me: the observable behavior question",
                 "expected": "replace-me: the expected observable answer",
-                "provenance": "repository-established",
+                "provenance": "user-confirmed",
             }
         ],
         "invariants": [

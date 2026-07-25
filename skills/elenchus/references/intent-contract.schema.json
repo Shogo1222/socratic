@@ -2,34 +2,90 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Intent Contract",
   "type": "object",
-  "required": ["version", "status", "change", "intent", "decisions", "invariants", "side_effects", "unresolved", "coverage"],
+  "required": [
+    "version",
+    "status",
+    "change",
+    "intent",
+    "decisions",
+    "invariants",
+    "side_effects",
+    "unresolved",
+    "coverage"
+  ],
   "properties": {
-    "version": { "const": 1 },
-    "status": { "enum": ["provisional", "needs-decision", "confirmed", "tested", "challenged", "hardened"] },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "provisional",
+        "needs-decision",
+        "confirmed",
+        "tested",
+        "challenged",
+        "hardened"
+      ]
+    },
     "change": {
       "type": "object",
-      "required": ["base", "head", "summary"],
+      "required": [
+        "base",
+        "head",
+        "summary"
+      ],
       "properties": {
-        "base": { "type": "string", "minLength": 1 },
-        "head": { "type": "string", "minLength": 1 },
-        "summary": { "type": "string", "minLength": 1 }
+        "base": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     },
     "intent": {
       "type": "object",
-      "required": ["statement", "confidence", "evidence"],
+      "required": [
+        "statement",
+        "confidence",
+        "evidence"
+      ],
       "properties": {
-        "statement": { "type": "string", "minLength": 1 },
-        "confidence": { "enum": ["high", "medium", "low"] },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
         "evidence": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["source", "supports"],
+            "required": [
+              "source",
+              "supports"
+            ],
             "properties": {
-              "source": { "type": "string", "minLength": 1 },
-              "supports": { "type": "string", "minLength": 1 }
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "supports": {
+                "type": "string",
+                "minLength": 1
+              }
             },
             "additionalProperties": false
           }
@@ -39,18 +95,35 @@
     },
     "decisions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/decision" }
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
     },
     "invariants": {
       "type": "array",
-      "items": { "$ref": "#/$defs/invariant" }
+      "items": {
+        "$ref": "#/$defs/invariant"
+      }
     },
     "side_effects": {
       "type": "object",
-      "required": ["required", "prohibited"],
+      "required": [
+        "required",
+        "prohibited"
+      ],
       "properties": {
-        "required": { "type": "array", "items": { "$ref": "#/$defs/statement" } },
-        "prohibited": { "type": "array", "items": { "$ref": "#/$defs/statement" } }
+        "required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/statement"
+          }
+        },
+        "prohibited": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/statement"
+          }
+        }
       },
       "additionalProperties": false
     },
@@ -58,14 +131,30 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "statement", "test_impact"],
+        "required": [
+          "id",
+          "statement",
+          "test_impact"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^UNR-[0-9]{3,}$" },
-          "statement": { "type": "string", "minLength": 1 },
-          "test_impact": { "type": "string", "minLength": 1 },
+          "id": {
+            "type": "string",
+            "pattern": "^UNR-[0-9]{3,}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "test_impact": {
+            "type": "string",
+            "minLength": 1
+          },
           "blocked_contract_ids": {
             "type": "array",
-            "items": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
+            "items": {
+              "type": "string",
+              "pattern": "^(DEC|INV|FX)-[0-9]{3,}$"
+            },
             "minItems": 1,
             "uniqueItems": true
           }
@@ -77,10 +166,23 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["contract_id", "tests"],
+        "required": [
+          "contract_id",
+          "tests"
+        ],
         "properties": {
-          "contract_id": { "type": "string", "pattern": "^(DEC|INV|FX)-[0-9]{3,}$" },
-          "tests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+          "contract_id": {
+            "type": "string",
+            "pattern": "^(DEC|INV|FX)-[0-9]{3,}$"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
         },
         "additionalProperties": false
       }
@@ -89,49 +191,162 @@
   "$defs": {
     "statement": {
       "type": "object",
-      "required": ["id", "statement"],
+      "required": [
+        "id",
+        "statement"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^FX-[0-9]{3,}$" },
-        "statement": { "type": "string", "minLength": 1 }
+        "id": {
+          "type": "string",
+          "pattern": "^FX-[0-9]{3,}$"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     },
     "decision": {
       "type": "object",
-      "required": ["id", "question", "expected", "provenance"],
+      "required": [
+        "id",
+        "question",
+        "expected",
+        "provenance"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^DEC-[0-9]{3,}$" },
-        "question": { "type": "string", "minLength": 1 },
-        "expected": { "type": "string", "minLength": 1 },
+        "id": {
+          "type": "string",
+          "pattern": "^DEC-[0-9]{3,}$"
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1
+        },
         "provenance": {
           "enum": [
             "user-confirmed",
             "repository-established",
             "reviewer-selected-benchmark-assumption"
           ]
+        },
+        "citations": {
+          "type": "array",
+          "description": "Verifiable citations for the repository evidence that settles this decision. Each citation names a file in the reviewed snapshot and the exact text it contains. The Runner checks that the file exists and contains the quote; it cannot check whether the inference drawn from that text is sound. Required when provenance is repository-established. Evidence the Runner cannot see, such as pull-request or commit text, does not qualify: cite where the intent is written in the repository, or ask the specification owner and record user-confirmed.",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "quote"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Snapshot-relative file path."
+              },
+              "quote": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 400,
+                "description": "Exact text that must occur in that file."
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "repository-established"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "citations"
+            ]
+          }
+        }
+      ]
     },
     "invariant": {
       "type": "object",
-      "required": ["id", "statement", "severity"],
+      "required": [
+        "id",
+        "statement",
+        "severity"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^INV-[0-9]{3,}$" },
-        "statement": { "type": "string", "minLength": 1 },
-        "severity": { "enum": ["critical", "high", "medium", "low"] }
+        "id": {
+          "type": "string",
+          "pattern": "^INV-[0-9]{3,}$"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
       },
       "additionalProperties": false
     }
   },
   "allOf": [
     {
-      "if": { "properties": { "unresolved": { "minItems": 1 } }, "required": ["unresolved"] },
-      "then": { "properties": { "status": { "const": "needs-decision" } } }
+      "if": {
+        "properties": {
+          "unresolved": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "unresolved"
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "needs-decision"
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "status": { "const": "needs-decision" } }, "required": ["status"] },
-      "then": { "properties": { "unresolved": { "minItems": 1 } } }
+      "if": {
+        "properties": {
+          "status": {
+            "const": "needs-decision"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unresolved": {
+            "minItems": 1
+          }
+        }
+      }
     }
   ],
   "additionalProperties": false

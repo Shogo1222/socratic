@@ -2046,6 +2046,87 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(ready.returncode, 0)
             self.assertEqual(json.loads(ready.stdout)["status"], "ready")
 
+    def test_repository_established_decision_requires_a_verifiable_citation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            base = json.loads(
+                (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
+            )
+            artifact = Path(manifest["artifact_root"]) / "intent-contract.draft.json"
+
+            def stage(document):
+                artifact.unlink(missing_ok=True)
+                index = self.runner._artifact_index(manifest)
+                index["artifacts"].pop("contract", None)
+                self.runner._write_index(Path(manifest["artifact_index_path"]), index)
+                artifact.write_text(json.dumps(document), encoding="utf-8")
+                return self.runner.stage_artifact(
+                    manifest_path, "contract", ROOT / "schemas"
+                )
+
+            uncited = json.loads(json.dumps(base))
+            uncited["decisions"][0]["provenance"] = "repository-established"
+            # Schema conditional and Runner check are both defenses here: whichever
+            # fires, the message must point at the missing citation.
+            with self.assertRaisesRegex(self.runner.RunGateError, "citation"):
+                stage(uncited)
+
+            fabricated = json.loads(json.dumps(base))
+            fabricated["decisions"][0]["provenance"] = "repository-established"
+            fabricated["decisions"][0]["citations"] = [
+                {
+                    "path": "packages/app/source.ts",
+                    "quote": "renewal is rejected on the end date",
+                }
+            ]
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "quoted text is not there"
+            ):
+                stage(fabricated)
+
+            missing_file = json.loads(json.dumps(base))
+            missing_file["decisions"][0]["provenance"] = "repository-established"
+            missing_file["decisions"][0]["citations"] = [
+                {"path": "docs/absent.md", "quote": "original"}
+            ]
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "not a file in the reviewed snapshot"
+            ):
+                stage(missing_file)
+
+            escaping = json.loads(json.dumps(base))
+            escaping["decisions"][0]["provenance"] = "repository-established"
+            escaping["decisions"][0]["citations"] = [
+                {"path": "../outside.md", "quote": "original"}
+            ]
+            with self.assertRaisesRegex(self.runner.RunGateError, "unsafe path"):
+                stage(escaping)
+
+            honest = json.loads(json.dumps(base))
+            honest["decisions"][0]["provenance"] = "repository-established"
+            honest["decisions"][0]["citations"] = [
+                {"path": "packages/app/source.ts", "quote": "original"}
+            ]
+            record = stage(honest)
+            self.assertEqual(record["schema"], "intent-contract.schema.json")
+
+    def test_contract_scaffold_defaults_to_the_provenance_that_asks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            document = self.runner.scaffold_contract(manifest_path, ROOT / "schemas")
+            self.assertEqual(
+                document["decisions"][0]["provenance"], "user-confirmed"
+            )
+            self.assertNotIn("citations", document["decisions"][0])
+            guide = self.runner.SCAFFOLD_FIELD_GUIDES["contract"]["decisions[*]"]
+            self.assertEqual(guide["template"]["provenance"], "user-confirmed")
+            self.assertIn("citations", guide["repository_established_template"])
+            self.assertIn("Runner rejects", guide["rule"])
+
     def test_cli_preflight_on_non_repository_prints_blocked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "not-a-repository"
