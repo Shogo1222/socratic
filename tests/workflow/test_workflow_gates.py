@@ -184,6 +184,26 @@ class TerminalBlockedPreflightTest(unittest.TestCase):
         self.assertIn("--prerelease", workflow)
 
 
+class WorkflowValidationParityTest(unittest.TestCase):
+    def test_release_validation_runs_only_commands_that_exist(self) -> None:
+        # The retired demo tree stayed in release.yml after ci.yml dropped it,
+        # so validation passed on every pull request and then failed at tag
+        # time, silently skipping a release.
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        for workflow, text in (("release.yml", release), ("ci.yml", ci)):
+            with self.subTest(workflow=workflow):
+                self.assertNotIn("python3 -m demo.", text)
+        for command in (
+            "python3 scripts/check_repository.py",
+            "python3 -B -m unittest discover -s tests -t . -p 'test_*.py'",
+            "python3 scripts/validate_fixtures.py",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(command, release)
+                self.assertIn(command, ci)
+
+
 class CanonicalSurfaceVisibilityTest(unittest.TestCase):
     def test_skills_require_reproducing_the_rendered_surface(self) -> None:
         # A real run rendered the four blocks and then only pointed at the tool
