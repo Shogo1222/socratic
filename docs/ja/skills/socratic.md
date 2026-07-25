@@ -124,7 +124,7 @@ Preflight直後、Preflight結果の`next.argv`にある`runbook` Commandを正�
 
 注入されたHost Review Contextを決定論的なFast Pathとして使用する。Base/Head Diff、Package Manager、固定Pipelineの再発見をSubagentへ委譲せず、Focused Testの直接Executableが判明している場合にPackage-manager Wrapperを試行錯誤しない。Intentを推論して`scaffold-contract`を呼び、返されたDocumentの意味的なPlaceholderをRepository Evidenceから置き換え、返された絶対`artifact_path`を`Write`で一度だけ新規作成する。これをStageした後だけ、Observable Oracleを示す`contract_ids`付きChallengeを投入する。RunnerはStage済みContractがないMutationを拒否し、未解決Oracleへ対応するChallengeをすべてBlockする。構造化質問を提示し、正確なProvenanceで回答を記録し、新しいRunで再Stageしてから該当Oracleを再開する。
 
-すべての`Review This` Itemを`kind`、`body`、`contract_ids`付きのTyped Objectで表す。`needs-decision`は`UNR-*`参照を持つ場合だけ使用する。Complete Runに未解決項目を含めたり、Contractにない仕様オーナー向け質問をRenderしたりしない。会話履歴からTest時間を推定せず、Runner所有のPhase Timingを報告する。
+`provenance: repository-established`は、Review対象Snapshot内のFileとそこに実在する正確なTextを示す`citations`を伴う場合だけ記録する。Cited FileまたはQuoteが存在しなければ、RunnerはStageしたContractを拒否する。Pull RequestやCommitのTextはRunnerから見えないため資格を持たない——Intentがリポジトリのどこに書かれているかを引用するか、仕様オーナーへ質問して`user-confirmed`と記録する。この検査が証明するのはCitationの実在だけであり、そこから導いた推論の妥当性ではない。根拠が薄い場合は人間への質問に回す。\n\nすべての`Review This` Itemを`kind`、`body`、`contract_ids`付きのTyped Objectで表す。`needs-decision`は`UNR-*`参照を持つ場合だけ使用する。Complete Runに未解決項目を含めたり、Contractにない仕様オーナー向け質問をRenderしたりしない。会話履歴からTest時間を推定せず、Runner所有のPhase Timingを報告する。
 
 Standalone Preflightが`status=blocked`を返した場合は、次の固定終了手順だけを実行し、代替Workflowへ進まない。
 

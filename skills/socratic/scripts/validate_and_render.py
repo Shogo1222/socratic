@@ -179,6 +179,11 @@ def assert_elenchus_allowed(contract: dict[str, Any], contract_ids: list[str]) -
 
 def route_intent_decision(
     *,
+    # Advisory only. The ask-or-record judgment belongs to the agent reading the
+    # SKILL; nothing in the pipeline calls this, so a passing test of it proves
+    # nothing about a real run. The mechanical gate on that judgment is the
+    # citation check in the Runner's contract staging, which rejects a
+    # repository-established decision whose cited text does not exist.
     evidence_resolves: bool,
     multiple_reasonable_expectations: bool,
     answer_changes_oracle: bool,
