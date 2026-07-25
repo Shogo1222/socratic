@@ -45,6 +45,18 @@ EXPECTED_FILES = (
     "socratic/references/test-handoff.schema.json",
     "socratic/scripts/run_experiment.py",
     "socratic/scripts/run_review.py",
+    "socratic/scripts/runner/__init__.py",
+    "socratic/scripts/runner/cli.py",
+    "socratic/scripts/runner/constants.py",
+    "socratic/scripts/runner/execution.py",
+    "socratic/scripts/runner/hashing.py",
+    "socratic/scripts/runner/hostapi.py",
+    "socratic/scripts/runner/inspection.py",
+    "socratic/scripts/runner/ledger.py",
+    "socratic/scripts/runner/lifecycle.py",
+    "socratic/scripts/runner/reporting.py",
+    "socratic/scripts/runner/scaffolds.py",
+    "socratic/scripts/runner/snapshots.py",
     "socratic/scripts/validate_and_render.py",
 )
 EXPECTED_PLUGIN_FILES = (
@@ -126,11 +138,20 @@ REQUIRED_SAFETY_TEXT = {
     ),
     "socratic/scripts/run_review.py": (
         "Host-gated fail-closed entrypoint",
+    ),
+    # The Runner implementation is split into the runner/ package behind the
+    # pinned run_review.py entrypoint; each required safety rule is audited in
+    # the module that raises it.
+    "socratic/scripts/runner/lifecycle.py": (
         "self-asserted JSON is not accepted",
         "a trusted Host protection attestation is required",
+    ),
+    "socratic/scripts/runner/ledger.py": (
+        "append-only mutation ledger chain is invalid",
+    ),
+    "socratic/scripts/runner/reporting.py": (
         "Review-only run wrote to the primary repository, even if later restored",
         "every reported mutation requires guarded mutation and execution evidence",
-        "append-only mutation ledger chain is invalid",
     ),
 }
 

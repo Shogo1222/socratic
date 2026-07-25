@@ -41,7 +41,7 @@ gh skill publish --dry-run
 
 Fixture検証には`jsonschema`と`referencing`が必要です(`python3 -m pip install jsonschema referencing`)。それ以外は標準ライブラリだけで動作します。
 
-Distribution Auditでは、配布するStandalone Skill Fileを31個、Plugin Bundleを51個のUTF-8 Text Fileへ意図的に固定しています。Skill、Plugin Manifest、Host Hook、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
+Distribution Auditでは、配布するStandalone Skill Fileを43個、Plugin Bundleを63個のUTF-8 Text Fileへ意図的に固定しています。Skill、Plugin Manifest、Host Hook、外部URL Host、実行権限、Binary、Symbolic Linkを追加する場合は、同じPull RequestでAudit Policyを明示的に変更してください。
 
 ## 現在の範囲
 

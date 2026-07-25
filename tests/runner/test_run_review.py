@@ -479,7 +479,7 @@ class RunReviewTest(unittest.TestCase):
             prepared_dependency.parent.mkdir(parents=True)
             prepared_dependency.write_text("installed\n")
             with patch.object(
-                self.runner,
+                self.runner.snapshots,
                 "_dependency_hash",
                 wraps=self.runner._dependency_hash,
             ) as dependency_hash:
@@ -504,7 +504,7 @@ class RunReviewTest(unittest.TestCase):
                 "challenges": [self.anchored_challenge("MUT-001", "changed\n")],
             }))
             with patch.object(
-                self.runner,
+                self.runner.snapshots,
                 "_dependency_hash",
                 wraps=self.runner._dependency_hash,
             ) as dependency_hash:
@@ -1238,7 +1238,7 @@ class RunReviewTest(unittest.TestCase):
             repository = self.make_repository(root)
             manifest, manifest_path = self.ready(root, repository)
             timeout = subprocess.TimeoutExpired(["test-command"], 5)
-            with patch.object(self.runner, "_run_sandboxed", side_effect=timeout):
+            with patch.object(self.runner.execution, "_run_sandboxed", side_effect=timeout):
                 with self.assertRaisesRegex(self.runner.RunGateError, "timed out"):
                     self.runner.execute(manifest_path, "baseline", None, ["test-command"], 5)
             event = self.runner._ledger_events(manifest)[-1]
@@ -1770,7 +1770,7 @@ class RunReviewTest(unittest.TestCase):
                 validator, "render_review", side_effect=AssertionError("renderer called")
             ):
                 with patch.object(
-                    self.runner, "_validator_module", return_value=validator
+                    self.runner.reporting, "_validator_module", return_value=validator
                 ):
                     with self.assertRaisesRegex(
                         self.runner.RunGateError, "unknown Contract IDs"
@@ -2016,6 +2016,35 @@ class RunReviewTest(unittest.TestCase):
             self.assertEqual(
                 self.runner._tree_hash(Path(manifest["primary_root"])), before
             )
+
+    def test_cli_probe_exit_code_reports_failure_to_the_host(self) -> None:
+        # Found by the Refactor Guard self-review of this split (MUT-002): the
+        # focused suite asserted the JSON status but never the process exit
+        # code, so collapsing the probe dispatch to `return 0` survived.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, manifest_path = self.ready(root, repository)
+            blocked = subprocess.run(
+                [
+                    sys.executable, str(MODULE), "probe-command",
+                    "--manifest", str(manifest_path), "--command-id", "CMD-001",
+                    "--", sys.executable, "-c", "import sys; sys.exit(1)",
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(blocked.returncode, 2)
+            self.assertEqual(json.loads(blocked.stdout)["status"], "blocked")
+            ready = subprocess.run(
+                [
+                    sys.executable, str(MODULE), "probe-command",
+                    "--manifest", str(manifest_path), "--command-id", "CMD-001",
+                    "--", sys.executable, "-c", "pass",
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(ready.returncode, 0)
+            self.assertEqual(json.loads(ready.stdout)["status"], "ready")
 
     def test_cli_preflight_on_non_repository_prints_blocked_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
