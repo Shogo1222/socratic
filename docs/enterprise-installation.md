@@ -25,19 +25,19 @@ If either dependency is unavailable, the mandatory runner fails closed and the r
 
 ## Verify a release
 
-Use an immutable published release and pin the installation to its exact tag. Replace `v0.5.0-beta.1` below with the approved release.
+Use an immutable published release and pin the installation to its exact tag. Replace `v0.5.0-beta.2` below with the approved release.
 
 ```bash
-gh release verify v0.5.0-beta.1 --repo Shogo1222/socratic
-gh release download v0.5.0-beta.1 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
+gh release verify v0.5.0-beta.2 --repo Shogo1222/socratic
+gh release download v0.5.0-beta.2 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
 ```
 
 Preview the files and permissions before installing:
 
 ```bash
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-beta.1
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-beta.1
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-beta.1
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-beta.2
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-beta.2
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-beta.2
 ```
 
 <!-- socratic-distribution-file-count: 43 -->
@@ -55,7 +55,7 @@ GH_TELEMETRY=false gh skill install Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.5.0-beta.1
+  --pin v0.5.0-beta.2
 ```
 
 Project scope limits where the skill files are installed. It does not limit what the host agent can read or whether the model provider receives source code. Enforce those controls in the host, operating system, network, and organizational account.

@@ -2,7 +2,18 @@
 
 Every release is published on [GitHub Releases](https://github.com/Shogo1222/socratic/releases) with generated notes, an annotated tag, ZIP assets, checksums, and attestation. This file summarizes the notable changes per version line; the release notes remain the per-tag detail.
 
-## 0.5.0-beta.1 (integration preview, current)
+## 0.5.0-beta.2 (integration preview, current)
+
+Hardening and cleanup on top of beta.1, driven by dogfooding against real pull requests and a self-review of the repository's own refactor:
+
+- **Repository-established intent is now verified**: a decision that skips the human question must cite a file in the reviewed snapshot and the exact text it contains, and contract staging rejects a citation whose file, path, or quote does not hold up. Evidence the Runner cannot see — pull-request and commit text — no longer qualifies. The contract scaffold defaults to `user-confirmed`, so claiming repository evidence is a deliberate act.
+- **An eval harness for that judgment**: `tools/devloop/intent_eval.py` scores whether a run asks at the right times across settled and unsettled fixtures, with `unverified-claim` as its own label and unmeasured runs always reported.
+- **Sandbox environment failures explain themselves**: guided hints for the `.git`-less snapshot versus VCS-version build backends, interpreter mismatches, and HOME-redirected tool shims, plus a preset `SETUPTOOLS_SCM_PRETEND_VERSION`.
+- **Runner-owned diagnostics**: the read-only `doctor` command reports the sandbox PATH, resolvable toolchain and versions, project requirements, VCS-metadata situation, and the last failed command; blocked probes and failed prepares point at it through `diagnose.argv`.
+- **Runner internals split**: `run_review.py` is a thin compatibility entrypoint over a twelve-module `runner/` package, behind the same pinned path the schemas and hooks require; duplicated hash walkers, environment filters, and mutation prologues are gone. A Refactor Guard self-review of that split found and closed a real test gap (the probe CLI exit code the Host relies on).
+- **Repository layout**: the stale demo tree is retired in favor of real-PR case studies, its schema-validated artifacts live in `fixtures/`, and the devloop harness moved to `tools/devloop`. The core docs (protocol, runner architecture, test profiles) now describe the shipped v0.5 pipeline instead of the v0.4 prototype, with Japanese mirrors in step.
+
+## 0.5.0-beta.1
 
 Beta hardening on top of the 0.5.0-alpha line, driven by a full repository re-review and beta go/no-go review:
 

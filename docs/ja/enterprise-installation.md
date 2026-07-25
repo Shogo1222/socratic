@@ -25,19 +25,19 @@ python3 -m pip install jsonschema referencing
 
 ## Releaseの検証
 
-Immutableな公開Releaseを使い、Installする正確なTagを固定してください。以下の`v0.5.0-beta.1`は、承認済みReleaseへ置き換えます。
+Immutableな公開Releaseを使い、Installする正確なTagを固定してください。以下の`v0.5.0-beta.2`は、承認済みReleaseへ置き換えます。
 
 ```bash
-gh release verify v0.5.0-beta.1 --repo Shogo1222/socratic
-gh release download v0.5.0-beta.1 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
+gh release verify v0.5.0-beta.2 --repo Shogo1222/socratic
+gh release download v0.5.0-beta.2 --repo Shogo1222/socratic --pattern SHA256SUMS --pattern distribution-manifest.json
 ```
 
 Install前にFileと権限をPreviewします。
 
 ```bash
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-beta.1
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-beta.1
-GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-beta.1
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic socratic@v0.5.0-beta.2
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic maieutic@v0.5.0-beta.2
+GH_TELEMETRY=false gh skill preview Shogo1222/socratic elenchus@v0.5.0-beta.2
 ```
 
 <!-- socratic-distribution-file-count: 43 -->
@@ -55,7 +55,7 @@ GH_TELEMETRY=false gh skill install Shogo1222/socratic \
   --all \
   --agent codex \
   --scope project \
-  --pin v0.5.0-beta.1
+  --pin v0.5.0-beta.2
 ```
 
 Project Scopeが制限するのはSkill FileのInstall先です。Host Agentが読める範囲や、Model ProviderへSource Codeが送信されるかどうかは制限しません。それらはHost、OS、Network、組織Accountで制御してください。
