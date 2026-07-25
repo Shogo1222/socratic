@@ -184,5 +184,23 @@ class TerminalBlockedPreflightTest(unittest.TestCase):
         self.assertIn("--prerelease", workflow)
 
 
+class CanonicalSurfaceVisibilityTest(unittest.TestCase):
+    def test_skills_require_reproducing_the_rendered_surface(self) -> None:
+        # A real run rendered the four blocks and then only pointed at the tool
+        # result: hosts collapse tool output, so the reviewer saw a Japanese
+        # recap and had to ask twice whether the surface had been rendered.
+        english = (ROOT / "skills/socratic/SKILL.md").read_text(encoding="utf-8")
+        japanese = (ROOT / "docs/ja/skills/socratic.md").read_text(encoding="utf-8")
+        self.assertIn("Reproduce that stdout verbatim in your own reply", english)
+        self.assertIn("hosts collapse tool output", english)
+        self.assertIn("never substitute your own summary for", english)
+        self.assertNotIn(
+            "Treat stdout as the complete reviewer-facing result", english
+        )
+        self.assertIn("Code Fenceに入れて逐語で再掲", japanese)
+        self.assertIn("HostはTool出力を折り畳む", japanese)
+        self.assertNotIn("stdoutだけを完全なReview結果とし", japanese)
+
+
 if __name__ == "__main__":
     unittest.main()
