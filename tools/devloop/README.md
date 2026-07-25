@@ -11,18 +11,18 @@ Runs and fixtures live under `~/.socratic-devloop` (override with
 
 ```bash
 # 1. edit plugin code, then run once (first run builds the fixture)
-python3 devloop/loop.py run --label after-gate-fix
+python3 tools/devloop/loop.py run --label after-gate-fix
 
 # 2. see what changed against the previous run
-python3 devloop/compare.py
+python3 tools/devloop/compare.py
 
 # 3. ask a headless agent for plugin fix proposals from the latest record
-python3 devloop/propose.py --backend claude
+python3 tools/devloop/propose.py --backend claude
 ```
 
-`loop.py list` shows all runs with the plugin revision (and a working-tree digest when
+`tools/devloop/loop.py list` shows all runs with the plugin revision (and a working-tree digest when
 dirty) that produced each one, so a result is always traceable to the exact code state.
-`loop.py clean-sessions` removes `/tmp/socratic-sessions` entries left by devloop
+`tools/devloop/loop.py clean-sessions` removes `/tmp/socratic-sessions` entries left by devloop
 fixtures whose broker process is dead; live brokers are never touched.
 
 ## The fixture
