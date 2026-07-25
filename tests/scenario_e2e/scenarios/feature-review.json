@@ -1,0 +1,28 @@
+{
+  "id": "feature-user-confirms-boundary",
+  "review_type": "Feature Review",
+  "title": "add daily execution limits",
+  "prompt": "Review this feature",
+  "intent": {
+    "evidence_resolves": false,
+    "multiple_reasonable_expectations": true,
+    "answer_changes_oracle": true,
+    "answerer_has_authority": true,
+    "expected_route": "ask-structured-question",
+    "contract_id": "DEC-001",
+    "question": "When the limit is three, is the third execution allowed and the fourth rejected?",
+    "answer": "Allow the third execution and reject the fourth.",
+    "answer_provenance": "user-confirmed"
+  },
+  "workflow": {
+    "elenchus_mode": "harden",
+    "challenge_blocked_before_answer": true,
+    "contract_status_after_answer": "confirmed",
+    "mutation_result": "killed"
+  },
+  "expected": {
+    "terminal_status": "complete",
+    "primary_written_during_run": false,
+    "sandbox_destroyed": true
+  }
+}

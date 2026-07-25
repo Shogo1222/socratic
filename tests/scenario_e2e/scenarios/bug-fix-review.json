@@ -1,0 +1,25 @@
+{
+  "id": "bug-fix-regression-removed",
+  "review_type": "Bug Fix Review",
+  "title": "fix: reject renewal after the subscription end date",
+  "prompt": "Review this bug fix",
+  "intent": {
+    "evidence_resolves": true,
+    "multiple_reasonable_expectations": false,
+    "answer_changes_oracle": true,
+    "answerer_has_authority": null,
+    "expected_route": "repository-established"
+  },
+  "workflow": {
+    "elenchus_mode": "harden",
+    "base_reproduces_reported_failure": true,
+    "head_removes_reported_failure": true,
+    "preserved_behavior_matches": true,
+    "mutation_result": "killed"
+  },
+  "expected": {
+    "terminal_status": "complete",
+    "primary_written_during_run": false,
+    "sandbox_destroyed": true
+  }
+}
