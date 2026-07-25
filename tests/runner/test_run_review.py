@@ -69,7 +69,7 @@ class RunReviewTest(unittest.TestCase):
 
     def report_draft(self) -> dict:
         report = json.loads(
-            (ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text()
+            (ROOT / "fixtures/subscription-renewal-expected-elenchus-report.json").read_text()
         )
         draft = {
             "version": 1,
@@ -93,10 +93,10 @@ class RunReviewTest(unittest.TestCase):
     ) -> tuple[dict, dict]:
         artifact_root = Path(manifest["artifact_root"])
         contract = json.loads(
-            (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+            (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
         )
         review = json.loads(
-            (ROOT / "demo/subscription_renewal/canonical-review.json").read_text()
+            (ROOT / "fixtures/subscription-renewal-canonical-review.json").read_text()
         )
         documents = {
             "contract": contract,
@@ -119,7 +119,7 @@ class RunReviewTest(unittest.TestCase):
 
     def stage_contract(self, manifest: dict, contract=None) -> dict:
         document = contract or json.loads(
-            (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+            (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
         )
         artifact = Path(manifest["artifact_root"]) / self.runner.ARTIFACT_FILES["contract"]
         artifact.write_text(json.dumps(document), encoding="utf-8")
@@ -810,7 +810,7 @@ class RunReviewTest(unittest.TestCase):
                 manifest_path, "CMD-001", [sys.executable, "-c", "pass"], 10
             )
             contract = json.loads(
-                (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+                (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
             )
             contract["status"] = "needs-decision"
             contract["unresolved"] = [{
@@ -1300,7 +1300,7 @@ class RunReviewTest(unittest.TestCase):
                 [sys.executable, "-c", "raise SystemExit(1)"], 10,
             )
             report = json.loads(
-                (ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text()
+                (ROOT / "fixtures/subscription-renewal-expected-elenchus-report.json").read_text()
             )
             report["run"] = {
                 "id": manifest["run_id"], "entrypoint": self.runner.ENTRYPOINT,
@@ -1478,7 +1478,7 @@ class RunReviewTest(unittest.TestCase):
             self.runner.register_prebuilt(
                 manifest_path, "MUT-001", ["DEC-001"], "packages/app/mutant-1.ts"
             )
-            report = json.loads((ROOT / "demo/subscription_renewal/expected-elenchus-report.json").read_text())
+            report = json.loads((ROOT / "fixtures/subscription-renewal-expected-elenchus-report.json").read_text())
             report["mutations"] = report["mutations"][:1]
             with self.assertRaises(self.runner.RunGateError):
                 self.runner.finish_document(
@@ -1507,7 +1507,7 @@ class RunReviewTest(unittest.TestCase):
                 10,
             )
             contract = json.loads(
-                (ROOT / "demo/subscription_renewal/intent-contract.json").read_text()
+                (ROOT / "fixtures/subscription-renewal-intent-contract.json").read_text()
             )
             draft = self.report_draft()
             draft["mutations"] = draft["mutations"][:1]

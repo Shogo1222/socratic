@@ -29,9 +29,6 @@ Run repository consistency checks before submitting:
 ```bash
 python3 scripts/check_repository.py
 python3 -B -m unittest discover -s tests -t . -p 'test_*.py'
-python3 -m demo.subscription_renewal.run_demo
-python3 -m demo.refactor_guard.run_demo
-python3 -m demo.test_assessment.run_demo
 python3 scripts/validate_fixtures.py
 python3 scripts/audit_distribution.py
 gh skill publish --dry-run

@@ -29,7 +29,7 @@ import sys
 import time
 from pathlib import Path
 
-SOCRATIC_ROOT = Path(__file__).resolve().parent.parent
+SOCRATIC_ROOT = Path(__file__).resolve().parent.parent.parent
 DEVLOOP_HOME = Path(os.environ.get("SOCRATIC_DEVLOOP_HOME", Path.home() / ".socratic-devloop"))
 RUNS_DIR = DEVLOOP_HOME / "runs"
 FIXTURES_DIR = DEVLOOP_HOME / "fixtures"
