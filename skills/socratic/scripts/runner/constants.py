@@ -18,7 +18,7 @@ from typing import Any
 
 
 ENTRYPOINT = "socratic/scripts/run_review.py"
-SOCRATIC_VERSION = "0.5.0-beta.2"
+SOCRATIC_VERSION = "0.5.0-beta.3"
 MAX_INSPECT_BYTES = 64 * 1024
 MAX_INSPECT_MATCHES = 200
 ARTIFACT_FILES = {
@@ -130,8 +130,10 @@ def _safe_relative_path(raw: str) -> Path:
     if relative.is_absolute() or ".." in relative.parts or "\\" in raw:
         raise RunGateError("path must be a safe repository-relative path")
     if any(
-        part == ".env"
-        or part.startswith(".env.")
+        # `.envrc` carries the same exported secrets as `.env` for direnv users,
+        # so the whole `.env` prefix is excluded rather than `.env` plus dotted
+        # suffixes. This matches the filter the inspection walkers already use.
+        part.startswith(".env")
         or part in {".git", ".hg", ".svn", "node_modules"}
         for part in relative.parts
     ):
@@ -139,7 +141,22 @@ def _safe_relative_path(raw: str) -> Path:
     return relative
 
 
-def _bounded_text(path: Path, *, limit: int = MAX_INSPECT_BYTES) -> str:
+def _require_within(root: Path, path: Path, label: str) -> None:
+    """Reject a path that leaves root through a symlinked parent directory.
+
+    Path.is_symlink() only lstats the final component, so a symlinked
+    directory anywhere above it would otherwise carry a bounded read out of
+    the reviewed tree entirely — a repository holding one `docs -> ~/.ssh`
+    link was enough to read a private key.
+    """
+    resolved_root = root.resolve(strict=False)
+    resolved = path.resolve(strict=False)
+    if resolved != resolved_root and not resolved.is_relative_to(resolved_root):
+        raise RunGateError(f"{label} resolves outside {resolved_root}: {path}")
+
+
+def _bounded_text(path: Path, *, root: Path, limit: int = MAX_INSPECT_BYTES) -> str:
+    _require_within(root, path, "inspection target")
     if path.is_symlink() or not path.is_file():
         raise RunGateError(f"inspection target is not a regular file: {path}")
     payload = path.read_bytes()

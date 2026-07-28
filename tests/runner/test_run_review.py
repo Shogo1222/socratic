@@ -962,6 +962,59 @@ class RunReviewTest(unittest.TestCase):
                     manifest_path, "file", relative_path=".env"
                 )
 
+    def test_inspection_excludes_every_env_prefixed_secret_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            (repository / ".envrc").write_text("export AWS_SECRET=never-read\n")
+            manifest, manifest_path = self.ready(root, repository)
+            with self.assertRaisesRegex(self.runner.RunGateError, "excluded"):
+                self.runner.inspect_review(
+                    manifest_path, "file", relative_path=".envrc"
+                )
+            self.assertFalse((Path(manifest["prepared_root"]) / ".envrc").exists())
+
+    def test_inspection_cannot_read_through_a_symlinked_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "id_rsa").write_text("PRIVATE-KEY-MATERIAL\n")
+            (repository / "docs").symlink_to(outside)
+            _, manifest_path = self.ready(root, repository)
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "resolves outside"
+            ):
+                self.runner.inspect_review(
+                    manifest_path, "file", relative_path="docs/id_rsa"
+                )
+
+    def test_manifest_outside_host_storage_cannot_drive_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = self.make_repository(root)
+            manifest, _ = self.ready(root, repository)
+            victim = root / "unrelated-directory"
+            victim.mkdir()
+            (victim / "keep.txt").write_text("keep\n")
+
+            forged = dict(manifest)
+            forged["sandbox_root"] = str(victim)
+            forged["prepared_root"] = str(victim / "prepared")
+            forged["dependency_root"] = str(victim / "dependencies")
+            # The only write the Claude tool gate allows is a draft directly
+            # below the Host artifact root, so that is where a forged Manifest
+            # would have to live.
+            forged_path = Path(manifest["artifact_root"]) / "review-analysis.json"
+            forged_path.write_text(json.dumps(forged), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                self.runner.RunGateError, "run-manifest.json inside Host storage"
+            ):
+                self.runner.cleanup(forged_path)
+            self.assertTrue((victim / "keep.txt").is_file())
+
     def test_probe_next_has_exact_root_cwd_option_and_announcement(self) -> None:
         manifest_path = Path("/host/run-manifest.json")
         step = self.runner._probe_next(manifest_path)

@@ -2,7 +2,15 @@
 
 Every release is published on [GitHub Releases](https://github.com/Shogo1222/socratic/releases) with generated notes, an annotated tag, ZIP assets, checksums, and attestation. This file summarizes the notable changes per version line; the release notes remain the per-tag detail.
 
-## 0.5.0-beta.2 (integration preview, current)
+## 0.5.0-beta.3 (integration preview, current)
+
+Read-boundary and Manifest hardening from a security review of the Runner package. Each item below is covered by a regression test that fails without its fix:
+
+- **Read boundary**: every bounded read now requires its target to resolve inside the tree it belongs to. `Path.is_symlink()` inspects only the final path component, so a reviewed repository holding a single `docs -> ~/.ssh` link could carry `inspect file`, `inspect diff`, an anchored mutation pre-image, and Contract citation checks out of the repository entirely.
+- **Secret exclusion**: the `.env` exclusion widened from `.env` and its dotted suffixes to the whole `.env` prefix, so direnv's `.envrc` is neither readable through `inspect` nor copied into the disposable snapshot. The Primary content hash still covers it: excluding a file from the snapshot is not a reason to stop noticing that the Primary's copy changed.
+- **Manifest binding**: nothing inside the run Manifest is signed, so `_ready_manifest` now requires it to be the Host-created `run-manifest.json` inside Host storage, with every run-owned path resolving there. Previously an agent-writable draft could be presented as `--manifest`, and `cleanup` or a failing `finish` would then remove whichever directory it named.
+
+## 0.5.0-beta.2
 
 Hardening and cleanup on top of beta.1, driven by dogfooding against real pull requests and a self-review of the repository's own refactor:
 
