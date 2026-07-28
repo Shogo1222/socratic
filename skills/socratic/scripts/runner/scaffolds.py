@@ -530,7 +530,7 @@ def _verify_decision_citations(manifest: dict[str, Any], document: dict[str, Any
                     f"{identifier} cites {relative.as_posix()}, which is not a file in "
                     "the reviewed snapshot"
                 )
-            if quote not in _bounded_text(target, limit=2 * 1024 * 1024):
+            if quote not in _bounded_text(target, root=prepared, limit=2 * 1024 * 1024):
                 raise RunGateError(
                     f"{identifier} cites {relative.as_posix()}, but the quoted text is "
                     f"not there: {quote[:80]!r}"

@@ -117,8 +117,8 @@ def inspect_review(
             relative = _safe_relative_path(raw)
             before_path = base / relative
             after_path = head / relative
-            before = _bounded_text(before_path) if before_path.exists() else ""
-            after = _bounded_text(after_path) if after_path.exists() else ""
+            before = _bounded_text(before_path, root=base) if before_path.exists() else ""
+            after = _bounded_text(after_path, root=head) if after_path.exists() else ""
             diff = "".join(difflib.unified_diff(
                 before.splitlines(keepends=True),
                 after.splitlines(keepends=True),
@@ -144,7 +144,7 @@ def inspect_review(
         relative = _safe_relative_path(relative_path)
         if start_line < 1 or end_line < start_line or end_line - start_line > 400:
             raise RunGateError("file inspection line range is invalid or too large")
-        lines = _bounded_text(head / relative).splitlines()
+        lines = _bounded_text(head / relative, root=head).splitlines()
         return guided({
             "kind": "file",
             "path": relative.as_posix(),
@@ -179,7 +179,7 @@ def inspect_review(
                 break
             relative = path.relative_to(head)
             try:
-                text = _bounded_text(path, limit=1024 * 1024)
+                text = _bounded_text(path, root=head, limit=1024 * 1024)
             except RunGateError:
                 continue
             for number, line in enumerate(text.splitlines(), 1):

@@ -255,6 +255,26 @@ def _ready_manifest(
     _outside(
         Path(manifest["artifact_index_path"]), primary_root, "artifact index", strict=True
     )
+    # Nothing in the Manifest is signed, and every path below is read back as
+    # fact by later commands, so the Manifest has to be recognizable as the one
+    # preflight created. Preflight always writes it under a fixed name in Host
+    # storage and keeps every run-owned path there. Requiring that shape stops
+    # an agent-writable draft from being presented as a Manifest whose
+    # sandbox_root names an unrelated directory for cleanup to remove.
+    if manifest_path.resolve(strict=True) != storage_root / "run-manifest.json":
+        raise RunGateError(
+            "run manifest must be the Host-created run-manifest.json inside Host storage"
+        )
+    for label, raw, must_exist in (
+        ("sandbox", manifest["sandbox_root"], not allow_missing_sandbox),
+        ("prepared snapshot", manifest["prepared_root"], not allow_missing_sandbox),
+        ("dependency layer", manifest.get("dependency_root"), not allow_missing_sandbox),
+        ("ledger", manifest["ledger_path"], True),
+        ("artifact root", manifest["artifact_root"], True),
+        ("artifact index", manifest["artifact_index_path"], True),
+    ):
+        if raw is not None:
+            _inside(Path(raw), storage_root, label, strict=must_exist)
     if manifest.get("status") != "ready" or manifest.get("entrypoint") != ENTRYPOINT:
         raise RunGateError("run manifest is blocked or was not created by the mandatory entrypoint")
     if manifest.get("protection", {}).get("verified") is not True:

@@ -10,6 +10,7 @@ from audit_distribution import EXPECTED_FILES, EXPECTED_PLUGIN_FILES
 
 ROOT = Path(__file__).resolve().parent.parent
 JAPANESE = re.compile(r"[ぁ-んァ-ヶ一-龠]")
+UNOWNED_DIRECTORY_NAMES = frozenset({"node_modules", ".git", ".claude", "__pycache__"})
 SEMVER = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
 EXPECTED_DISTRIBUTION_FILE_COUNT = len(EXPECTED_FILES)
 EXPECTED_PLUGIN_FILE_COUNT = len(EXPECTED_PLUGIN_FILES)
@@ -223,8 +224,20 @@ def check_plugin_gate() -> None:
         fail("Socratic must disable implicit invocation so the Host hook can identify every run")
 
 
+def _repository_files(pattern: str):
+    """Walk repository-owned files, skipping vendored and local agent state.
+
+    A stray `node_modules` or worktree in the working tree is not part of the
+    distribution, so its own Markdown and schemas must not decide whether this
+    repository passes.
+    """
+    for path in ROOT.rglob(pattern):
+        if UNOWNED_DIRECTORY_NAMES.isdisjoint(path.relative_to(ROOT).parts):
+            yield path
+
+
 def check_schema_references() -> None:
-    for path in ROOT.rglob("*.schema.json"):
+    for path in _repository_files("*.schema.json"):
         schema = json.loads(path.read_text(encoding="utf-8"))
         pending = [schema]
         while pending:
@@ -260,7 +273,7 @@ def check_translations() -> None:
 
 def check_markdown_links() -> None:
     link_pattern = re.compile(r"\]\(([^)]+)\)")
-    for path in ROOT.rglob("*.md"):
+    for path in _repository_files("*.md"):
         for link in link_pattern.findall(path.read_text(encoding="utf-8")):
             if link.startswith(("http://", "https://", "#")):
                 continue

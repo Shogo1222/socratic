@@ -35,9 +35,13 @@ def _write_exclusive(path: Path, value: Any) -> None:
 
 
 def _ignored(_directory: str, names: list[str]) -> set[str]:
+    # `.envrc` holds the same exported secrets as `.env` for direnv users, so
+    # the whole `.env` prefix stays out of the disposable snapshot. The hash
+    # walkers below keep their narrower set: excluding a file from the copy is
+    # not a reason to stop noticing that the Primary's copy of it changed.
     return {
         name for name in names
-        if name in IGNORED_NAMES or name.startswith(".env.") or name.endswith(".pyc")
+        if name in IGNORED_NAMES or name.startswith(".env") or name.endswith(".pyc")
     }
 
 

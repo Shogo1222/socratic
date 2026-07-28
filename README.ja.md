@@ -19,7 +19,7 @@ Socraticは、AI生成の変更を評価するHost-gatedなReview Workflowです
 - **Maieutic** — 意図の引き出し役。実装だけでは確定できない期待値を、仕様オーナーが回答できる具体的な質問へ変換し、回答をIntent Contractへ記録して対応するテストと関連付けます。**アウトカム**: 「なんとなく不安」が、答えられる仕様質問と、テストに裏付けられた確定仕様の記録に変わる。
 - **Elenchus** — 反証役。Focused Behavior Testを、Intentに結び付いた現実的なMutationでChallengeします。単独実行では、既存・変更Test Cohortが提供するProtectionを評価(Test Assessment)できます。**アウトカム**: 「テストがGreen」ではなく、「このバグを入れたら実際に落ちる」という証拠。
 
-現在のIntegration Previewは、Claude Code・Codex・Local Cursor Desktop向けの**v0.5.0-beta.2**です。
+現在のIntegration Previewは、Claude Code・Codex・Local Cursor Desktop向けの**v0.5.0-beta.3**です。
 
 ## 解決したい現場の課題
 
@@ -159,7 +159,7 @@ Machine-readableな正規定義は同梱の[schemas](schemas/)にあり、[Inten
 
 ## インストール
 
-Socraticの対象HostはClaude Code・Codex・Local Cursor Desktopです。このIntegration Previewでは、それ以外のAgent Hostはサポートしません。現在のPreview Releaseは[v0.5.0-beta.2](https://github.com/Shogo1222/socratic/releases/tag/v0.5.0-beta.2)です。
+Socraticの対象HostはClaude Code・Codex・Local Cursor Desktopです。このIntegration Previewでは、それ以外のAgent Hostはサポートしません。現在のPreview Releaseは[v0.5.0-beta.3](https://github.com/Shogo1222/socratic/releases/tag/v0.5.0-beta.3)です。
 
 ### Claude Code
 
@@ -223,7 +223,7 @@ gh skill install Shogo1222/socratic
 gh skill install Shogo1222/socratic --all
 
 # Integration Preview ReleaseへStandalone Resourceをピン留め
-gh skill install Shogo1222/socratic --all --pin v0.5.0-beta.2
+gh skill install Shogo1222/socratic --all --pin v0.5.0-beta.3
 ```
 
 またはAgent Skills CLIを使い、導入先としてCodexまたはCursorを選択します。
@@ -571,7 +571,7 @@ Skillは、Git操作、Workspaceへの書き込み、Credential、Repository由�
 
 ## 現在の状態
 
-**v0.5.0-beta.2**が現在のIntegration Previewです。Claude Code・Codex・Local Cursor DesktopのNative Host Path、正確なGitHub PR Materialization、Runner所有のRunbookとScaffold Guide、1回だけのDependency準備、Probe済みFocused Command、並列Copy-on-write Mutation Sandbox、Runtime Cache分離、厳格なRun Artifact検証、Mutation Report v10、正準4ブロックRenderer、終端Cleanupを含みます。
+**v0.5.0-beta.3**が現在のIntegration Previewです。Claude Code・Codex・Local Cursor DesktopのNative Host Path、正確なGitHub PR Materialization、Runner所有のRunbookとScaffold Guide、1回だけのDependency準備、Probe済みFocused Command、並列Copy-on-write Mutation Sandbox、Runtime Cache分離、厳格なRun Artifact検証、Mutation Report v10、正準4ブロックRenderer、終端Cleanupを含みます。
 
 Standalone Mutation実行は意図的にBlockedです。信頼されたHostがRun Nonce、保護された外部Storage、Repository全体のRead-onlyまたはWrite Monitor Capabilityを発行する必要があります。このPreviewは実際のPull RequestでDogfooding済みですが、まだBetaです。Hostごとの実機E2E([Release Checklist](docs/release-checklist.md)で管理)、より多くのRepositoryとTest Runner、Failure Recovery、Performanceは継続検証対象で、信頼できないTest CodeへのOSレベル封じ込めはありません——手元でTest Suiteを実行できると既に信頼しているRepositoryにだけ使ってください。
 

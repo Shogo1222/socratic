@@ -293,7 +293,7 @@ def mutate(
 def _anchored_postimage(root: Path, mutation: dict[str, Any]) -> tuple[str, bytes]:
     relative = _safe_relative_path(mutation["relative_path"])
     target = root / relative
-    original = _bounded_text(target, limit=2 * 1024 * 1024)
+    original = _bounded_text(target, root=root, limit=2 * 1024 * 1024)
     before = mutation["before"]
     if original.count(before) != 1:
         raise RunGateError(
